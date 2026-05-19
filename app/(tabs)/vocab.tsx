@@ -1,0 +1,243 @@
+import React from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+} from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter, Stack } from "expo-router";
+import { useTheme } from "@/src/context/ThemeContext";
+
+
+export default function StudyMenuScreen() {
+  const router = useRouter();
+  const { colors, isDark, toggleTheme } = useTheme(); // Đón nhận bộ màu động
+
+  // Danh sách các chức năng học tập được tối ưu màu sắc thích ứng sáng/tối
+  const studyOptions = [
+    {
+      id: "flashcard",
+      title: "Flashcard Từ vựng",
+      desc: "Ôn tập N5 với thẻ ghi nhớ thông minh",
+      icon: "view-carousel",
+      color: isDark ? "#60A5FA" : "#007AFF", // Xanh dương dịu hơn ở Dark Mode
+      route: "/study/flashcard",
+    },
+    {
+      id: "add_vocab",
+      title: "Thêm Từ vựng",
+      desc: "Bổ sung kho từ vựng cá nhân lên hệ thống",
+      icon: "post-add",
+      color: isDark ? "#34D399" : "#10B981", // Xanh lá thích ứng
+      route: "/study/add-vocab",
+    },
+    {
+      id: "add_grammar",
+      title: "Thêm Ngữ pháp",
+      desc: "Ghi chú cấu trúc mới theo chuẩn hổ phách",
+      icon: "edit-note",
+      color: colors.amber, // Ăn theo màu cam hổ phách cốt lõi của sếp
+      route: "/study/add-grammar",
+    },
+    {
+      id: "practice_grammar",
+      title: "Luyện Ngữ pháp",
+      desc: "Làm bài tập trắc nghiệm & Đánh giá năng lực",
+      icon: "psychology",
+      color: isDark ? "#C084FC" : "#A855F7", // Tím mộng mơ
+      route: "/study/practice-grammar",
+    },
+  ];
+
+  return (
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+    >
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* HEADER SINH ĐỘNG TÍCH HỢP ĐỔI THEME TẠI CHỖ */}
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>
+              Khu vực Học tập 👋
+            </Text>
+            <Text style={[styles.headerSub, { color: colors.textMuted }]}>
+              Chọn kỹ năng sếp muốn cày hôm nay
+            </Text>
+          </View>
+
+          {/* Nút đổi theme góc phải siêu ngầu */}
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={[
+              styles.btnToggle,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons
+              name={isDark ? "wb-sunny" : "nights-stay"}
+              size={22}
+              color={isDark ? colors.amber : colors.textMuted}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* LƯỚI GRID HIỂN THỊ THẺ COMPONENT */}
+      <View style={styles.gridContainer}>
+        {studyOptions.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderLeftColor: item.color, // Thanh màu Accent vạch dọc bên trái thẻ
+              },
+            ]}
+            onPress={() => router.push(item.route as any)}
+            activeOpacity={0.8}
+          >
+            {/* Vòng tròn Icon đổ màu opacity nhạt theo item */}
+            <View
+              style={[
+                styles.iconContainer,
+                { backgroundColor: item.color + "15" },
+              ]}
+            >
+              <MaterialIcons
+                name={item.icon as any}
+                size={30}
+                color={item.color}
+              />
+            </View>
+
+            {/* Mũi tên nhỏ chỉ hướng sang trọng ở góc phải */}
+            <View style={styles.arrowBox}>
+              <MaterialIcons
+                name="arrow-forward-ios"
+                size={12}
+                color={colors.textMuted}
+              />
+            </View>
+
+            <Text
+              style={[styles.cardTitle, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {item.title}
+            </Text>
+            <Text
+              style={[styles.cardDesc, { color: colors.textMuted }]}
+              numberOfLines={2}
+            >
+              {item.desc}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingTop: Platform.OS === "android" ? 60 : 30,
+  },
+  header: {
+    marginBottom: 24,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+  headerSub: {
+    fontSize: 14,
+    marginTop: 4,
+    fontWeight: "500",
+  },
+  btnToggle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  card: {
+    width: "48.5%", // Tối ưu khoảng hở giữa 2 cột cân đối hơn
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderLeftWidth: 5, // Biến cạnh trái thành vạch màu thanh lịch
+    position: "relative",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.04,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  iconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  arrowBox: {
+    position: "absolute",
+    top: 20,
+    right: 16,
+    opacity: 0.6,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 6,
+    letterSpacing: -0.2,
+  },
+  cardDesc: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "500",
+  },
+});

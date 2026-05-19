@@ -1,57 +1,58 @@
 import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
-
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
-}
+import { Tabs } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+// import { useColorScheme } from 'react-native'; // Gọi trực tiếp từ react-native nếu muốn dùng hệ thống
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  // Fix cứng 'light' để tránh lỗi file Colors và focus vào code logic trước sếp nhé
+  const colorScheme = 'light'; 
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        // Màu xanh thương hiệu của AI Sensei
+        tabBarActiveTintColor: '#007AFF', 
+        tabBarInactiveTintColor: '#8E8E93',
+        headerShown: true, // Hiện tiêu đề màn hình
+        tabBarStyle: {
+          height: 60,
+          paddingBottom: 10,
+        },
       }}>
+      
+      {/* 1. Màn hình Dashboard (index.tsx) */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
-                {({ pressed }) => (
-                  <FontAwesome
-                    name="info-circle"
-                    size={25}
-                    color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
-          ),
+          title: 'Trang chủ',
+          tabBarIcon: ({ color }) => <MaterialIcons name="dashboard" size={28} color={color} />,
         }}
       />
+
+      {/* 2. Màn hình Chat AI (chat.tsx) */}
       <Tabs.Screen
-        name="two"
+        name="chat"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+          title: 'Sensei Chat',
+          tabBarIcon: ({ color }) => <MaterialIcons name="chat" size={28} color={color} />,
+        }}
+      />
+
+      {/* 3. Màn hình Học từ vựng (vocab.tsx) */}
+      <Tabs.Screen
+        name="vocab"
+        options={{
+          title: 'Học tập',
+          tabBarIcon: ({ color }) => <MaterialIcons name="style" size={28} color={color} />,
+        }}
+      />
+
+      {/* 4. Màn hình Cá nhân (profile.tsx) */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Cá nhân',
+          tabBarIcon: ({ color }) => <MaterialIcons name="person" size={28} color={color} />,
         }}
       />
     </Tabs>
