@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   StyleSheet,
@@ -10,7 +11,6 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
-
 
 export default function StudyMenuScreen() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function StudyMenuScreen() {
       title: "Thêm Ngữ pháp",
       desc: "Ghi chú cấu trúc mới theo chuẩn hổ phách",
       icon: "edit-note",
-      color: colors.amber, // Ăn theo màu cam hổ phách cốt lõi của sếp
+      color: colors.amber, // Ăn theo màu cam cốt lõi
       route: "/study/add-grammar",
     },
     {
@@ -49,6 +49,15 @@ export default function StudyMenuScreen() {
       icon: "psychology",
       color: isDark ? "#C084FC" : "#A855F7", // Tím mộng mơ
       route: "/study/practice-grammar",
+    },
+    // 🚀 TÍNH NĂNG MỚI: TRA CỨU KANJI HOẠT HỌA NÉT VẼ
+    {
+      id: "kanji_search",
+      title: "Tra cứu Kanji",
+      desc: "Xem âm Hán Việt, ví dụ mẫu & múa nét vẽ động",
+      icon: "font-download", // Icon hình chữ A nằm trong ô vuông cực hợp với Kanji
+      color: isDark ? "#FBBF24" : "#F59E0B", // Màu vàng hổ phách rực rỡ
+      route: "/study/KanjiSearchScreen", // Khớp 100% với file KanjiSearchScreen.tsx của sếp
     },
   ];
 
@@ -241,3 +250,4 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
+

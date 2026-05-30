@@ -24,7 +24,7 @@ interface GrammarItem {
   title: string;
   formula: string;
   meaning: string;
-  examples: string[]; // 🚀 ĐÃ NÂNG CẤP: Chuyển từ string thành mảng string để chứa nhiều ví dụ
+  examples: string[];
 }
 
 export default function AddGrammarScreen() {
@@ -48,7 +48,7 @@ export default function AddGrammarScreen() {
       title: (params.title as string) || "",
       formula: (params.formula as string) || "",
       meaning: (params.meaning as string) || "",
-      examples: [(params.example as string) || ""], // Nạp ví dụ đầu tiên
+      examples: [(params.example as string) || ""],
     },
   ]);
 
@@ -107,7 +107,6 @@ export default function AddGrammarScreen() {
     setGrammarList(updated);
   };
 
-  // 🚀 CÁC HÀM XỬ LÝ MẢNG VÍ DỤ ĐỘNG MỚI THÊM
   const handleExampleChange = (
     blockIndex: number,
     exampleIndex: number,
@@ -120,7 +119,7 @@ export default function AddGrammarScreen() {
 
   const addExampleRow = (blockIndex: number) => {
     const updated = [...grammarList];
-    updated[blockIndex].examples.push(""); // Bơm thêm một ô trống mới
+    updated[blockIndex].examples.push("");
     setGrammarList(updated);
   };
 
@@ -143,7 +142,7 @@ export default function AddGrammarScreen() {
         title: "",
         formula: "",
         meaning: "",
-        examples: [""], // Mặc định tạo sẵn 1 ô ví dụ trống
+        examples: [""],
       },
     ]);
   };
@@ -165,7 +164,6 @@ export default function AddGrammarScreen() {
       return;
     }
 
-    // Lọc bỏ các dòng ví dụ bị bỏ trống hoàn toàn trước khi lưu
     const cleanGrammarList = grammarList.map((item) => ({
       ...item,
       examples: item.examples.filter((ex) => ex.trim() !== ""),
@@ -221,171 +219,183 @@ export default function AddGrammarScreen() {
         contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
       >
-        {grammarList.map((item, index) => (
-          <View
-            key={index}
-            style={[
-              styles.grammarCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <View style={styles.cardHeader}>
-              <Text
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: isDark ? "#45230F" : "#FFF7ED",
-                    color: colors.amber,
-                  },
-                ]}
-              >
-                {isEditMode
-                  ? "Đang chỉnh sửa"
-                  : `Tài liệu cấu trúc #${index + 1}`}
-              </Text>
-              {!isEditMode && (
-                <TouchableOpacity
-                  onPress={() => removeGrammarBlock(index)}
-                  disabled={grammarList.length === 1}
-                  style={grammarList.length === 1 && { opacity: 0.3 }}
-                >
-                  <MaterialIcons
-                    name="delete"
-                    size={22}
-                    color={isDark ? "#F87171" : "#EF4444"}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
+        {grammarList.map((item, index) => {
+          // 🚀 BỘ LỌC ĐỘNG (FUZZY SEARCH CHUẨN ĐÉT TẠI ĐÂY)
+          const currentQuery = item.topicName.trim().toLowerCase();
+          const filteredTopics = existingTopics.filter((topic) =>
+            topic.toLowerCase().includes(currentQuery),
+          );
 
-            {/* Thanh gợi ý chủ đề */}
-            {!isEditMode && index === 0 && existingTopics.length > 0 && (
-              <View>
-                <Text style={[styles.label, { color: colors.textMuted }]}>
-                  Chủ đề gợi ý:
+          return (
+            <View
+              key={index}
+              style={[
+                styles.grammarCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <View style={styles.cardHeader}>
+                <Text
+                  style={[
+                    styles.badge,
+                    {
+                      backgroundColor: isDark ? "#45230F" : "#FFF7ED",
+                      color: colors.amber,
+                    },
+                  ]}
+                >
+                  {isEditMode
+                    ? "Đang chỉnh sửa"
+                    : `Tài liệu cấu trúc #${index + 1}`}
                 </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.suggestionContainer}
-                >
-                  {existingTopics.map((topic, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={[
-                        styles.suggestionChip,
-                        {
-                          backgroundColor: isDark ? "#2C1A10" : "#FFEDD5",
-                          borderColor: isDark ? "#45230F" : "#FDBA74",
-                        },
-                      ]}
-                      onPress={() => handleChange(index, "topicName", topic)}
-                    >
-                      <Text
-                        style={[
-                          styles.suggestionText,
-                          { color: isDark ? "#FDBA74" : "#C2410C" },
-                        ]}
-                      >
-                        {topic}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            <InputField
-              label="Tên bài học / Chủ đề"
-              iconName="folder-open"
-              value={item.topicName}
-              onChangeText={(text) => handleChange(index, "topicName", text)}
-              placeholder="Ví dụ: Bài 8 - Động từ thao tác"
-            />
-
-            <InputField
-              label="Tên cấu trúc ngữ pháp"
-              value={item.title}
-              onChangeText={(text) => handleChange(index, "title", text)}
-              placeholder="VD: Cấu trúc nhờ vả V-te"
-            />
-
-            <InputField
-              label="Công thức áp dụng"
-              highlight
-              iconName="functions"
-              value={item.formula}
-              onChangeText={(text) => handleChange(index, "formula", text)}
-              placeholder="VD: V-て + ください"
-            />
-
-            <InputField
-              label="Ý nghĩa & Ngữ cảnh dùng"
-              value={item.meaning}
-              onChangeText={(text) => handleChange(index, "meaning", text)}
-              multiline
-              style={styles.textArea}
-              placeholder="Dùng để yêu cầu người khác làm gì một cách lịch sự..."
-            />
-
-            {/* 🚀 MA TRẬN VÍ DỤ MẪU ĐỘNG ĐÃ LÊN ĐỜI */}
-            <View style={styles.exampleHeaderRow}>
-              <Text
-                style={[
-                  styles.label,
-                  { color: colors.textMuted, marginTop: 0 },
-                ]}
-              >
-                Danh sách ví dụ mẫu:
-              </Text>
-            </View>
-
-            {item.examples.map((ex, exIndex) => (
-              <View key={exIndex} style={styles.exampleRow}>
-                <View style={{ flex: 1 }}>
-                  <InputField
-                    label={`Ví dụ #${exIndex + 1}`}
-                    value={ex}
-                    onChangeText={(text) =>
-                      handleExampleChange(index, exIndex, text)
-                    }
-                    multiline
-                    style={styles.textArea}
-                    placeholder="VD: ここに入ってください (Hãy vào đây)"
-                  />
-                </View>
-                {item.examples.length > 1 && (
+                {!isEditMode && (
                   <TouchableOpacity
-                    style={[
-                      styles.btnMiniDelete,
-                      { backgroundColor: isDark ? "#451A1A" : "#FEF2F2" },
-                    ]}
-                    onPress={() => removeExampleRow(index, exIndex)}
+                    onPress={() => removeGrammarBlock(index)}
+                    disabled={grammarList.length === 1}
+                    style={grammarList.length === 1 && { opacity: 0.3 }}
                   >
                     <MaterialIcons
-                      name="remove-circle-outline"
-                      size={20}
+                      name="delete"
+                      size={22}
                       color={isDark ? "#F87171" : "#EF4444"}
                     />
                   </TouchableOpacity>
                 )}
               </View>
-            ))}
 
-            {/* Nút nhỏ bấm thêm ví dụ mẫu cho riêng block này */}
-            <TouchableOpacity
-              style={[styles.btnInnerAddExample, { borderColor: colors.amber }]}
-              onPress={() => addExampleRow(index)}
-            >
-              <MaterialIcons name="add" size={16} color={colors.amber} />
-              <Text
-                style={[styles.btnInnerAddExampleText, { color: colors.amber }]}
+              {/* 🚀 THANH GỢI Ý ĐÃ ĐƯỢC LÊN ĐỜI: Chỉ hiện các topic khớp nội dung đang nhập */}
+              {!isEditMode && index === 0 && filteredTopics.length > 0 && (
+                <View>
+                  <Text style={[styles.label, { color: colors.textMuted }]}>
+                    Chủ đề gợi ý gần giống:
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.suggestionContainer}
+                  >
+                    {filteredTopics.map((topic, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[
+                          styles.suggestionChip,
+                          {
+                            backgroundColor: isDark ? "#2C1A10" : "#FFEDD5",
+                            borderColor: isDark ? "#45230F" : "#FDBA74",
+                          },
+                        ]}
+                        onPress={() => handleChange(index, "topicName", topic)}
+                      >
+                        <Text
+                          style={[
+                            styles.suggestionText,
+                            { color: isDark ? "#FDBA74" : "#C2410C" },
+                          ]}
+                        >
+                          {topic}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              <InputField
+                label="Tên bài học / Chủ đề"
+                iconName="folder-open"
+                value={item.topicName}
+                onChangeText={(text) => handleChange(index, "topicName", text)}
+                placeholder="Ví dụ: Bài 8 - Động từ thao tác"
+              />
+
+              <InputField
+                label="Tên cấu trúc ngữ pháp"
+                value={item.title}
+                onChangeText={(text) => handleChange(index, "title", text)}
+                placeholder="VD: Cấu trúc nhờ vả V-te"
+              />
+
+              <InputField
+                label="Công thức áp dụng"
+                highlight
+                iconName="functions"
+                value={item.formula}
+                onChangeText={(text) => handleChange(index, "formula", text)}
+                placeholder="VD: V-て + ください"
+              />
+
+              <InputField
+                label="Ý nghĩa & Ngữ cảnh dùng"
+                value={item.meaning}
+                onChangeText={(text) => handleChange(index, "meaning", text)}
+                multiline
+                style={styles.textArea}
+                placeholder="Dùng để yêu cầu người khác làm gì một cách lịch sự..."
+              />
+
+              <View style={styles.exampleHeaderRow}>
+                <Text
+                  style={[
+                    styles.label,
+                    { color: colors.textMuted, marginTop: 0 },
+                  ]}
+                >
+                  Danh sách ví dụ mẫu:
+                </Text>
+              </View>
+
+              {item.examples.map((ex, exIndex) => (
+                <View key={exIndex} style={styles.exampleRow}>
+                  <View style={{ flex: 1 }}>
+                    <InputField
+                      label={`Ví dụ #${exIndex + 1}`}
+                      value={ex}
+                      onChangeText={(text) =>
+                        handleExampleChange(index, exIndex, text)
+                      }
+                      multiline
+                      style={styles.textArea}
+                      placeholder="VD: ここに入ってください (Hãy vào đây)"
+                    />
+                  </View>
+                  {item.examples.length > 1 && (
+                    <TouchableOpacity
+                      style={[
+                        styles.btnMiniDelete,
+                        { backgroundColor: isDark ? "#451A1A" : "#FEF2F2" },
+                      ]}
+                      onPress={() => removeExampleRow(index, exIndex)}
+                    >
+                      <MaterialIcons
+                        name="remove-circle-outline"
+                        size={20}
+                        color={isDark ? "#F87171" : "#EF4444"}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={[
+                  styles.btnInnerAddExample,
+                  { borderColor: colors.amber },
+                ]}
+                onPress={() => addExampleRow(index)}
               >
-                Thêm ví dụ mẫu
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+                <MaterialIcons name="add" size={16} color={colors.amber} />
+                <Text
+                  style={[
+                    styles.btnInnerAddExampleText,
+                    { color: colors.amber },
+                  ]}
+                >
+                  Thêm ví dụ mẫu
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
 
         {!isEditMode && (
           <TouchableOpacity
@@ -474,8 +484,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   suggestionText: { fontSize: 13, fontWeight: "600" },
-
-  // === STYLE PHẦN VÍ DỤ MỚI ĐƯỢC THÊM ===
   exampleHeaderRow: {
     marginTop: 16,
     marginBottom: 6,
@@ -492,7 +500,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16, // Canh chỉnh ngang hàng với ô input field
+    marginBottom: 16,
   },
   btnInnerAddExample: {
     flexDirection: "row",

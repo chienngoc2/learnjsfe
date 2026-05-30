@@ -14,7 +14,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import api from "../../services/api";
 
-
 // IMPORT CÁC COMPONENT UI DÙNG CHUNG CỦA SẾP
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
@@ -28,7 +27,7 @@ interface WordItem {
 }
 
 export default function AddVocabScreen() {
-  const { colors, isDark } = useTheme(); // 🚀 ĐÃ TÍCH HỢP: Đón nhận bộ màu động sáng/tối
+  const { colors, isDark } = useTheme();
   const { editId } = useLocalSearchParams<{ editId: string }>();
   const router = useRouter();
 
@@ -39,6 +38,9 @@ export default function AddVocabScreen() {
   const [bulkText, setBulkText] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [fetchingOldData, setFetchingOldData] = useState<boolean>(false);
+
+  // 🚀 VỊ TRÍ 1 ĐÃ THÊM: State lưu trữ danh sách các chủ đề từ vựng cũ từ DB về máy
+  const [existingTopics, setExistingTopics] = useState<string[]>([]);
 
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -62,6 +64,27 @@ export default function AddVocabScreen() {
     }, 3000);
   };
 
+  // 🚀 VỊ TRÍ 2 ĐÃ THÊM: Fetch toàn bộ chủ đề cũ để chuẩn bị dữ liệu cho bộ lọc gợi ý
+  useEffect(() => {
+    if (!editId) {
+      const fetchExistingTopics = async () => {
+        try {
+          const res = await api.get("/api/vocab/lists");
+          if (res.data.success && res.data.data) {
+            const titles = res.data.data.map((item: any) => item.title);
+            const uniqueTitles = Array.from(new Set(titles)).filter(
+              (t) => t,
+            ) as string[];
+            setExistingTopics(uniqueTitles);
+          }
+        } catch (error) {
+          console.log("Lỗi tải danh sách chủ đề gợi ý:", error);
+        }
+      };
+      fetchExistingTopics();
+    }
+  }, [editId]);
+
   useEffect(() => {
     if (editId) {
       setCurrentEditId(editId);
@@ -70,9 +93,16 @@ export default function AddVocabScreen() {
         .get(`/api/vocab/list/${editId}`)
         .then((res) => {
           if (res.data.success) {
-            const { title, words } = res.data.data;
+            const { title, words: oldWords } = res.data.data;
             setTitle(title);
-            setWords(words || [{ term: "", def: "" }]);
+            setWords(oldWords || [{ term: "", def: "" }]);
+
+            if (oldWords && oldWords.length > 0) {
+              const formattedText = oldWords
+                .map((w: WordItem) => `${w.term} : ${w.def}`)
+                .join("\n");
+              setBulkText(formattedText);
+            }
           }
           setFetchingOldData(false);
         })
@@ -128,7 +158,7 @@ export default function AddVocabScreen() {
     if (isBulkMode) {
       finalWordsList = parseBulkText(bulkText);
       if (finalWordsList.length === 0) {
-        triggerToast("error", "Cấu trúc nhập chưa đúng!");
+        triggerToast("error", "Cấu trúc nhập chưa đúng hoặc trống!");
         return;
       }
     } else {
@@ -179,6 +209,19 @@ export default function AddVocabScreen() {
     }
   };
 
+  const handleToggleTab = (toBulk: boolean) => {
+    if (toBulk) {
+      const formattedText = words
+        .map((w: WordItem) => `${w.term} : ${w.def}`)
+        .join("\n");
+      setBulkText(formattedText);
+    } else {
+      const parsed = parseBulkText(bulkText);
+      if (parsed.length > 0) setWords(parsed);
+    }
+    setIsBulkMode(toBulk);
+  };
+
   if (fetchingOldData) {
     return (
       <View
@@ -194,14 +237,16 @@ export default function AddVocabScreen() {
     );
   }
 
+  // 🚀 VỊ TRÍ 3 ĐÃ THÊM: Logic Fuzzy Search lọc cụm từ tương ứng
+  const currentQuery = title.trim().toLowerCase();
+  const filteredTopics = existingTopics.filter((topic) =>
+    topic.toLowerCase().includes(currentQuery),
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
-
-      {/* TOAST DÙNG CHUNG */}
       <Toast toast={toast} slideAnim={slideAnim} />
-
-      {/* HEADER DÙNG CHUNG TỰ ĐỘNG ĐỔI TIÊU ĐỀ */}
       <Header
         title={currentEditId ? "✍️ Chỉnh Sửa Bài Học" : "📚 Tạo Bài Học Mới"}
       />
@@ -211,8 +256,50 @@ export default function AddVocabScreen() {
         contentContainerStyle={{ paddingBottom: 50 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* THẺ CHỨA TIÊU ĐỀ BÀI HỌC */}
+        {/* THẺ TÊN CHỦ ĐỀ */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          {/* 🚀 VỊ TRÍ 4 ĐÃ THÊM: Hiển thị giao diện các Chip chủ đề gợi ý lướt ngang */}
+          {!currentEditId && filteredTopics.length > 0 && (
+            <View style={{ marginBottom: 12 }}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: colors.textMuted, marginTop: 0 },
+                ]}
+              >
+                Chủ đề gợi ý gần giống:
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.suggestionContainer}
+              >
+                {filteredTopics.map((topic, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[
+                      styles.suggestionChip,
+                      {
+                        backgroundColor: isDark ? "#2C1A10" : "#FFEDD5",
+                        borderColor: isDark ? "#45230F" : "#FDBA74",
+                      },
+                    ]}
+                    onPress={() => setTitle(topic)}
+                  >
+                    <Text
+                      style={[
+                        styles.suggestionText,
+                        { color: isDark ? "#FDBA74" : "#C2410C" },
+                      ]}
+                    >
+                      {topic}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           <InputField
             label="Tên bài học / Chủ đề"
             iconName="subtitles"
@@ -222,50 +309,46 @@ export default function AddVocabScreen() {
           />
         </View>
 
-        {/* THANH TAB CHỌN CHẾ ĐỘ NHẬP ĐỘNG */}
-        {!currentEditId && (
-          <View
+        <View
+          style={[
+            styles.tabContainer,
+            { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" },
+          ]}
+        >
+          <TouchableOpacity
             style={[
-              styles.tabContainer,
-              { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" },
+              styles.tabButton,
+              !isBulkMode && { backgroundColor: colors.surface },
             ]}
+            onPress={() => handleToggleTab(false)}
           >
-            <TouchableOpacity
+            <Text
               style={[
-                styles.tabButton,
-                !isBulkMode && { backgroundColor: colors.surface },
+                styles.tabText,
+                { color: !isBulkMode ? colors.text : colors.textMuted },
               ]}
-              onPress={() => setIsBulkMode(false)}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: !isBulkMode ? colors.text : colors.textMuted },
-                ]}
-              >
-                ✍️ Nhập thủ công
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+              ✍️ Nhập thủ công
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              isBulkMode && { backgroundColor: colors.surface },
+            ]}
+            onPress={() => handleToggleTab(true)}
+          >
+            <Text
               style={[
-                styles.tabButton,
-                isBulkMode && { backgroundColor: colors.surface },
+                styles.tabText,
+                { color: isBulkMode ? colors.text : colors.textMuted },
               ]}
-              onPress={() => setIsBulkMode(true)}
             >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: isBulkMode ? colors.text : colors.textMuted },
-                ]}
-              >
-                📋 Dán hàng loạt
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+              📋 Dán hàng loạt
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* BADGE ĐẾM SỐ TỪ */}
         <View style={styles.badgeRow}>
           <View
             style={[
@@ -279,12 +362,11 @@ export default function AddVocabScreen() {
                 { color: isDark ? "#A5B4FC" : "#4F46E5" },
               ]}
             >
-              📊 Đã ghi nhận: {previewCount} từ
+              📊 Ghi nhận: {previewCount} từ
             </Text>
           </View>
         </View>
 
-        {/* CHẾ ĐỘ 1: NHẬP THỦ CÔNG THEO HÀNG TRẬN */}
         {!isBulkMode ? (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             {words.map((word, index) => (
@@ -346,7 +428,6 @@ export default function AddVocabScreen() {
               </View>
             ))}
 
-            {/* NÚT THÊM DÒNG MỚI (Cam Hổ Phách đồng bộ) */}
             <TouchableOpacity
               style={[
                 styles.btnDashed,
@@ -364,7 +445,6 @@ export default function AddVocabScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          /* CHẾ ĐỘ 2: DÁN HÀNG LOẠT BULK TEXT */
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View
               style={[
@@ -395,7 +475,7 @@ export default function AddVocabScreen() {
               ]}
               value={bulkText}
               onChangeText={setBulkText}
-              placeholder="Dán danh sách vào đây..."
+              placeholder="Dán danh sách từ vựng vào đây..."
               placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={8}
@@ -404,7 +484,6 @@ export default function AddVocabScreen() {
           </View>
         )}
 
-        {/* NÚT LƯU DANH SÁCH HỔ PHÁCH */}
         <Button
           title={currentEditId ? "Cập nhật bài học" : "Lưu danh sách"}
           loading={loading}
@@ -447,11 +526,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
   },
-  btnMiniDelete: {
-    padding: 8,
-    marginLeft: 4,
-    borderRadius: 8,
-  },
+  btnMiniDelete: { padding: 8, marginLeft: 4, borderRadius: 8 },
   btnDashed: {
     flexDirection: "row",
     alignItems: "center",
@@ -462,11 +537,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 6,
   },
-  btnDashedText: {
-    fontWeight: "700",
-    fontSize: 14,
-    marginLeft: 4,
-  },
+  btnDashedText: { fontWeight: "700", fontSize: 14, marginLeft: 4 },
   tabContainer: {
     flexDirection: "row",
     borderRadius: 14,
@@ -485,11 +556,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     marginBottom: 10,
   },
-  countBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
+  countBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   countBadgeText: { fontSize: 12, fontWeight: "700" },
   hintBox: {
     flexDirection: "row",
@@ -507,4 +574,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 180,
   },
+
+  // 🚀 VỊ TRÍ 5 ĐÃ THÊM: Các dòng Style mới phục vụ hiển thị Chip gợi ý
+  label: { fontSize: 13, fontWeight: "700", marginBottom: 6, marginTop: 12 },
+  suggestionContainer: { flexDirection: "row", marginBottom: 4, marginTop: 2 },
+  suggestionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    borderWidth: 1,
+  },
+  suggestionText: { fontSize: 13, fontWeight: "600" },
 });
