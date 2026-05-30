@@ -8,19 +8,19 @@ import {
   ScrollView,
   ActivityIndicator,
   Keyboard,
-  Platform, // 🚀 Thêm Platform để rẽ nhánh giao diện Web/Mobile
+  Platform, // 🚀 Thêm Platform để tự động nhận diện thiết bị Web/Mobile
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
 import Header from "../../components/ui/Header";
-import api from "@/services/api";
+import api from "@/services/api"; // Giữ nguyên import service chuẩn của sếp
 
-
-// 🚀 BẰNG CHỨNG TS: Ép kiểu sang any để không bị báo đỏ lỗi Web HTML
+// 🚀 Đưa bùa chú ép kiểu TS ra ngoài để component chạy mượt hơn, tránh re-render thừa
 const ExpoWebView = WebView as any;
 
+// 1. Định nghĩa các Interface chuẩn khớp 100% với Backend TS
 interface ExampleWord {
   word: string;
   reading: string;
@@ -46,6 +46,7 @@ export default function KanjiSearchScreen() {
   const [loading, setLoading] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
 
+  // 🚀 LOGIC GỌI API KẾT NỐI BACKEND LOCAL / PRODUCTION
   const handleSearch = async () => {
     Keyboard.dismiss();
     const query = searchQuery.trim();
@@ -53,13 +54,13 @@ export default function KanjiSearchScreen() {
 
     setLoading(true);
     try {
-      const response = await api.get(`/kanji/search`, {
+      const response = await api.get(`/api/kanji/search`, {
         params: { q: query },
       });
 
       if (response.data.success && response.data.data) {
         setSelectedKanji(response.data.data);
-        setAnimationKey((prev) => prev + 1);
+        setAnimationKey((prev) => prev + 1); // Reset lại key để ép chữ múa nét lại từ đầu
       } else {
         setSelectedKanji(null);
       }
@@ -71,7 +72,7 @@ export default function KanjiSearchScreen() {
     }
   };
 
-  // 🎨 THU NHỎ KÍCH THƯỚC HTML XUỐNG 130PX ĐỂ VỪA Ô VUÔNG BÊN PHẢI
+  // 🎨 SCRIPT HOẠT HỌA VẼ NÉT KANJI (Thu gọn kích thước xuống 130px cho vừa khít ô vuông bên phải)
   const generateStrokeAnimationHtml = (char: string) => {
     const strokeColor = isDark ? "#F59E0B" : "#4B5563";
     const outlineColor = isDark ? "#334155" : "#E5E7EB";
@@ -112,7 +113,7 @@ export default function KanjiSearchScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Header title="🉐 Tra Cứu Kanji" />
 
-      {/* 🔍 THANH TÌM KIẾM */}
+      {/* 🔍 THANH TÌM KIẾM THÔNG MINH */}
       <View style={styles.searchSection}>
         <View
           style={[
@@ -148,7 +149,7 @@ export default function KanjiSearchScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 📦 VÙNG HIỂN THỊ KẾT QUẢ SIDE-BY-SIDE */}
+      {/* 📦 VÙNG HIỂN THỊ KẾT QUẢ ĐỘNG (BẢN NEW UI: SIDE-BY-SIDE) */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -167,7 +168,7 @@ export default function KanjiSearchScreen() {
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
-            {/* 🔗 KHU VỰC CHIA ĐÔI: TRÁI THÔNG TIN - PHẢI VẼ CHỮ */}
+            {/* 🔗 BỐ CỤC CHIA ĐÔI: BÊN TRÁI THÔNG TIN - BÊN PHẢI Ô CHỮ KANJI VẼ NÉT */}
             <View style={styles.rowLayout}>
               {/* 📑 BÊN TRÁI: CHI TIẾT ÂM NGHĨA */}
               <View style={styles.leftInfoBlock}>
@@ -211,7 +212,7 @@ export default function KanjiSearchScreen() {
                 </View>
               </View>
 
-              {/* 🖌️ BÊN PHẢI: Ô VUÔNG MÚA NÉT KANJI */}
+              {/* 🖌️ BÊN PHẢI: Ô VUÔNG TẬP VIẾT & VẼ CHỮ KANJI */}
               <View style={styles.rightDrawBlock}>
                 <View
                   style={[
@@ -271,7 +272,7 @@ export default function KanjiSearchScreen() {
               style={[styles.divider, { backgroundColor: colors.border }]}
             />
 
-            {/* 🌟 PHẦN DƯỚI: TỪ VỰNG VÍ DỤ MẪU (FULL WIDTH) */}
+            {/* 🌟 PHẦN DƯỚI: DANH SÁCH TỪ VỰNG VÍ DỤ MẪU (Bung rộng toàn màn hình) */}
             <Text style={[styles.exampleTitle, { color: colors.textMuted }]}>
               Từ vựng ví dụ mẫu:
             </Text>
@@ -283,7 +284,7 @@ export default function KanjiSearchScreen() {
                   key={i}
                   style={[
                     styles.exampleBox,
-                    { backgroundColor: colors.background },
+                    { backgroundColor: colors.background, marginBottom: 8 },
                   ]}
                 >
                   <MaterialIcons
@@ -378,7 +379,7 @@ const styles = StyleSheet.create({
   },
   btnSearchText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
 
-  // Layout Hàng ngang Mới
+  // 🆕 Hệ thống Style Layout Hàng ngang Mới Đét
   mainCard: {
     marginHorizontal: 16,
     borderRadius: 16,
@@ -390,11 +391,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
-  leftInfoBlock: { flex: 1, paddingRight: 14 },
+  leftInfoBlock: { flex: 1, paddingRight: 12 },
   titleInlineRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     marginBottom: 6,
   },
   hanVietText: { fontSize: 24, fontWeight: "800" },
@@ -406,10 +407,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 12,
   },
-  yomiContainer: { gap: 6 },
+  yomiContainer: { gap: 4 },
   yomiItem: { fontSize: 13, fontWeight: "500" },
 
-  // Khung ô vuông bên phải
+  // 🖌️ Khu vực cấu trúc ô vuông bên phải
   rightDrawBlock: { alignItems: "center" },
   webViewWrapper: {
     width: 130,
@@ -435,7 +436,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     padding: 12,
     borderRadius: 10,
-    marginBottom: 8,
   },
   exampleText: { fontSize: 15, fontWeight: "700" },
   exampleMeaning: { fontSize: 13, marginTop: 2 },
