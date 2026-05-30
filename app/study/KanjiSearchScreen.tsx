@@ -8,17 +8,19 @@ import {
   ScrollView,
   ActivityIndicator,
   Keyboard,
+  Platform, // 🚀 Thêm Platform để rẽ nhánh giao diện Web/Mobile
 } from "react-native";
-
+import { WebView } from "react-native-webview";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
 import Header from "../../components/ui/Header";
 import api from "@/services/api";
-import { WebView } from "react-native-webview";
 
 
-// 1. Định nghĩa các Interface chuẩn khớp 100% với Backend TS
+// 🚀 BẰNG CHỨNG TS: Ép kiểu sang any để không bị báo đỏ lỗi Web HTML
+const ExpoWebView = WebView as any;
+
 interface ExampleWord {
   word: string;
   reading: string;
@@ -31,10 +33,10 @@ interface KanjiData {
   meaning: string;
   onyomi: string;
   kunyomi: string;
-  vietnamese_reading: string; // Đồng bộ trường Âm Hán Việt mới
+  vietnamese_reading: string;
   level: string;
   stroke_order?: string[];
-  example_words: ExampleWord[]; // Mảng object từ vựng ví dụ xịn sò
+  example_words: ExampleWord[];
 }
 
 export default function KanjiSearchScreen() {
@@ -42,9 +44,8 @@ export default function KanjiSearchScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedKanji, setSelectedKanji] = useState<KanjiData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [animationKey, setAnimationKey] = useState(0); // Dùng để reset ép WebView chạy lại hiệu ứng vẽ nét
-   const ExpoWebView = WebView as any;
-  // 🚀 LOGIC GỌI API THẬT KẾT NỐI BACKEND
+  const [animationKey, setAnimationKey] = useState(0);
+
   const handleSearch = async () => {
     Keyboard.dismiss();
     const query = searchQuery.trim();
@@ -52,14 +53,13 @@ export default function KanjiSearchScreen() {
 
     setLoading(true);
     try {
-      // Gọi lên router Backend: GET /api/kanji/search?q=...
-      const response = await api.get(`/api/kanji/search`, {
+      const response = await api.get(`/kanji/search`, {
         params: { q: query },
       });
 
       if (response.data.success && response.data.data) {
         setSelectedKanji(response.data.data);
-        setAnimationKey((prev) => prev + 1); // Đổi key để ép WebView reset vẽ lại từ nét đầu tiên
+        setAnimationKey((prev) => prev + 1);
       } else {
         setSelectedKanji(null);
       }
@@ -71,10 +71,10 @@ export default function KanjiSearchScreen() {
     }
   };
 
-  // 🎨 SCRIPT HOẠT HỌA VẼ NÉT KANJI (Inject vào WebView)
+  // 🎨 THU NHỎ KÍCH THƯỚC HTML XUỐNG 130PX ĐỂ VỪA Ô VUÔNG BÊN PHẢI
   const generateStrokeAnimationHtml = (char: string) => {
-    const strokeColor = isDark ? "#F59E0B" : "#4B5563"; // Màu Cam Amber nếu DarkMode, màu Xám nếu LightMode
-    const outlineColor = isDark ? "#334155" : "#E5E7EB"; // Đường viền nét mờ làm nền phía sau
+    const strokeColor = isDark ? "#F59E0B" : "#4B5563";
+    const outlineColor = isDark ? "#334155" : "#E5E7EB";
 
     return `
       <!DOCTYPE html>
@@ -87,17 +87,17 @@ export default function KanjiSearchScreen() {
             margin: 0; padding: 0; display: flex; justify-content: center;
             align-items: center; background-color: transparent; height: 100vh; overflow: hidden;
           }
-          #kanji-box { width: 180px; height: 180px; }
+          #kanji-box { width: 130px; height: 130px; }
         </style>
       </head>
       <body>
         <div id="kanji-box"></div>
         <script>
           var writer = HanziWriter.create('kanji-box', '${char}', {
-            width: 180, height: 180, padding: 5,
+            width: 130, height: 130, padding: 2,
             strokeAnimationSpeed: 1.2, delayBetweenStrokes: 150, 
             strokeColor: '${strokeColor}', outlineColor: '${outlineColor}',
-            radicalColor: '#EF4444', // Nổi bật bộ thủ màu đỏ
+            radicalColor: '#EF4444',
             showOutline: true
           });
           writer.animateCharacter();
@@ -112,7 +112,7 @@ export default function KanjiSearchScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Header title="🉐 Tra Cứu Kanji" />
 
-      {/* 🔍 THANH TÌM KIẾM THÔNG MINH */}
+      {/* 🔍 THANH TÌM KIẾM */}
       <View style={styles.searchSection}>
         <View
           style={[
@@ -148,7 +148,7 @@ export default function KanjiSearchScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 📦 VÙNG HIỂN THỊ KẾT QUẢ ĐỘNG */}
+      {/* 📦 VÙNG HIỂN THỊ KẾT QUẢ SIDE-BY-SIDE */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -161,164 +161,168 @@ export default function KanjiSearchScreen() {
             </Text>
           </View>
         ) : selectedKanji ? (
-          <View>
-            {/* 🖌️ BOX 1: HOẠT HỌA VẼ NÉT (STOKE ANIMATION) */}
-            <View
-              style={[
-                styles.animationCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <View style={styles.webViewWrapper}>
-                <ExpoWebView
-                  key={animationKey}
-                  originWhitelist={["*"]}
-                  source={{
-                    html: generateStrokeAnimationHtml(selectedKanji.character),
-                  }}
-                  style={{ backgroundColor: "transparent" }}
-                  scrollEnabled={false}
-                  javaScriptEnabled={true}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.btnReplay,
-                  { backgroundColor: isDark ? "#2D1A10" : "#FEF3C7" },
-                ]}
-                onPress={() => setAnimationKey((prev) => prev + 1)}
-              >
-                <MaterialIcons
-                  name="play-circle-outline"
-                  size={16}
-                  color={colors.amber}
-                />
-                <Text style={[styles.btnReplayText, { color: colors.amber }]}>
-                  Xem lại nét vẽ
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* 📑 BOX 2: CHI TIẾT THÔNG TIN CHỮ KANJI */}
-            <View
-              style={[
-                styles.infoCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              {/* Hàng tiêu đề: Chữ to, Âm Hán Việt, Ý nghĩa, Cấp độ */}
-              <View style={styles.titleRow}>
-                <Text style={[styles.kanjiText, { color: colors.text }]}>
-                  {selectedKanji.character}
-                </Text>
-                <View style={{ flex: 1 }}>
+          <View
+            style={[
+              styles.mainCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            {/* 🔗 KHU VỰC CHIA ĐÔI: TRÁI THÔNG TIN - PHẢI VẼ CHỮ */}
+            <View style={styles.rowLayout}>
+              {/* 📑 BÊN TRÁI: CHI TIẾT ÂM NGHĨA */}
+              <View style={styles.leftInfoBlock}>
+                <View style={styles.titleInlineRow}>
                   <Text style={[styles.hanVietText, { color: colors.amber }]}>
                     {selectedKanji.vietnamese_reading}
                   </Text>
-                  <Text style={[styles.meaningText, { color: colors.text }]}>
-                    {selectedKanji.meaning}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.levelBadge,
-                    { backgroundColor: isDark ? "#1E293B" : "#EEF2F6" },
-                  ]}
-                >
-                  <Text style={[styles.levelText, { color: colors.text }]}>
-                    {selectedKanji.level}
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                style={[styles.divider, { backgroundColor: colors.border }]}
-              />
-
-              {/* Chi tiết Âm On - Âm Kun */}
-              <View style={styles.yomiRow}>
-                <Text style={[styles.yomiLabel, { color: colors.textMuted }]}>
-                  Âm ON (Onyomi):
-                </Text>
-                <Text style={[styles.yomiValue, { color: colors.text }]}>
-                  {selectedKanji.onyomi || "---"}
-                </Text>
-              </View>
-
-              <View style={styles.yomiRow}>
-                <Text style={[styles.yomiLabel, { color: colors.textMuted }]}>
-                  Âm KUN (Kunyomi):
-                </Text>
-                <Text style={[styles.yomiValue, { color: colors.text }]}>
-                  {selectedKanji.kunyomi || "---"}
-                </Text>
-              </View>
-
-              <View
-                style={[styles.divider, { backgroundColor: colors.border }]}
-              />
-
-              {/* 🌟 BOX 3: VÒNG LẶP MAP DANH SÁCH TỪ VỰNG VÍ DỤ MẪU */}
-              <Text
-                style={[
-                  styles.yomiLabel,
-                  { color: colors.textMuted, marginBottom: 8 },
-                ]}
-              >
-                Từ vựng ví dụ mẫu:
-              </Text>
-
-              {selectedKanji.example_words &&
-              selectedKanji.example_words.length > 0 ? (
-                selectedKanji.example_words.map((ex, i) => (
                   <View
-                    key={i}
                     style={[
-                      styles.exampleBox,
-                      { backgroundColor: colors.background, marginBottom: 8 },
+                      styles.levelBadge,
+                      { backgroundColor: isDark ? "#1E293B" : "#EEF2F6" },
                     ]}
                   >
-                    <MaterialIcons
-                      name="star-outline"
-                      size={18}
-                      color={colors.amber}
-                      style={{ marginRight: 6 }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[styles.exampleText, { color: colors.text }]}
-                      >
-                        {ex.word}{" "}
-                        <Text
-                          style={{ fontWeight: "400", color: colors.textMuted }}
-                        >
-                          ({ex.reading})
-                        </Text>
-                      </Text>
-                      <Text
-                        style={[
-                          styles.exampleMeaning,
-                          { color: colors.textMuted },
-                        ]}
-                      >
-                        {ex.meaning}
-                      </Text>
-                    </View>
+                    <Text style={[styles.levelText, { color: colors.text }]}>
+                      {selectedKanji.level}
+                    </Text>
                   </View>
-                ))
-              ) : (
-                <Text
-                  style={{
-                    color: colors.textMuted,
-                    fontSize: 13,
-                    fontStyle: "italic",
-                  }}
-                >
-                  Chưa có ví dụ mẫu cho chữ này.
+                </View>
+
+                <Text style={[styles.meaningText, { color: colors.text }]}>
+                  {selectedKanji.meaning}
                 </Text>
-              )}
+
+                <View style={styles.yomiContainer}>
+                  <Text style={[styles.yomiItem, { color: colors.text }]}>
+                    <Text
+                      style={{ color: colors.textMuted, fontWeight: "600" }}
+                    >
+                      Âm ON:{" "}
+                    </Text>
+                    {selectedKanji.onyomi || "---"}
+                  </Text>
+                  <Text style={[styles.yomiItem, { color: colors.text }]}>
+                    <Text
+                      style={{ color: colors.textMuted, fontWeight: "600" }}
+                    >
+                      Âm KUN:{" "}
+                    </Text>
+                    {selectedKanji.kunyomi || "---"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* 🖌️ BÊN PHẢI: Ô VUÔNG MÚA NÉT KANJI */}
+              <View style={styles.rightDrawBlock}>
+                <View
+                  style={[
+                    styles.webViewWrapper,
+                    { borderColor: colors.border },
+                  ]}
+                >
+                  {Platform.OS === "web" ? (
+                    <iframe
+                      key={animationKey}
+                      srcDoc={generateStrokeAnimationHtml(
+                        selectedKanji.character,
+                      )}
+                      style={{
+                        width: "130px",
+                        height: "130px",
+                        border: "none",
+                        backgroundColor: "transparent",
+                      }}
+                    />
+                  ) : (
+                    <ExpoWebView
+                      key={animationKey}
+                      originWhitelist={["*"]}
+                      source={{
+                        html: generateStrokeAnimationHtml(
+                          selectedKanji.character,
+                        ),
+                      }}
+                      style={{ backgroundColor: "transparent" }}
+                      scrollEnabled={false}
+                      javaScriptEnabled={true}
+                    />
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.btnReplay,
+                    { backgroundColor: isDark ? "#2D1A10" : "#FEF3C7" },
+                  ]}
+                  onPress={() => setAnimationKey((prev) => prev + 1)}
+                >
+                  <MaterialIcons
+                    name="play-circle-outline"
+                    size={13}
+                    color={colors.amber}
+                  />
+                  <Text style={[styles.btnReplayText, { color: colors.amber }]}>
+                    Xem lại nét
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
+
+            <View
+              style={[styles.divider, { backgroundColor: colors.border }]}
+            />
+
+            {/* 🌟 PHẦN DƯỚI: TỪ VỰNG VÍ DỤ MẪU (FULL WIDTH) */}
+            <Text style={[styles.exampleTitle, { color: colors.textMuted }]}>
+              Từ vựng ví dụ mẫu:
+            </Text>
+
+            {selectedKanji.example_words &&
+            selectedKanji.example_words.length > 0 ? (
+              selectedKanji.example_words.map((ex, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.exampleBox,
+                    { backgroundColor: colors.background },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="star-outline"
+                    size={18}
+                    color={colors.amber}
+                    style={{ marginRight: 6 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.exampleText, { color: colors.text }]}>
+                      {ex.word}{" "}
+                      <Text
+                        style={{ fontWeight: "400", color: colors.textMuted }}
+                      >
+                        ({ex.reading})
+                      </Text>
+                    </Text>
+                    <Text
+                      style={[
+                        styles.exampleMeaning,
+                        { color: colors.textMuted },
+                      ]}
+                    >
+                      {ex.meaning}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text
+                style={{
+                  color: colors.textMuted,
+                  fontSize: 13,
+                  fontStyle: "italic",
+                }}
+              >
+                Chưa có ví dụ mẫu cho chữ này.
+              </Text>
+            )}
           </View>
         ) : (
           <View style={styles.centerBox}>
@@ -373,50 +377,65 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnSearchText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
-  animationCard: {
-    marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  webViewWrapper: { width: 180, height: 180, overflow: "hidden" },
-  btnReplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 14,
-  },
-  btnReplayText: { fontSize: 12, fontWeight: "700", marginLeft: 4 },
-  infoCard: {
+
+  // Layout Hàng ngang Mới
+  mainCard: {
     marginHorizontal: 16,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
   },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: 16 },
-  kanjiText: { fontSize: 48, fontWeight: "700" },
-  hanVietText: { fontSize: 18, fontWeight: "800", marginBottom: 2 },
-  meaningText: { fontSize: 14, fontWeight: "500", lineHeight: 18 },
-  levelBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: "flex-start",
+  rowLayout: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
-  levelText: { fontSize: 12, fontWeight: "700" },
-  divider: { height: 1, marginVertical: 14 },
-  yomiRow: { marginBottom: 10 },
-  yomiLabel: { fontSize: 12, fontWeight: "600", marginBottom: 2 },
-  yomiValue: { fontSize: 14, fontWeight: "700" },
+  leftInfoBlock: { flex: 1, paddingRight: 14 },
+  titleInlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 6,
+  },
+  hanVietText: { fontSize: 24, fontWeight: "800" },
+  levelBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  levelText: { fontSize: 11, fontWeight: "700" },
+  meaningText: {
+    fontSize: 15,
+    fontWeight: "500",
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  yomiContainer: { gap: 6 },
+  yomiItem: { fontSize: 13, fontWeight: "500" },
+
+  // Khung ô vuông bên phải
+  rightDrawBlock: { alignItems: "center" },
+  webViewWrapper: {
+    width: 130,
+    height: 130,
+    overflow: "hidden",
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  btnReplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    marginTop: 8,
+  },
+  btnReplayText: { fontSize: 11, fontWeight: "700", marginLeft: 4 },
+
+  divider: { height: 1, marginVertical: 16 },
+  exampleTitle: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
   exampleBox: {
     flexDirection: "row",
     alignItems: "flex-start",
     padding: 12,
     borderRadius: 10,
+    marginBottom: 8,
   },
   exampleText: { fontSize: 15, fontWeight: "700" },
   exampleMeaning: { fontSize: 13, marginTop: 2 },
