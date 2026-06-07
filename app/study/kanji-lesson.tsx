@@ -60,6 +60,15 @@ interface Pagination {
 
 const LIMIT = 50;
 
+// Màu sắc cho từng level badge
+const LEVEL_COLORS: Record<string, { bg: string; bgDark: string; text: string; textDark: string }> = {
+  N5: { bg: "#DCFCE7", bgDark: "#14532D", text: "#15803D", textDark: "#86EFAC" },
+  N4: { bg: "#DBEAFE", bgDark: "#1E3A5F", text: "#1D4ED8", textDark: "#93C5FD" },
+  N3: { bg: "#FEF3C7", bgDark: "#2D1A10", text: "#D97706", textDark: "#FBBF24" },
+  N2: { bg: "#F5F3FF", bgDark: "#2E1A5E", text: "#7C3AED", textDark: "#C4B5FD" },
+  N1: { bg: "#FFF0F0", bgDark: "#3A1C1C", text: "#DC2626", textDark: "#F87171" },
+};
+
 export default function KanjiLessonScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
@@ -73,7 +82,6 @@ export default function KanjiLessonScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [animationKey, setAnimationKey] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
 
   // MODAL EDIT
@@ -88,9 +96,6 @@ export default function KanjiLessonScreen() {
   // CARD SLIDE ANIMATION
   const cardSlideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
-
-  // CARD FLIP ANIMATION (Reanimated is heavy, so we use standard Animated.timing)
-  const flipAnimValue = useRef(new Animated.Value(0)).current;
 
   const triggerToast = (type: "success" | "error", text: string) => {
     setToast({ type, text });
@@ -116,7 +121,6 @@ export default function KanjiLessonScreen() {
         setKanjiList(res.data.data);
         setPagination(res.data.pagination);
         setCurrentIndex(0);
-        setIsFlipped(false);
         setIsBookmarked(false);
         setAnimationKey((k) => k + 1);
       }
@@ -137,34 +141,13 @@ export default function KanjiLessonScreen() {
     Speech.speak(char, { language: "ja" });
   };
 
-  // FLIP CARD INTERACTION
-  const toggleFlip = () => {
-    if (isFlipped) {
-      Animated.timing(flipAnimValue, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => setIsFlipped(false));
-    } else {
-      Animated.timing(flipAnimValue, {
-        toValue: 180,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => setIsFlipped(true));
-    }
-  };
-
   // NAVIGATE NEXT/PREV
   const nextCard = () => {
     if (currentIndex < kanjiList.length - 1) {
       animateCardTransition("next", () => {
         setCurrentIndex((prev) => prev + 1);
-        setIsFlipped(false);
-        flipAnimValue.setValue(0);
         setAnimationKey((k) => k + 1);
       });
-    } else {
-      triggerToast("success", "🎉 Bạn đã hoàn thành bài học này!");
     }
   };
 
@@ -172,8 +155,6 @@ export default function KanjiLessonScreen() {
     if (currentIndex > 0) {
       animateCardTransition("prev", () => {
         setCurrentIndex((prev) => prev - 1);
-        setIsFlipped(false);
-        flipAnimValue.setValue(0);
         setAnimationKey((k) => k + 1);
       });
     }
@@ -229,8 +210,6 @@ export default function KanjiLessonScreen() {
                 const newList = kanjiList.filter((k) => k._id !== kanji._id);
                 setKanjiList(newList);
                 setCurrentIndex((prev) => Math.max(0, Math.min(prev, newList.length - 1)));
-                setIsFlipped(false);
-                flipAnimValue.setValue(0);
               } else {
                 triggerToast("error", res.data.message || "Xóa thất bại.");
               }
@@ -290,13 +269,13 @@ export default function KanjiLessonScreen() {
 <style>
   body{margin:0;padding:0;display:flex;justify-content:center;align-items:center;
     background:transparent;height:100vh;overflow:hidden;}
-  #kb{width:150px;height:150px;}
+  #kb{width:130px;height:130px;}
 </style>
 </head><body>
 <div id="kb"></div>
 <script>
   var w=HanziWriter.create('kb','${char}',{
-    width:150,height:150,padding:4,
+    width:130,height:130,padding:4,
     strokeAnimationSpeed:1.0,delayBetweenStrokes:200,
     strokeColor:'${strokeColor}',outlineColor:'${outlineColor}',
     radicalColor:'#EF4444',showOutline:true
@@ -306,38 +285,9 @@ export default function KanjiLessonScreen() {
 </body></html>`;
   };
 
-  // Card Rotate Styles for 3D Flip
-  const frontInterpolate = flipAnimValue.interpolate({
-    inputRange: [0, 180],
-    outputRange: ["0deg", "180deg"],
-  });
-  const backInterpolate = flipAnimValue.interpolate({
-    inputRange: [0, 180],
-    outputRange: ["180deg", "360deg"],
-  });
-
-  const frontAnimatedStyle = {
-    transform: [{ rotateY: frontInterpolate }],
-  };
-  const backAnimatedStyle = {
-    transform: [{ rotateY: backInterpolate }],
-  };
-
   const currentKanji = kanjiList[currentIndex] || null;
   const progressPercent = kanjiList.length > 0 ? ((currentIndex + 1) / kanjiList.length) * 100 : 0;
-
-  if (loading) {
-    return (
-      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <Header title={displayTitle} />
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.indigo} />
-          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Đang tải Kanji...</Text>
-        </View>
-      </View>
-    );
-  }
+  const lc = currentKanji ? (LEVEL_COLORS[currentKanji.level] || LEVEL_COLORS["N5"]) : LEVEL_COLORS["N5"];
 
   return (
     <LinearGradient
@@ -390,7 +340,7 @@ export default function KanjiLessonScreen() {
         </View>
       </View>
 
-      {/* ================= STACKED CARD VIEW DECK ================= */}
+      {/* ================= MAIN DETAIL VIEW (NO FLIP - FULL MÀN HÌNH CHI TIẾT ĐẸP) ================= */}
       <View style={styles.deckContainer}>
         {kanjiList.length === 0 ? (
           <View style={[styles.cardSurface, styles.emptyCard, { backgroundColor: colors.surface }]}>
@@ -401,261 +351,210 @@ export default function KanjiLessonScreen() {
             </Text>
           </View>
         ) : currentKanji ? (
-          <View style={styles.stackWrapper}>
-            {/* Fake Card 3 (Bottom-most) */}
-            <View style={[styles.fakeCardBack, styles.fakeCardBottom, { backgroundColor: colors.surface, opacity: 0.4 }]} />
+          <Animated.View
+            style={[
+              styles.activeCardContainer,
+              {
+                transform: [{ translateX: cardSlideAnim }],
+                opacity: fadeAnim,
+              },
+            ]}
+          >
+            <View style={[styles.cardSurface, { backgroundColor: colors.surface }]}>
+              
+              {/* HEADER: bookmark star + level badge */}
+              <View style={styles.cardHeader}>
+                <View style={[styles.levelBadge, { backgroundColor: isDark ? lc.bgDark : lc.bg }]}>
+                  <Text style={[styles.levelBadgeText, { color: isDark ? lc.textDark : lc.text }]}>Cấp độ: {currentKanji.level}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setIsBookmarked(!isBookmarked)} activeOpacity={0.7}>
+                  <MaterialIcons
+                    name={isBookmarked ? "star" : "star-border"}
+                    size={26}
+                    color={isBookmarked ? "#F59E0B" : colors.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
 
-            {/* Fake Card 2 (Middle) */}
-            <View style={[styles.fakeCardBack, styles.fakeCardMiddle, { backgroundColor: colors.surface, opacity: 0.75 }]} />
-
-            {/* Active Card with animations */}
-            <Animated.View
-              style={[
-                styles.activeCardContainer,
-                {
-                  transform: [{ translateX: cardSlideAnim }],
-                  opacity: fadeAnim,
-                },
-              ]}
-            >
-              <TouchableOpacity activeOpacity={0.99} onPress={toggleFlip} style={styles.cardTouchArea}>
+              <ScrollView style={styles.backScrollView} showsVerticalScrollIndicator={false}>
                 
-                {/* ── MẶT TRƯỚC (FRONT) ── */}
-                <Animated.View
-                  style={[
-                    styles.cardSurface,
-                    frontAnimatedStyle,
-                    { backgroundColor: colors.surface, backfaceVisibility: "hidden" },
-                  ]}
-                >
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.faceBadge, { backgroundColor: "#E0E7FF" }]}>
-                      <Text style={[styles.faceBadgeText, { color: colors.indigo }]}>MẶT TRƯỚC</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => setIsBookmarked(!isBookmarked)} activeOpacity={0.7}>
-                      <MaterialIcons
-                        name={isBookmarked ? "star" : "star-border"}
-                        size={26}
-                        color={isBookmarked ? "#F59E0B" : colors.textMuted}
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Speaker Pronunciation */}
-                  <TouchableOpacity
-                    style={[styles.speakerBtn, { backgroundColor: colors.indigo + "15" }]}
-                    onPress={() => speakKanji(currentKanji.character)}
-                    activeOpacity={0.8}
-                  >
-                    <MaterialIcons name="volume-up" size={24} color={colors.indigo} />
-                  </TouchableOpacity>
-
-                  {/* Center Word Display */}
-                  <View style={styles.centerDisplay}>
+                {/* ── TOP SECTION: DETAILS LEFT + STROKE BOX RIGHT ── */}
+                <View style={styles.topSectionRow}>
+                  {/* Left info block */}
+                  <View style={styles.leftInfoBlock}>
                     <Text style={[styles.bigKanjiChar, { color: "#1E1B4B" }]}>
                       {currentKanji.character}
                     </Text>
-                    <Text style={[styles.bigReading, { color: colors.textMuted }]}>
-                      /{currentKanji.vietnamese_reading}/
+                    <Text style={[styles.backHanViet, { color: colors.indigo }]}>
+                      HÁN VIỆT: {currentKanji.vietnamese_reading}
+                    </Text>
+                    <Text style={[styles.backMeaning, { color: colors.text }]}>
+                      {currentKanji.meaning}
                     </Text>
                   </View>
 
-                  {/* Flip Prompt Footer */}
-                  <View style={styles.cardFooter}>
-                    <MaterialIcons name="loop" size={16} color={colors.textMuted} style={{ marginRight: 6 }} />
-                    <Text style={[styles.footerPromptText, { color: colors.textMuted }]}>
-                      Nhấn vào thẻ để lật
-                    </Text>
-                  </View>
-                </Animated.View>
-
-                {/* ── MẶT SAU (BACK) ── */}
-                <Animated.View
-                  style={[
-                    styles.cardSurface,
-                    styles.cardSurfaceBack,
-                    backAnimatedStyle,
-                    { backgroundColor: colors.surface, backfaceVisibility: "hidden" },
-                  ]}
-                >
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.faceBadge, { backgroundColor: "#ECFDF5" }]}>
-                      <Text style={[styles.faceBadgeText, { color: "#10B981" }]}>MẶT SAU</Text>
-                    </View>
-                    <View style={[styles.levelBadge, { backgroundColor: colors.indigo + "15" }]}>
-                      <Text style={[styles.levelBadgeText, { color: colors.indigo }]}>{currentKanji.level}</Text>
-                    </View>
-                  </View>
-
-                  <ScrollView style={styles.backScrollView} showsVerticalScrollIndicator={false}>
-                    {/* Hán Việt & Nghĩa */}
-                    <View style={styles.backTitleRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.backMeaning, { color: colors.text }]}>
-                          {currentKanji.meaning}
-                        </Text>
-                        <Text style={[styles.backHanViet, { color: colors.indigo }]}>
-                          Âm Hán: {currentKanji.vietnamese_reading}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={[styles.speakerBtnBack, { backgroundColor: colors.indigo + "15" }]}
-                        onPress={() => speakKanji(currentKanji.character)}
-                        activeOpacity={0.8}
-                      >
-                        <MaterialIcons name="volume-up" size={18} color={colors.indigo} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Onyomi & Kunyomi */}
-                    <View style={styles.backYomiBlock}>
-                      <View style={[styles.yomiRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-                        <Text style={[styles.yomiLabel, { color: colors.textMuted }]}>Âm ON (Onyomi):</Text>
-                        <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.onyomi || "—"}</Text>
-                      </View>
-                      <View style={styles.yomiRow}>
-                        <Text style={[styles.yomiLabel, { color: colors.textMuted }]}>Âm KUN (Kunyomi):</Text>
-                        <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.kunyomi || "—"}</Text>
-                      </View>
-                    </View>
-
-                    {/* Nét vẽ & Bộ thủ */}
-                    <View style={styles.rowDetails}>
-                      {/* Stroke Webview Box */}
-                      <View style={styles.leftStrokeCol}>
-                        <Text style={[styles.sectionTitleLabel, { color: colors.textMuted }]}>NÉT VẼ HOẠT HỌA</Text>
-                        <View style={[styles.strokeWebViewBox, { borderColor: colors.border }]}>
-                          {Platform.OS === "web" ? (
-                            <iframe
-                              key={`${currentKanji._id}-${animationKey}`}
-                              srcDoc={generateStrokeHtml(currentKanji.character)}
-                              style={{ width: "150px", height: "150px", border: "none" }}
-                            />
-                          ) : (
-                            <ExpoWebView
-                              key={`${currentKanji._id}-${animationKey}`}
-                              originWhitelist={["*"]}
-                              source={{ html: generateStrokeHtml(currentKanji.character) }}
-                              style={{ width: 150, height: 150, backgroundColor: "transparent" }}
-                              scrollEnabled={false}
-                              javaScriptEnabled
-                            />
-                          )}
-                        </View>
-                        <TouchableOpacity
-                          style={[styles.replayBtn, { backgroundColor: colors.border }]}
-                          onPress={() => setAnimationKey((k) => k + 1)}
-                        >
-                          <MaterialIcons name="replay" size={12} color={colors.text} />
-                          <Text style={[styles.replayText, { color: colors.text }]}>Vẽ lại</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      {/* Bộ thủ components */}
-                      {currentKanji.components && currentKanji.components.length > 0 && (
-                        <View style={styles.rightCompCol}>
-                          <Text style={[styles.sectionTitleLabel, { color: colors.textMuted }]}>BỘ THỦ</Text>
-                          <View style={styles.componentsRow}>
-                            {currentKanji.components.map((c, i) => (
-                              <View key={i} style={[styles.compBadge, { backgroundColor: colors.border }]}>
-                                <Text style={[styles.compText, { color: colors.text }]}>{c}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        </View>
+                  {/* Right Stroke writing block (Ô VUÔNG VIẾT GÓC PHẢI) */}
+                  <View style={styles.rightStrokeBlock}>
+                    <View style={[styles.strokeWebViewBox, { borderColor: colors.indigo, backgroundColor: isDark ? "#1E293B" : "#FFFBEB" }]}>
+                      {Platform.OS === "web" ? (
+                        <iframe
+                          key={`${currentKanji._id}-${animationKey}`}
+                          srcDoc={generateStrokeHtml(currentKanji.character)}
+                          style={{ width: "130px", height: "130px", border: "none", backgroundColor: "transparent" }}
+                        />
+                      ) : (
+                        <ExpoWebView
+                          key={`${currentKanji._id}-${animationKey}`}
+                          originWhitelist={["*"]}
+                          source={{ html: generateStrokeHtml(currentKanji.character) }}
+                          style={{ width: 130, height: 130, backgroundColor: "transparent" }}
+                          scrollEnabled={false}
+                          javaScriptEnabled
+                        />
                       )}
                     </View>
+                    <TouchableOpacity
+                      style={[styles.replayBtn, { backgroundColor: isDark ? "#2D1A10" : "#FEF3C7" }]}
+                      onPress={() => setAnimationKey((k) => k + 1)}
+                    >
+                      <MaterialIcons name="replay" size={12} color={colors.indigo} />
+                      <Text style={[styles.replayText, { color: colors.indigo }]}>Vẽ lại</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
-                    {/* Memory story */}
-                    {!!currentKanji.story && (
-                      <View style={[styles.backStoryBox, { backgroundColor: colors.indigo + "08", borderColor: colors.indigo + "20" }]}>
-                        <Text style={[styles.sectionTitleLabel, { color: colors.indigo, marginBottom: 4 }]}>💡 MẸO GHI NHỚ</Text>
-                        <Text style={[styles.storyText, { color: colors.text }]}>
-                          {currentKanji.story}
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                {/* Onyomi & Kunyomi */}
+                <View style={styles.backYomiBlock}>
+                  <View style={[styles.yomiRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                    <View style={[styles.yomiLabelBadge, { backgroundColor: isDark ? "#1A2E1A" : "#F0FDF4" }]}>
+                      <Text style={[styles.yomiLabelText, { color: isDark ? "#86EFAC" : "#166534" }]}>ON 音</Text>
+                    </View>
+                    <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.onyomi || "—"}</Text>
+                  </View>
+                  <View style={styles.yomiRow}>
+                    <View style={[styles.yomiLabelBadge, { backgroundColor: isDark ? "#1A2035" : "#F5F3FF" }]}>
+                      <Text style={[styles.yomiLabelText, { color: isDark ? "#C4B5FD" : "#7C3AED" }]}>KUN 訓</Text>
+                    </View>
+                    <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.kunyomi || "—"}</Text>
+                  </View>
+                </View>
+
+                {/* Bộ thủ components */}
+                {currentKanji.components && currentKanji.components.length > 0 && (
+                  <View style={styles.componentsBlock}>
+                    <Text style={[styles.sectionTitleLabel, { color: colors.textMuted }]}>🧩 BỘ THỦ / THÀNH PHẦN</Text>
+                    <View style={styles.componentsRow}>
+                      {currentKanji.components.map((c, i) => (
+                        <View key={i} style={[styles.compBadge, { backgroundColor: isDark ? "#2C1A10" : "#FEF3C7", borderColor: colors.indigo, borderWidth: 0.5 }]}>
+                          <Text style={[styles.compText, { color: colors.indigo }]}>{c}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Memory story */}
+                {!!currentKanji.story && (
+                  <View style={[styles.backStoryBox, { backgroundColor: colors.indigo + "08", borderColor: colors.indigo + "20" }]}>
+                    <View style={styles.storyHeader}>
+                      <MaterialIcons name="lightbulb-outline" size={16} color={colors.indigo} style={{ marginRight: 6 }} />
+                      <Text style={[styles.sectionTitleLabel, { color: colors.indigo, marginBottom: 0 }]}>MẸO GHI NHỚ</Text>
+                    </View>
+                    <Text style={[styles.storyText, { color: colors.text }]}>
+                      {currentKanji.story}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Examples ON */}
+                {currentKanji.onyomi_examples && currentKanji.onyomi_examples.length > 0 && (
+                  <View style={[styles.examplesSection, { borderLeftColor: "#3B82F6" }]}>
+                    <Text style={styles.examplesSecTitle}>Ví dụ âm ON</Text>
+                    {currentKanji.onyomi_examples.map((ex, i) => (
+                      <View key={i} style={styles.exampleWordItem}>
+                        <Text style={[styles.exWordText, { color: colors.text }]}>
+                          {ex.word} <Text style={{ color: "#3B82F6", fontWeight: "600" }}>({ex.reading})</Text>
                         </Text>
+                        <Text style={[styles.exWordMeaning, { color: colors.textMuted }]}>{ex.meaning}</Text>
                       </View>
-                    )}
+                    ))}
+                  </View>
+                )}
 
-                    {/* Examples ON */}
-                    {currentKanji.onyomi_examples && currentKanji.onyomi_examples.length > 0 && (
-                      <View style={[styles.examplesSection, { borderLeftColor: "#3B82F6" }]}>
-                        <Text style={styles.examplesSecTitle}>Ví dụ âm ON</Text>
-                        {currentKanji.onyomi_examples.map((ex, i) => (
-                          <View key={i} style={styles.exampleWordItem}>
-                            <Text style={[styles.exWordText, { color: colors.text }]}>
-                              {ex.word} <Text style={{ color: "#3B82F6", fontWeight: "600" }}>({ex.reading})</Text>
-                            </Text>
-                            <Text style={[styles.exWordMeaning, { color: colors.textMuted }]}>{ex.meaning}</Text>
-                          </View>
-                        ))}
+                {/* Examples KUN */}
+                {currentKanji.kunyomi_examples && currentKanji.kunyomi_examples.length > 0 && (
+                  <View style={[styles.examplesSection, { borderLeftColor: "#10B981" }]}>
+                    <Text style={styles.examplesSecTitle}>Ví dụ âm KUN</Text>
+                    {currentKanji.kunyomi_examples.map((ex, i) => (
+                      <View key={i} style={styles.exampleWordItem}>
+                        <Text style={[styles.exWordText, { color: colors.text }]}>
+                          {ex.word} <Text style={{ color: "#10B981", fontWeight: "600" }}>({ex.reading})</Text>
+                        </Text>
+                        <Text style={[styles.exWordMeaning, { color: colors.textMuted }]}>{ex.meaning}</Text>
                       </View>
-                    )}
-
-                    {/* Examples KUN */}
-                    {currentKanji.kunyomi_examples && currentKanji.kunyomi_examples.length > 0 && (
-                      <View style={[styles.examplesSection, { borderLeftColor: "#10B981" }]}>
-                        <Text style={styles.examplesSecTitle}>Ví dụ âm KUN</Text>
-                        {currentKanji.kunyomi_examples.map((ex, i) => (
-                          <View key={i} style={styles.exampleWordItem}>
-                            <Text style={[styles.exWordText, { color: colors.text }]}>
-                              {ex.word} <Text style={{ color: "#10B981", fontWeight: "600" }}>({ex.reading})</Text>
-                            </Text>
-                            <Text style={[styles.exWordMeaning, { color: colors.textMuted }]}>{ex.meaning}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </ScrollView>
-                </Animated.View>
-
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </Animated.View>
         ) : null}
       </View>
 
-      {/* ================= BOTTOM ACTION CONTROL ROW ================= */}
+      {/* ================= BOTTOM ACTION CONTROL ROW (Redesigned with Left/Right Arrows) ================= */}
       {kanjiList.length > 0 && currentKanji && (
         <View style={styles.bottomControlRow}>
-          {/* Chưa thuộc button */}
+          {/* Nút Trước (Mũi tên trái) */}
           <View style={styles.controlBtnWrapper}>
             <TouchableOpacity
-              style={[styles.roundControlBtn, styles.redControlBtn, { backgroundColor: colors.surface }]}
-              onPress={nextCard}
+              style={[
+                styles.roundControlBtn, 
+                styles.arrowControlBtn, 
+                { backgroundColor: colors.surface, opacity: currentIndex === 0 ? 0.35 : 1 }
+              ]}
+              onPress={prevCard}
+              disabled={currentIndex === 0}
               activeOpacity={0.8}
             >
-              <MaterialIcons name="reply" size={24} color="#EF4444" style={{ transform: [{ scaleX: -1 }] }} />
+              <MaterialIcons name="arrow-back-ios" size={22} color={colors.indigo} style={{ marginLeft: 6 }} />
             </TouchableOpacity>
-            <Text style={[styles.controlBtnLabel, { color: isDark ? colors.textMuted : "#475569" }]}>Chưa thuộc</Text>
+            <Text style={[styles.controlBtnLabel, { color: isDark ? colors.textMuted : "#475569" }]}>Trước</Text>
           </View>
 
-          {/* Flip / Rotation central button */}
+          {/* Nút Phát âm (Center Speaker) */}
           <View style={styles.controlBtnWrapper}>
             <TouchableOpacity
               style={[styles.roundControlBtn, styles.blueCentralBtn, { backgroundColor: colors.indigo }]}
-              onPress={toggleFlip}
+              onPress={() => speakKanji(currentKanji.character)}
               activeOpacity={0.8}
             >
-              <MaterialIcons name="autorenew" size={32} color="#FFF" />
+              <MaterialIcons name="volume-up" size={32} color="#FFF" />
             </TouchableOpacity>
-            <Text style={[styles.controlBtnLabel, { color: colors.indigo, fontWeight: "800" }]}>Lật thẻ</Text>
+            <Text style={[styles.controlBtnLabel, { color: colors.indigo, fontWeight: "800" }]}>Phát âm</Text>
           </View>
 
-          {/* Đã thuộc button */}
+          {/* Nút Tiếp theo (Mũi tên phải) */}
           <View style={styles.controlBtnWrapper}>
             <TouchableOpacity
-              style={[styles.roundControlBtn, styles.greenControlBtn, { backgroundColor: colors.surface }]}
+              style={[
+                styles.roundControlBtn, 
+                styles.arrowControlBtn, 
+                { backgroundColor: colors.surface, opacity: currentIndex === kanjiList.length - 1 ? 0.35 : 1 }
+              ]}
               onPress={nextCard}
+              disabled={currentIndex === kanjiList.length - 1}
               activeOpacity={0.8}
             >
-              <MaterialIcons name="check" size={26} color="#10B981" />
+              <MaterialIcons name="arrow-forward-ios" size={22} color={colors.indigo} />
             </TouchableOpacity>
-            <Text style={[styles.controlBtnLabel, { color: isDark ? colors.textMuted : "#475569" }]}>Đã thuộc</Text>
+            <Text style={[styles.controlBtnLabel, { color: isDark ? colors.textMuted : "#475569" }]}>Tiếp theo</Text>
           </View>
         </View>
       )}
 
-      {/* ================= MODAL CHÌNH SỬA KANJI ================= */}
+      {/* ================= MODAL CHỈNH SỬA KANJI ================= */}
       <Modal
         visible={editModal}
         animationType="slide"
@@ -788,13 +687,13 @@ export default function KanjiLessonScreen() {
 // STYLES
 // ============================================================
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  container: {
-    flex: 1,
   },
   centerBox: {
     flex: 1,
@@ -874,165 +773,112 @@ const styles = StyleSheet.create({
   // DECK CONTAINER
   deckContainer: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 20,
     paddingVertical: 10,
   },
-  stackWrapper: {
-    width: width - 48,
-    height: "85%",
-    position: "relative",
-    alignItems: "center",
-  },
-
-  // FAKE STACK CARDS
-  fakeCardBack: {
-    position: "absolute",
-    borderRadius: 28,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.02)",
-  },
-  fakeCardBottom: {
-    width: width - 80,
-    height: "96%",
-    bottom: 0,
-    transform: [{ scale: 0.9 }],
-  },
-  fakeCardMiddle: {
-    width: width - 64,
-    height: "97%",
-    bottom: 15,
-    transform: [{ scale: 0.95 }],
-  },
-
-  // ACTIVE MAIN CARD
   activeCardContainer: {
+    flex: 1,
     width: "100%",
-    height: "95%",
-    position: "absolute",
-    top: 0,
-  },
-  cardTouchArea: {
-    width: "100%",
-    height: "100%",
   },
   cardSurface: {
-    width: "100%",
-    height: "100%",
+    flex: 1,
     borderRadius: 28,
-    padding: 24,
+    padding: 20,
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.04)",
     shadowColor: "#1E1B4B",
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 5,
-    justifyContent: "space-between",
-  },
-  cardSurfaceBack: {
-    position: "absolute",
-    top: 0,
-    left: 0,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 4,
   },
 
-  // CARD CARD DETAILS
+  // CARD HEADER
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    height: 32,
+    marginBottom: 10,
   },
-  faceBadge: {
+  levelBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  faceBadgeText: {
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-  },
-  levelBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
   levelBadgeText: {
     fontSize: 11,
-    fontWeight: "800",
-  },
-  speakerBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    marginTop: 15,
-  },
-  centerDisplay: {
-    alignItems: "center",
-    justifyContent: "center",
-    flex: 1,
-    marginTop: -20,
-  },
-  bigKanjiChar: {
-    fontSize: 78,
     fontWeight: "900",
   },
-  bigReading: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginTop: 14,
-    letterSpacing: 0.5,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.03)",
-  },
-  footerPromptText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
 
-  // BACK CARD DETAIL
+  // BACK SCROLL VIEW
   backScrollView: {
     flex: 1,
-    marginTop: 14,
   },
-  backTitleRow: {
+
+  // TOP SECTION LAYOUT (DETAILS LEFT + STROKE BOX RIGHT)
+  topSectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 16,
+    gap: 14,
+    marginTop: 10,
+    marginBottom: 8,
   },
-  backMeaning: {
-    fontSize: 20,
-    fontWeight: "800",
-    lineHeight: 28,
+  leftInfoBlock: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  bigKanjiChar: {
+    fontSize: 72,
+    fontWeight: "900",
+    lineHeight: 80,
+    marginBottom: 4,
   },
   backHanViet: {
     fontSize: 14,
     fontWeight: "800",
-    marginTop: 4,
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
-  speakerBtnBack: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
+  backMeaning: {
+    fontSize: 17,
+    fontWeight: "800",
+    lineHeight: 24,
+  },
+
+  rightStrokeBlock: {
     alignItems: "center",
+    width: 130,
   },
+  strokeWebViewBox: {
+    width: 130,
+    height: 130,
+    borderRadius: 16,
+    borderWidth: 2,
+    overflow: "hidden",
+  },
+  replayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginTop: 6,
+    gap: 4,
+    width: 80,
+  },
+  replayText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  divider: {
+    height: 1,
+    marginVertical: 14,
+  },
+
+  // YOMI READINGS BLOCK
   backYomiBlock: {
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.04)",
@@ -1042,34 +888,29 @@ const styles = StyleSheet.create({
   },
   yomiRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
     padding: 12,
   },
-  yomiLabel: {
-    fontSize: 12,
-    fontWeight: "700",
+  yomiLabelBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  yomiLabelText: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.3,
   },
   yomiValue: {
     fontSize: 13,
     fontWeight: "800",
     flex: 1,
-    textAlign: "right",
-    paddingLeft: 10,
   },
 
-  // ROW DETAILS
-  rowDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  // COMPONENTS BLOCK
+  componentsBlock: {
     marginBottom: 16,
-    gap: 12,
-  },
-  leftStrokeCol: {
-    flex: 1,
-    alignItems: "center",
-  },
-  rightCompCol: {
-    flex: 1,
   },
   sectionTitleLabel: {
     fontSize: 10,
@@ -1077,26 +918,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
     textTransform: "uppercase",
-  },
-  strokeWebViewBox: {
-    width: 150,
-    height: 150,
-    borderRadius: 16,
-    borderWidth: 2,
-    overflow: "hidden",
-  },
-  replayBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    marginTop: 6,
-    gap: 4,
-  },
-  replayText: {
-    fontSize: 11,
-    fontWeight: "700",
   },
   componentsRow: {
     flexDirection: "row",
@@ -1113,12 +934,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-  // BACK STORY
+  // STORY BOX
   backStoryBox: {
     borderRadius: 16,
     borderWidth: 1,
     padding: 12,
     marginBottom: 16,
+  },
+  storyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
   },
   storyText: {
     fontSize: 12.5,
@@ -1151,13 +977,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // BOTTOM CONTROLS
+  // BOTTOM CONTROLS (Prev / Speak / Next)
   bottomControlRow: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
     paddingHorizontal: 20,
-    marginBottom: 35,
+    marginBottom: 30,
     height: 80,
   },
   controlBtnWrapper: {
@@ -1182,11 +1008,8 @@ const styles = StyleSheet.create({
       android: { elevation: 3 },
     }),
   },
-  redControlBtn: {
-    borderColor: "rgba(239, 68, 68, 0.15)",
-  },
-  greenControlBtn: {
-    borderColor: "rgba(16, 185, 129, 0.15)",
+  arrowControlBtn: {
+    borderColor: "rgba(79, 70, 229, 0.15)",
   },
   blueCentralBtn: {
     width: 68,
@@ -1208,12 +1031,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  // EMPTY STUFF
+  // EMPTY CARD
   emptyCard: {
     justifyContent: "center",
     alignItems: "center",
     height: 300,
-    width: width - 48,
+    width: "100%",
   },
   emptyTitle: {
     fontSize: 18,
