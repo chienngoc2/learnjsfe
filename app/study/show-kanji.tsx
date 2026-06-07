@@ -9,6 +9,7 @@ import {
   Animated,
   Platform,
   RefreshControl,
+  Image,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
@@ -36,15 +37,16 @@ const LEVEL_COLORS: Record<string, { bg: string; bgDark: string; text: string; t
   N1: { bg: "#FFF0F0", bgDark: "#3A1C1C", text: "#DC2626", textDark: "#F87171" },
 };
 
-// Màu gradient cho từng card bài học (tuần hoàn)
-const CARD_ACCENTS = [
-  "#F59E0B", "#3B82F6", "#10B981", "#8B5CF6",
-  "#EC4899", "#EF4444", "#06B6D4", "#84CC16",
+// Hình ảnh Nhật Bản cho từng card bài học
+const JAP_IMAGES = [
+  "https://images.unsplash.com/photo-1542051841857-5f90071e7989?q=80&w=200", // Tokyo
+  "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=200", // Kyoto
+  "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=200", // Sakura
+  "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?q=80&w=200", // Sunset Mt Fuji
+  "https://images.unsplash.com/photo-1504109586057-7a2ae4fdd853?q=80&w=200", // Temple
+  "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200", // Pagoda
 ];
 
-// ============================================================
-// COMPONENT CHÍNH: DANH SÁCH BÀI HỌC KANJI
-// ============================================================
 export default function ShowKanjiScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
@@ -67,9 +69,6 @@ export default function ShowKanjiScreen() {
     }, 3500);
   };
 
-  // ============================================================
-  // FETCH GROUPS
-  // ============================================================
   const fetchGroups = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -91,9 +90,6 @@ export default function ShowKanjiScreen() {
     fetchGroups();
   }, []);
 
-  // ============================================================
-  // NAVIGATE ĐẾN TRANG CHI TIẾT BÀI HỌC
-  // ============================================================
   const openLesson = (groupName: string) => {
     router.push({
       pathname: "/study/kanji-lesson",
@@ -108,16 +104,13 @@ export default function ShowKanjiScreen() {
     } as any);
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <Header title="📖 Học Kanji" />
         <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.amber} />
+          <ActivityIndicator size="large" color={colors.indigo} />
           <Text style={[styles.loadingText, { color: colors.textMuted }]}>
             Đang tải danh sách bài học...
           </Text>
@@ -136,20 +129,20 @@ export default function ShowKanjiScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => fetchGroups(true)}
-            tintColor={colors.amber}
+            tintColor={colors.indigo}
           />
         }
       >
-        {/* HEADER THỐNG KÊ */}
+        {/* HEADER THỐNG KÊ (Redesigned like the mockup progress layout) */}
         <View style={[styles.statsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: colors.amber }]}>{groups.length}</Text>
+            <Text style={[styles.statNumber, { color: colors.indigo }]}>{groups.length}</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Bài học</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
@@ -170,7 +163,7 @@ export default function ShowKanjiScreen() {
 
         {/* TIÊU ĐỀ SECTION */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          📚 Danh sách bài học
+          📚 Danh sách bài học của tôi
         </Text>
 
         {/* DANH SÁCH CÁC BÀI HỌC */}
@@ -184,7 +177,7 @@ export default function ShowKanjiScreen() {
               Hãy thêm Kanji và gán tên bài học{"\n"}qua trang "Thêm Kanji"!
             </Text>
             <TouchableOpacity
-              style={[styles.emptyBtn, { backgroundColor: colors.amber }]}
+              style={[styles.emptyBtn, { backgroundColor: colors.indigo }]}
               onPress={() => router.push("/study/add-kanji" as any)}
             >
               <MaterialIcons name="add" size={18} color="#FFF" />
@@ -194,66 +187,82 @@ export default function ShowKanjiScreen() {
         ) : (
           <>
             {groups.map((group, idx) => {
-              const accent = CARD_ACCENTS[idx % CARD_ACCENTS.length];
+              const thumbnail = JAP_IMAGES[idx % JAP_IMAGES.length];
+              const progressPercentage = Math.min(100, Math.round((6 / (group.count || 6)) * 100)) || 50; // Mock progress based on counts
+
               return (
                 <TouchableOpacity
                   key={group.name}
                   style={[
-                    styles.lessonCard,
+                    styles.deckCard,
                     {
                       backgroundColor: colors.surface,
                       borderColor: colors.border,
-                      borderLeftColor: accent,
                     },
                   ]}
                   onPress={() => openLesson(group.name)}
                   activeOpacity={0.8}
                 >
-                  {/* TOP ROW */}
-                  <View style={styles.cardTop}>
-                    {/* ICON BÀI HỌC */}
-                    <View style={[styles.cardIconBox, { backgroundColor: accent + "18" }]}>
-                      <MaterialIcons name="menu-book" size={26} color={accent} />
-                    </View>
+                  <View style={styles.cardHeaderArea}>
+                    {/* THUMBNAIL */}
+                    <Image source={{ uri: thumbnail }} style={styles.deckThumbnail} />
 
-                    {/* TEN BÀI HỌC + LEVEL BADGES */}
-                    <View style={styles.cardInfo}>
-                      <Text
-                        style={[styles.cardTitle, { color: colors.text }]}
-                        numberOfLines={2}
-                      >
-                        {group.name}
-                      </Text>
-                      <View style={styles.levelBadgeRow}>
-                        {group.levels.map((lv) => {
-                          const lc = LEVEL_COLORS[lv] || LEVEL_COLORS["N5"];
-                          return (
-                            <View
-                              key={lv}
-                              style={[
-                                styles.levelBadge,
-                                { backgroundColor: isDark ? lc.bgDark : lc.bg },
-                              ]}
-                            >
-                              <Text
+                    {/* CARD INFO (Redesigned matching mockup) */}
+                    <View style={styles.deckContent}>
+                      <View style={styles.deckTopRow}>
+                        <Text style={[styles.deckTitle, { color: colors.text }]} numberOfLines={1}>
+                          {group.name}
+                        </Text>
+                        <View style={styles.badgeContainer}>
+                          {group.levels.map((lv) => {
+                            const lc = LEVEL_COLORS[lv] || LEVEL_COLORS["N5"];
+                            return (
+                              <View
+                                key={lv}
                                 style={[
-                                  styles.levelBadgeText,
-                                  { color: isDark ? lc.textDark : lc.text },
+                                  styles.levelBadge,
+                                  { backgroundColor: isDark ? lc.bgDark : lc.bg },
                                 ]}
                               >
-                                {lv}
-                              </Text>
-                            </View>
-                          );
-                        })}
+                                <Text
+                                  style={[
+                                    styles.levelBadgeText,
+                                    { color: isDark ? lc.textDark : lc.text },
+                                  ]}
+                                >
+                                  {lv}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+
+                      <Text style={[styles.deckSub, { color: colors.textMuted }]}>
+                        • {group.count} chữ Kanji
+                      </Text>
+
+                      {/* Progress bar matching mockup */}
+                      <View style={styles.deckProgressRow}>
+                        <View style={[styles.deckProgressBarBg, { backgroundColor: colors.border }]}>
+                          <View
+                            style={[
+                              styles.deckProgressBarFill,
+                              { backgroundColor: colors.indigo, width: `${progressPercentage}%` },
+                            ]}
+                          />
+                        </View>
+                        <Text style={[styles.deckPercent, { color: colors.textMuted }]}>
+                          {progressPercentage}%
+                        </Text>
                       </View>
                     </View>
 
-                    {/* ARROW */}
-                    <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+                    {/* RIGHT CHEVRON */}
+                    <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} style={{ marginLeft: 6 }} />
                   </View>
 
-                  {/* PREVIEW KANJI CHARACTERS */}
+                  {/* PREVIEW MINI CHARACTERS DISPLAY */}
                   <View style={styles.previewRow}>
                     {group.previewChars.map((char, ci) => (
                       <View
@@ -261,12 +270,12 @@ export default function ShowKanjiScreen() {
                         style={[
                           styles.previewChar,
                           {
-                            backgroundColor: accent + "12",
-                            borderColor: accent + "40",
+                            backgroundColor: colors.background,
+                            borderColor: colors.border,
                           },
                         ]}
                       >
-                        <Text style={[styles.previewCharText, { color: accent }]}>{char}</Text>
+                        <Text style={[styles.previewCharText, { color: colors.text }]}>{char}</Text>
                       </View>
                     ))}
                     {group.count > 6 && (
@@ -276,18 +285,11 @@ export default function ShowKanjiScreen() {
                           { backgroundColor: isDark ? "#334155" : "#F1F5F9", borderColor: colors.border },
                         ]}
                       >
-                        <Text style={[styles.previewCharText, { color: colors.textMuted }]}>
+                        <Text style={[styles.previewCharText, { color: colors.textMuted, fontSize: 11 }]}>
                           +{group.count - 6}
                         </Text>
                       </View>
                     )}
-
-                    {/* COUNT BÊN PHẢI */}
-                    <View style={{ flex: 1, alignItems: "flex-end" }}>
-                      <Text style={[styles.cardCount, { color: accent }]}>
-                        {group.count} chữ
-                      </Text>
-                    </View>
                   </View>
                 </TouchableOpacity>
               );
@@ -297,27 +299,26 @@ export default function ShowKanjiScreen() {
             {unnamedCount > 0 && (
               <TouchableOpacity
                 style={[
-                  styles.lessonCard,
+                  styles.deckCard,
                   styles.unnamedCard,
                   {
                     backgroundColor: colors.surface,
                     borderColor: colors.border,
-                    borderLeftColor: isDark ? "#64748B" : "#94A3B8",
                   },
                 ]}
                 onPress={openUnnamed}
                 activeOpacity={0.8}
               >
-                <View style={styles.cardTop}>
-                  <View style={[styles.cardIconBox, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
-                    <MaterialIcons name="folder-open" size={26} color={isDark ? "#64748B" : "#94A3B8"} />
+                <View style={styles.cardHeaderArea}>
+                  <View style={[styles.unnamedIconBox, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
+                    <MaterialIcons name="folder-open" size={28} color={colors.textMuted} />
                   </View>
-                  <View style={styles.cardInfo}>
-                    <Text style={[styles.cardTitle, { color: colors.textMuted }]}>
+                  <View style={styles.deckContent}>
+                    <Text style={[styles.deckTitle, { color: colors.text }]}>
                       Chưa phân loại
                     </Text>
-                    <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>
-                      {unnamedCount} Kanji chưa có tên bài học
+                    <Text style={[styles.deckSub, { color: colors.textMuted }]}>
+                      {unnamedCount} chữ Kanji chưa có tên bài học
                     </Text>
                   </View>
                   <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
@@ -330,13 +331,22 @@ export default function ShowKanjiScreen() {
         {/* TIP BOX */}
         {groups.length > 0 && (
           <View style={[styles.tipBox, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-            <MaterialIcons name="lightbulb-outline" size={16} color={colors.amber} style={{ marginRight: 8 }} />
+            <MaterialIcons name="lightbulb-outline" size={16} color={colors.indigo} style={{ marginRight: 8 }} />
             <Text style={[styles.tipText, { color: colors.textMuted }]}>
-              💡 Kéo xuống để làm mới. Bấm vào bài học để học từng Kanji.
+              💡 Kéo xuống để làm mới. Chọn bài học để bắt đầu học flashcard.
             </Text>
           </View>
         )}
       </ScrollView>
+
+      {/* ================= FLOATING ACTION BUTTON (FAB) ================= */}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.indigo }]}
+        onPress={() => router.push('/study/add-kanji')}
+        activeOpacity={0.8}
+      >
+        <MaterialIcons name="add" size={28} color="#FFF" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -351,88 +361,138 @@ const styles = StyleSheet.create({
 
   statsRow: {
     flexDirection: "row",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
+    marginHorizontal: 20,
+    marginTop: 15,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
     shadowRadius: 8,
     elevation: 2,
   },
   statItem: { flex: 1, alignItems: "center" },
-  statNumber: { fontSize: 26, fontWeight: "900", letterSpacing: -0.5 },
-  statLabel: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  statNumber: { fontSize: 24, fontWeight: "900", letterSpacing: -0.5 },
+  statLabel: { fontSize: 11, fontWeight: "600", marginTop: 2 },
   statDivider: { width: 1, marginHorizontal: 8 },
 
   sectionTitle: {
     fontSize: 16,
     fontWeight: "800",
     marginBottom: 14,
+    paddingHorizontal: 20,
     letterSpacing: -0.3,
   },
 
-  // LESSON CARD
-  lessonCard: {
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
+  // DECK CARD REDESIGN
+  deckCard: {
+    borderRadius: 22,
+    padding: 14,
     borderWidth: 1,
-    borderLeftWidth: 5,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
+    marginBottom: 14,
+    marginHorizontal: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.02,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
   },
-  unnamedCard: { opacity: 0.8 },
-  cardTop: {
+  cardHeaderArea: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
   },
-  cardIconBox: {
-    width: 50,
-    height: 50,
+  unnamedCard: { opacity: 0.8 },
+  unnamedIconBox: {
+    width: 68,
+    height: 68,
     borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
-  cardInfo: { flex: 1, paddingRight: 8 },
-  cardTitle: {
-    fontSize: 15,
+  deckThumbnail: {
+    width: 68,
+    height: 68,
+    borderRadius: 14,
+    marginRight: 14,
+  },
+  deckContent: {
+    flex: 1,
+  },
+  deckTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  deckTitle: {
+    fontSize: 14,
     fontWeight: "800",
-    letterSpacing: -0.2,
-    marginBottom: 6,
+    flex: 1,
+    paddingRight: 6,
   },
-  cardSubtitle: { fontSize: 13, fontWeight: "500" },
-  levelBadgeRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  badgeContainer: {
+    flexDirection: "row",
+  },
   levelBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: 8,
   },
-  levelBadgeText: { fontSize: 11, fontWeight: "800" },
+  levelBadgeText: { fontSize: 9, fontWeight: "900" },
+  deckSub: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  deckProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deckProgressBarBg: {
+    flex: 1,
+    height: 5,
+    borderRadius: 2.5,
+    overflow: "hidden",
+  },
+  deckProgressBarFill: {
+    height: "100%",
+    borderRadius: 2.5,
+  },
+  deckPercent: {
+    fontSize: 10,
+    fontWeight: "800",
+    width: 30,
+    textAlign: "right",
+  },
 
-  // PREVIEW CHARS
+  // PREVIEW MINI CHARACTERS BELOW
   previewRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     flexWrap: "wrap",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0, 0, 0, 0.05)",
   },
   previewChar: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  previewCharText: { fontSize: 16, fontWeight: "700" },
-  cardCount: { fontSize: 13, fontWeight: "800" },
+  previewCharText: { fontSize: 14, fontWeight: "700" },
 
   // EMPTY STATE
   emptyBox: {
@@ -460,6 +520,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginTop: 8,
+    marginHorizontal: 20,
   },
   tipText: { flex: 1, fontSize: 12, lineHeight: 18 },
+
+  // FAB
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#4F46E5",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+      },
+      android: { elevation: 6 },
+    }),
+  },
 });

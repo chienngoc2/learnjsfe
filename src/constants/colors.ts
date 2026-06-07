@@ -2,9 +2,9 @@
 
 export const themes = {
   light: {
-    background: "#F8FAFC",      // Nền chính xám nhạt
+    background: "#F4F6FF",      // Nền chính xanh nhạt/lavender cực sang
     surface: "#FFFFFF",         // Nền thẻ trắng tinh
-    text: "#1E293B",            // Chữ đen đậm
+    text: "#1E1B4B",            // Chữ màu tím than đậm sang trọng
     textMuted: "#64748B",       // Chữ xám mờ
     border: "#E2E8F0",          // Viền nhạt
     

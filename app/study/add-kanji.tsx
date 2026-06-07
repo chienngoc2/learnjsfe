@@ -13,7 +13,6 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import api from "../../services/api";
-import Button from "../../components/ui/Button";
 import Toast from "../../components/ui/Toast";
 import Header from "../../components/ui/Header";
 import { useTheme } from "@/src/context/ThemeContext";
@@ -21,6 +20,12 @@ import { useTheme } from "@/src/context/ThemeContext";
 // ============================================================
 // INTERFACE
 // ============================================================
+interface ExampleWord {
+  word: string;
+  reading: string;
+  meaning: string;
+}
+
 interface KanjiItem {
   _id?: string;
   character: string;
@@ -32,6 +37,8 @@ interface KanjiItem {
   components?: string[];
   story?: string;
   lessonGroup?: string;
+  onyomi_examples?: ExampleWord[];
+  kunyomi_examples?: ExampleWord[];
 }
 
 const LEVEL_OPTIONS = ["N5", "N4", "N3", "N2", "N1"];
@@ -255,9 +262,9 @@ export default function AddKanjiScreen() {
                 borderColor: isActive ? accent : colors.border,
                 shadowColor: isActive ? accent : "transparent",
                 shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: isActive ? 0.4 : 0,
-                shadowRadius: 8,
-                elevation: isActive ? 4 : 0,
+                shadowOpacity: isActive ? 0.3 : 0,
+                shadowRadius: 6,
+                elevation: isActive ? 3 : 0,
               },
             ]}
             onPress={() => onSelect(lv)}
@@ -277,18 +284,15 @@ export default function AddKanjiScreen() {
     </View>
   );
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Stack.Screen options={{ headerShown: false }} />
       <Toast toast={toast} slideAnim={slideAnim} />
       <Header title="✍️ Thêm Kanji Mới" />
 
-      {/* ===== TAB SWITCHER XỊN SÒ ===== */}
+      {/* ===== TAB SWITCHER XỊN SÒ (Matching Mockup) ===== */}
       <View style={[styles.tabWrapper, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
-        <View style={[styles.tabPill, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
+        <View style={[styles.tabPill, { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
           {[
             { label: "✍️ Thủ công", value: false },
             { label: "📋 JSON hàng loạt", value: true },
@@ -301,9 +305,9 @@ export default function AddKanjiScreen() {
                   backgroundColor: colors.surface,
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 6,
-                  elevation: 3,
+                  shadowOpacity: 0.05,
+                  shadowRadius: 5,
+                  elevation: 2,
                 },
               ]}
               onPress={() => setIsBulkMode(value)}
@@ -312,7 +316,7 @@ export default function AddKanjiScreen() {
               <Text
                 style={[
                   styles.tabBtnText,
-                  { color: isBulkMode === value ? colors.text : colors.textMuted },
+                  { color: isBulkMode === value ? colors.indigo : colors.textMuted },
                 ]}
               >
                 {label}
@@ -335,29 +339,28 @@ export default function AddKanjiScreen() {
           <>
             {/* CARD 1: THÔNG TIN CƠ BẢN */}
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              {/* SECTION HEADER */}
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIconBox, { backgroundColor: colors.amber + "20" }]}>
-                  <MaterialIcons name="info" size={18} color={colors.amber} />
+                <View style={[styles.sectionIconBox, { backgroundColor: colors.indigo + "12" }]}>
+                  <MaterialIcons name="info" size={18} color={colors.indigo} />
                 </View>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Thông tin cơ bản</Text>
               </View>
 
-              {/* KANJI CHARACTER — lớn và nổi bật */}
+              {/* KANJI CHARACTER */}
               <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Chữ Kanji *</Text>
-              <View style={[styles.kanjiInputWrapper, { borderColor: form.character ? colors.amber : colors.border, backgroundColor: colors.background }]}>
+              <View style={[styles.kanjiInputWrapper, { borderColor: form.character ? colors.indigo : colors.border, backgroundColor: colors.background }]}>
                 <TextInput
                   style={[styles.kanjiInput, { color: colors.text }]}
                   value={form.character}
                   onChangeText={(t) => setField("character", t)}
                   placeholder="一"
-                  placeholderTextColor={colors.textMuted + "80"}
+                  placeholderTextColor={colors.textMuted + "60"}
                   maxLength={3}
                   textAlign="center"
                 />
               </View>
 
-              {/* 2 CỘT: Ý NGHĨA + ÂM HÁN VIỆT */}
+              {/* 2 COLUMNS: Ý NGHĨA + ÂM HÁN VIỆT */}
               <View style={styles.twoCol}>
                 <View style={{ flex: 1, marginRight: 8 }}>
                   <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Ý nghĩa *</Text>
@@ -366,7 +369,7 @@ export default function AddKanjiScreen() {
                     value={form.meaning}
                     onChangeText={(t) => setField("meaning", t)}
                     placeholder="Một, Thứ nhất"
-                    placeholderTextColor={colors.textMuted + "80"}
+                    placeholderTextColor={colors.textMuted + "60"}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -376,7 +379,7 @@ export default function AddKanjiScreen() {
                     value={form.vietnamese_reading}
                     onChangeText={(t) => setField("vietnamese_reading", t)}
                     placeholder="NHẤT"
-                    placeholderTextColor={colors.textMuted + "80"}
+                    placeholderTextColor={colors.textMuted + "60"}
                     autoCapitalize="characters"
                   />
                 </View>
@@ -391,7 +394,7 @@ export default function AddKanjiScreen() {
                     value={form.onyomi}
                     onChangeText={(t) => setField("onyomi", t)}
                     placeholder="いち"
-                    placeholderTextColor={colors.textMuted + "80"}
+                    placeholderTextColor={colors.textMuted + "60"}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -401,7 +404,7 @@ export default function AddKanjiScreen() {
                     value={form.kunyomi}
                     onChangeText={(t) => setField("kunyomi", t)}
                     placeholder="ひと"
-                    placeholderTextColor={colors.textMuted + "80"}
+                    placeholderTextColor={colors.textMuted + "60"}
                   />
                 </View>
               </View>
@@ -419,7 +422,7 @@ export default function AddKanjiScreen() {
                   value={form.lessonGroup}
                   onChangeText={(t) => setField("lessonGroup", t)}
                   placeholder="VD: Bài 1 - Số đếm"
-                  placeholderTextColor={colors.textMuted + "80"}
+                  placeholderTextColor={colors.textMuted + "60"}
                 />
               </View>
             </View>
@@ -427,8 +430,8 @@ export default function AddKanjiScreen() {
             {/* CARD 2: BỘ THỦ & CÂU CHUYỆN */}
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIconBox, { backgroundColor: "#8B5CF620" }]}>
-                  <MaterialIcons name="auto-stories" size={18} color="#8B5CF6" />
+                <View style={[styles.sectionIconBox, { backgroundColor: colors.indigo + "12" }]}>
+                  <MaterialIcons name="auto-stories" size={18} color={colors.indigo} />
                 </View>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Bộ thủ & Mẹo nhớ</Text>
               </View>
@@ -443,12 +446,12 @@ export default function AddKanjiScreen() {
                     value={componentInput}
                     onChangeText={setComponentInput}
                     placeholder="Nhập bộ thủ rồi bấm +"
-                    placeholderTextColor={colors.textMuted + "80"}
+                    placeholderTextColor={colors.textMuted + "60"}
                     onSubmitEditing={addComponent}
                   />
                 </View>
                 <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: colors.amber }]}
+                  style={[styles.addBtn, { backgroundColor: colors.indigo }]}
                   onPress={addComponent}
                   activeOpacity={0.8}
                 >
@@ -462,12 +465,12 @@ export default function AddKanjiScreen() {
                   {(form.components || []).map((c, i) => (
                     <TouchableOpacity
                       key={i}
-                      style={[styles.chip, { backgroundColor: colors.amber + "18", borderColor: colors.amber + "60" }]}
+                      style={[styles.chip, { backgroundColor: colors.indigo + "15", borderColor: colors.indigo + "40" }]}
                       onPress={() => removeComponent(i)}
                       activeOpacity={0.7}
                     >
-                      <Text style={[styles.chipText, { color: colors.amber }]}>{c}</Text>
-                      <MaterialIcons name="close" size={13} color={colors.amber} style={{ marginLeft: 3 }} />
+                      <Text style={[styles.chipText, { color: colors.indigo }]}>{c}</Text>
+                      <MaterialIcons name="close" size={13} color={colors.indigo} style={{ marginLeft: 3 }} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -480,7 +483,7 @@ export default function AddKanjiScreen() {
                 value={form.story}
                 onChangeText={(t) => setField("story", t)}
                 placeholder="Ví dụ: Một nét ngang duy nhất như số 1..."
-                placeholderTextColor={colors.textMuted + "80"}
+                placeholderTextColor={colors.textMuted + "60"}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
@@ -494,7 +497,7 @@ export default function AddKanjiScreen() {
               disabled={loading}
               activeOpacity={0.8}
             >
-              <View style={[styles.submitGradient, { backgroundColor: colors.amber }]}>
+              <View style={[styles.submitGradient, { backgroundColor: colors.indigo }]}>
                 {loading ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
@@ -508,32 +511,32 @@ export default function AddKanjiScreen() {
           </>
         ) : (
           /* ====================================================
-              CHẾ ĐỘ DÁN JSON HÀNG LOẠT - REDESIGN
+              CHẾ ĐỘ DÁN JSON HÀNG LOẠT
               ==================================================== */
           <>
             {/* CARD 1: CẤU HÌNH BÀI HỌC */}
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIconBox, { backgroundColor: "#3B82F620" }]}>
-                  <MaterialIcons name="folder-special" size={18} color="#3B82F6" />
+                <View style={[styles.sectionIconBox, { backgroundColor: colors.indigo + "12" }]}>
+                  <MaterialIcons name="folder-special" size={18} color={colors.indigo} />
                 </View>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Gán bài học & Trình độ</Text>
               </View>
 
               <Text style={[styles.fieldSubtitle, { color: colors.textMuted }]}>
-                Áp dụng cho toàn batch (item nào đã có sẵn trong JSON sẽ được ưu tiên)
+                Áp dụng cho toàn bộ batch (nếu trong JSON đã khai báo thì sẽ được ưu tiên)
               </Text>
 
               {/* TÊN BÀI HỌC */}
               <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Tên bài học</Text>
               <View style={[styles.iconInput, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <MaterialIcons name="book" size={18} color="#3B82F6" style={{ marginLeft: 12 }} />
+                <MaterialIcons name="book" size={18} color={colors.indigo} style={{ marginLeft: 12 }} />
                 <TextInput
                   style={[styles.iconInputText, { color: colors.text }]}
                   value={bulkLessonGroup}
                   onChangeText={setBulkLessonGroup}
                   placeholder="VD: Bài 1 - Số đếm, N5 Cơ bản"
-                  placeholderTextColor={colors.textMuted + "80"}
+                  placeholderTextColor={colors.textMuted + "60"}
                 />
               </View>
 
@@ -545,28 +548,27 @@ export default function AddKanjiScreen() {
             {/* CARD 2: PASTE JSON */}
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIconBox, { backgroundColor: "#10B98120" }]}>
-                  <MaterialIcons name="data-array" size={18} color="#10B981" />
+                <View style={[styles.sectionIconBox, { backgroundColor: colors.indigo + "12" }]}>
+                  <MaterialIcons name="data-array" size={18} color={colors.indigo} />
                 </View>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Dán JSON Kanji</Text>
               </View>
 
-              {/* INFO HINT */}
-              <View style={[styles.infoBox, { backgroundColor: isDark ? "#1E2A45" : "#EFF6FF", borderColor: isDark ? "#3B5998" : "#BFDBFE" }]}>
-                <MaterialIcons name="lightbulb" size={15} color={isDark ? "#93C5FD" : "#3B82F6"} style={{ marginRight: 8, marginTop: 1 }} />
-                <Text style={[styles.infoText, { color: isDark ? "#93C5FD" : "#1D4ED8", flex: 1 }]}>
-                  {"Kanji trùng sẽ được tự động cập nhật (upsert). Mỗi item cần: character, meaning, vietnamese_reading"}
+              <View style={[styles.infoBox, { backgroundColor: colors.indigo + "08", borderColor: colors.indigo + "20" }]}>
+                <MaterialIcons name="lightbulb" size={15} color={colors.indigo} style={{ marginRight: 8, marginTop: 1 }} />
+                <Text style={[styles.infoText, { color: colors.indigo, flex: 1 }]}>
+                  {"Kanji trùng sẽ tự động cập nhật (upsert). Mỗi item cần: character, meaning, vietnamese_reading"}
                 </Text>
               </View>
 
-              {/* JSON EXAMPLE (có thể thu gọn) */}
-              <View style={[styles.codeBox, { backgroundColor: isDark ? "#0D1B0F" : "#F0FDF4", borderColor: isDark ? "#1A4030" : "#86EFAC" }]}>
+              {/* JSON EXAMPLE */}
+              <View style={[styles.codeBox, { backgroundColor: isDark ? "#0D1B0F" : "#F4F6FF", borderColor: colors.border }]}>
                 <View style={styles.codeBoxHeader}>
-                  <MaterialIcons name="code" size={14} color={isDark ? "#86EFAC" : "#16A34A"} />
-                  <Text style={[styles.codeBoxLabel, { color: isDark ? "#86EFAC" : "#16A34A" }]}>Ví dụ định dạng JSON</Text>
+                  <MaterialIcons name="code" size={14} color={colors.indigo} />
+                  <Text style={[styles.codeBoxLabel, { color: colors.indigo }]}>Ví dụ định dạng JSON</Text>
                 </View>
-                <Text style={[styles.codeText, { color: isDark ? "#86EFAC" : "#166534" }]}>
-                  {`[\n  {\n    "character": "一",\n    "meaning": "Một",\n    "onyomi": "いち",\n    "kunyomi": "ひと",\n    "vietnamese_reading": "NHẤT",\n    "level": "N5",\n    "lessonGroup": "Bài 1",\n    "components": ["一"],\n    "story": "Một nét ngang"\n  }\n]`}
+                <Text style={[styles.codeText, { color: colors.text }]}>
+                  {`[\n  {\n    "character": "一",\n    "meaning": "Một",\n    "onyomi": "いち",\n    "kunyomi": "ひと",\n    "vietnamese_reading": "NHẤT",\n    "level": "N5",\n    "lessonGroup": "Bài 1 - Số đếm",\n    "components": ["一"],\n    "story": "Một nét ngang đơn giản nằm ngang.",\n    "onyomi_examples": [\n      { "word": "一日", "reading": "いちねち", "meaning": "Một ngày" }\n    ],\n    "kunyomi_examples": [\n      { "word": "一つ", "reading": "ひとつ", "meaning": "Một cái" }\n    ]\n  }\n]`}
                 </Text>
               </View>
 
@@ -603,14 +605,14 @@ export default function AddKanjiScreen() {
                     </Text>
                   </View>
                 ) : previewCount > 0 ? (
-                  <View style={[styles.statusBadge, { backgroundColor: isDark ? "#052E16" : "#F0FDF4", borderColor: isDark ? "#166534" : "#86EFAC" }]}>
+                  <View style={[styles.statusBadge, { backgroundColor: isDark ? "#052E16" : "#F0FDF4", borderColor: "#86EFAC" }]}>
                     <MaterialIcons name="check-circle" size={14} color="#10B981" />
-                    <Text style={[styles.statusText, { color: isDark ? "#86EFAC" : "#166534" }]}>
-                      Đọc được {previewCount} Kanji — sẵn sàng import
+                    <Text style={[styles.statusText, { color: "#166534" }]}>
+                      Đọc được {previewCount} chữ Kanji — sẵn sàng import
                     </Text>
                   </View>
                 ) : (
-                  <View style={[styles.statusBadge, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: colors.border }]}>
+                  <View style={[styles.statusBadge, { backgroundColor: colors.background, borderColor: colors.border }]}>
                     <MaterialIcons name="info-outline" size={14} color={colors.textMuted} />
                     <Text style={[styles.statusText, { color: colors.textMuted }]}>
                       Dán JSON vào ô trên để bắt đầu
@@ -629,10 +631,10 @@ export default function AddKanjiScreen() {
                         key={i}
                         style={[
                           styles.previewChar,
-                          { backgroundColor: colors.amber + "15", borderColor: colors.amber + "50" },
+                          { backgroundColor: colors.indigo + "15", borderColor: colors.indigo + "40" },
                         ]}
                       >
-                        <Text style={[styles.previewCharText, { color: colors.amber }]}>
+                        <Text style={[styles.previewCharText, { color: colors.indigo }]}>
                           {item.character || "?"}
                         </Text>
                       </View>
@@ -649,9 +651,9 @@ export default function AddKanjiScreen() {
               )}
             </View>
 
-            {/* KẾT QUẢ IMPORT LẦN TRƯỚC */}
+            {/* KẾT QUẢ IMPORT */}
             {lastResult && (
-              <View style={[styles.resultCard, { backgroundColor: isDark ? "#052E16" : "#F0FDF4", borderColor: isDark ? "#166534" : "#86EFAC" }]}>
+              <View style={[styles.resultCard, { backgroundColor: isDark ? "#052E16" : "#F0FDF4", borderColor: "#86EFAC" }]}>
                 <Text style={[styles.resultTitle, { color: isDark ? "#86EFAC" : "#15803D" }]}>
                   📊 Kết quả import vừa xong
                 </Text>
@@ -731,38 +733,42 @@ const resultStatStyles = StyleSheet.create({
 // ============================================================
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 60 },
+  scrollContent: { padding: 20, paddingBottom: 60 },
 
   // TAB SWITCHER
   tabWrapper: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
   tabPill: {
     flexDirection: "row",
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 4,
   },
   tabBtn: {
     flex: 1,
     paddingVertical: 10,
     alignItems: "center",
-    borderRadius: 10,
+    borderRadius: 12,
   },
-  tabBtnText: { fontSize: 13, fontWeight: "700" },
+  tabBtnText: { fontSize: 13, fontWeight: "800" },
 
   // CARD
   card: {
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 22,
+    padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.02,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
   },
 
   // SECTION HEADER
@@ -772,14 +778,14 @@ const styles = StyleSheet.create({
 
   // FIELD
   fieldLabel: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: 8,
     marginTop: 14,
   },
-  fieldSubtitle: { fontSize: 12, lineHeight: 17, marginBottom: 4, marginTop: -10 },
+  fieldSubtitle: { fontSize: 12, lineHeight: 17, marginBottom: 14, marginTop: -8 },
   fieldInput: {
     borderWidth: 1,
     borderRadius: 12,
@@ -797,15 +803,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   kanjiInput: {
-    fontSize: 38,
-    fontWeight: "700",
+    fontSize: 36,
+    fontWeight: "900",
     height: 80,
     width: "100%",
     textAlign: "center",
   },
 
   // TWO COLUMN
-  twoCol: { flexDirection: "row", marginTop: 0, gap: 8, marginBottom: 0 },
+  twoCol: { flexDirection: "row", gap: 8 },
 
   // ICON INPUT
   iconInput: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, height: 48 },
@@ -833,23 +839,23 @@ const styles = StyleSheet.create({
   },
 
   // INFO BOX
-  infoBox: { flexDirection: "row", alignItems: "flex-start", padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 4 },
+  infoBox: { flexDirection: "row", alignItems: "flex-start", padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 14 },
   infoText: { fontSize: 12, lineHeight: 18 },
 
   // CODE BOX
-  codeBox: { borderRadius: 12, borderWidth: 1, marginBottom: 4, overflow: "hidden" },
-  codeBoxHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 0 },
-  codeBoxLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  codeText: { fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontSize: 11.5, lineHeight: 18, paddingHorizontal: 12, paddingBottom: 12 },
+  codeBox: { borderRadius: 12, borderWidth: 1, marginBottom: 14, overflow: "hidden" },
+  codeBoxHeader: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
+  codeBoxLabel: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  codeText: { fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontSize: 11, lineHeight: 18, paddingHorizontal: 12, paddingBottom: 12 },
 
   // STATUS
   statusRow: { marginTop: 10 },
   statusBadge: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
-  statusText: { fontSize: 12, fontWeight: "600", flex: 1 },
+  statusText: { fontSize: 12, fontWeight: "700", flex: 1 },
 
   // PREVIEW
   previewSection: { marginTop: 12 },
-  previewLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  previewLabel: { fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
   previewCharRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   previewChar: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, justifyContent: "center", alignItems: "center" },
   previewCharText: { fontSize: 18, fontWeight: "700" },

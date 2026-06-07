@@ -304,14 +304,14 @@ export default function AddGrammarScreen() {
                 label="Tên bài học / Chủ đề"
                 iconName="folder-open"
                 value={item.topicName}
-                onChangeText={(text) => handleChange(index, "topicName", text)}
+                onChangeText={(text: string) => handleChange(index, "topicName", text)}
                 placeholder="Ví dụ: Bài 8 - Động từ thao tác"
               />
 
               <InputField
                 label="Tên cấu trúc ngữ pháp"
                 value={item.title}
-                onChangeText={(text) => handleChange(index, "title", text)}
+                onChangeText={(text: string) => handleChange(index, "title", text)}
                 placeholder="VD: Cấu trúc nhờ vả V-te"
               />
 
@@ -320,14 +320,14 @@ export default function AddGrammarScreen() {
                 highlight
                 iconName="functions"
                 value={item.formula}
-                onChangeText={(text) => handleChange(index, "formula", text)}
+                onChangeText={(text: string) => handleChange(index, "formula", text)}
                 placeholder="VD: V-て + ください"
               />
 
               <InputField
                 label="Ý nghĩa & Ngữ cảnh dùng"
                 value={item.meaning}
-                onChangeText={(text) => handleChange(index, "meaning", text)}
+                onChangeText={(text: string) => handleChange(index, "meaning", text)}
                 multiline
                 style={styles.textArea}
                 placeholder="Dùng để yêu cầu người khác làm gì một cách lịch sự..."
@@ -350,7 +350,7 @@ export default function AddGrammarScreen() {
                     <InputField
                       label={`Ví dụ #${exIndex + 1}`}
                       value={ex}
-                      onChangeText={(text) =>
+                      onChangeText={(text: string) =>
                         handleExampleChange(index, exIndex, text)
                       }
                       multiline
