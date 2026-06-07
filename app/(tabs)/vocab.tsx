@@ -55,9 +55,27 @@ export default function StudyMenuScreen() {
       id: "kanji_search",
       title: "Tra cứu Kanji",
       desc: "Xem âm Hán Việt, ví dụ mẫu & múa nét vẽ động",
-      icon: "font-download", // Icon hình chữ A nằm trong ô vuông cực hợp với Kanji
-      color: isDark ? "#FBBF24" : "#F59E0B", // Màu vàng hổ phách rực rỡ
-      route: "/study/KanjiSearchScreen", // Khớp 100% với file KanjiSearchScreen.tsx của sếp
+      icon: "font-download",
+      color: isDark ? "#FBBF24" : "#F59E0B",
+      route: "/study/KanjiSearchScreen",
+    },
+    // 🆕 THÊM KANJI VÀO KHO
+    {
+      id: "add_kanji",
+      title: "Thêm Kanji",
+      desc: "Bổ sung Kanji vào kho dữ liệu cá nhân & nhập hàng loạt JSON",
+      icon: "add-box",
+      color: isDark ? "#F472B6" : "#EC4899", // Hồng tươi tắn
+      route: "/study/add-kanji",
+    },
+    // 📖 HỌC & DUYỆT KHO KANJI
+    {
+      id: "show_kanji",
+      title: "Học Kanji",
+      desc: "Duyệt từng Kanji theo cấp độ, xem nét vẽ, sửa & xóa",
+      icon: "menu-book",
+      color: isDark ? "#34D399" : "#059669", // Xanh ngọc
+      route: "/study/show-kanji",
     },
   ];
 
