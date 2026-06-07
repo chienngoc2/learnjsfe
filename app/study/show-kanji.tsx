@@ -10,6 +10,7 @@ import {
   Platform,
   RefreshControl,
   Image,
+  Alert,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
@@ -83,6 +84,46 @@ export default function ShowKanjiScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const executeDeleteGroup = async (groupName: string, displayTitle: string) => {
+    try {
+      const res = await api.delete("/api/kanji/group", {
+        params: { group: groupName },
+      });
+      if (res.data.success) {
+        triggerToast("success", `🗑️ Đã xóa bài học "${displayTitle}" thành công!`);
+        fetchGroups();
+      } else {
+        triggerToast("error", res.data.message || "Xóa thất bại.");
+      }
+    } catch (err: any) {
+      triggerToast("error", "Lỗi kết nối khi xóa bài học!");
+    }
+  };
+
+  const handleDeleteGroup = (groupName: string, displayTitle = groupName) => {
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        `Sếp có chắc chắn muốn xóa bài học Kanji "${displayTitle}" này không? (Hành động này sẽ xóa tất cả Kanji thuộc bài học)`
+      );
+      if (confirmed) {
+        executeDeleteGroup(groupName, displayTitle);
+      }
+    } else {
+      Alert.alert(
+        "Xác nhận xóa",
+        `Sếp có chắc chắn muốn xóa bài học Kanji "${displayTitle}" này không?\n(Hành động này sẽ xóa tất cả Kanji thuộc bài học)`,
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Xóa sạch",
+            style: "destructive",
+            onPress: () => executeDeleteGroup(groupName, displayTitle),
+          },
+        ]
+      );
     }
   };
 
@@ -258,8 +299,16 @@ export default function ShowKanjiScreen() {
                       </View>
                     </View>
 
-                    {/* RIGHT CHEVRON */}
-                    <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} style={{ marginLeft: 6 }} />
+                    {/* ACTION ROW (DELETE + CHEVRON) */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <TouchableOpacity
+                        style={[styles.deleteBtn, { backgroundColor: isDark ? "#451A1A" : "#FEF2F2" }]}
+                        onPress={() => handleDeleteGroup(group.name)}
+                      >
+                        <MaterialIcons name="delete-outline" size={20} color={isDark ? "#F87171" : "#EF4444"} />
+                      </TouchableOpacity>
+                      <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+                    </View>
                   </View>
 
                   {/* PREVIEW MINI CHARACTERS DISPLAY */}
@@ -321,7 +370,16 @@ export default function ShowKanjiScreen() {
                       {unnamedCount} chữ Kanji chưa có tên bài học
                     </Text>
                   </View>
-                  <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+                  {/* ACTION ROW (DELETE + CHEVRON) */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.deleteBtn, { backgroundColor: isDark ? "#451A1A" : "#FEF2F2" }]}
+                      onPress={() => handleDeleteGroup("__unnamed__", "Chưa phân loại")}
+                    >
+                      <MaterialIcons name="delete-outline" size={20} color={isDark ? "#F87171" : "#EF4444"} />
+                    </TouchableOpacity>
+                    <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+                  </View>
                 </View>
               </TouchableOpacity>
             )}
@@ -543,5 +601,12 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 6 },
     }),
+  },
+  deleteBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
