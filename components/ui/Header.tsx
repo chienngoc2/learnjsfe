@@ -66,10 +66,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "800",
     textAlign: "center",
     flex: 1,
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
   },
   btnBackHeader: {
     width: 44,

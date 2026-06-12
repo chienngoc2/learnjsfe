@@ -67,7 +67,7 @@ export default function ChatInput({
         {/* Nút gửi tin nhắn chữ */}
         {inputText.trim().length > 0 && (
           <TouchableOpacity onPress={handleSend} style={styles.btnAction}>
-            <MaterialIcons name="send" size={22} color={colors.amber} />
+            <MaterialIcons name="send" size={24} color={colors.indigo} />
           </TouchableOpacity>
         )}
       </View>
@@ -76,7 +76,7 @@ export default function ChatInput({
       <View style={styles.rightActions}>
         {isLoading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={colors.amber} />
+            <ActivityIndicator size="small" color={colors.indigo} />
           </View>
         ) : (
           <TouchableOpacity
@@ -84,13 +84,13 @@ export default function ChatInput({
             onPressOut={onStopRecord} // Thả ra để gửi đi
             style={[
               styles.btnMic,
-              { backgroundColor: isRecording ? colors.error : colors.amber },
+              { backgroundColor: isRecording ? colors.error : colors.indigo },
             ]}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
             <MaterialIcons
               name={isRecording ? "stop" : "mic"}
-              size={24}
+              size={26}
               color="#FFFFFF"
             />
           </TouchableOpacity>
@@ -105,11 +105,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderTopWidth: 1,
     ...Platform.select({
-      ios: { paddingBottom: 24 },
-      android: { paddingBottom: 10 },
+      ios: { paddingBottom: 28 },
+      android: { paddingBottom: 12 },
     }),
   },
   inputWrapper: {
@@ -118,9 +118,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderRadius: 24,
-    paddingHorizontal: 14,
-    marginRight: 10,
-    minHeight: 44,
+    paddingHorizontal: 16,
+    marginRight: 12,
+    minHeight: 48,
   },
   input: {
     flex: 1,
@@ -128,8 +128,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   btnAction: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 6,
@@ -139,20 +140,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   btnMic: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 3.5,
   },
   loadingBox: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     justifyContent: "center",
     alignItems: "center",
   },

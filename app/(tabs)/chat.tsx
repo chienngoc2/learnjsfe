@@ -2,12 +2,15 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   View,
+  Text,
+  TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { Audio } from "expo-av";
 import { Stack } from "expo-router";
+import { MaterialIcons } from "@expo/vector-icons";
 import api from "../../services/api";
 
 // IMPORT COMPONENT UI
@@ -26,6 +29,18 @@ export default function ChatScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const flatListRef = useRef<FlatList>(null);
+
+  // 🤖 Token tracking state
+  const [tokensUsed, setTokensUsed] = useState({
+    prompt: 0,
+    completion: 0,
+    total: 0,
+  });
+
+  const clearHistory = () => {
+    setMessages([]);
+    setTokensUsed({ prompt: 0, completion: 0, total: 0 });
+  };
 
   useEffect(() => {
     (async () => {
@@ -107,7 +122,7 @@ export default function ChatScreen() {
     }
   };
 
-  // 🚀 LOGIC CHAT CHÍNH: Đã sửa định dạng Payload gửi lên Backend
+  // 🚀 LOGIC CHAT CHÍNH: Đã sửa định dạng Payload gửi lên Backend + Token tracking
   const handleChat = async (text: string) => {
     if (!text.trim()) return;
 
@@ -122,10 +137,10 @@ export default function ChatScreen() {
       // 2. Định dạng lại toàn bộ lịch sử + câu tin nhắn mới để Backend gửi thẳng cho AI LLaMA
       const historyPayload = [
         ...messages.map((m) => ({
-          role: m.role === "user" ? "user" : "assistant", // Đổi chữ 'bot' ở App thành 'assistant' chuẩn OpenAI
-          content: m.text, // Đổi chữ 'text' thành 'content'
+          role: m.role === "user" ? "user" : "assistant",
+          content: m.text,
         })),
-        { role: "user", content: text }, // Đính kèm luôn câu tin nhắn vừa gõ
+        { role: "user", content: text },
       ];
 
       // 3. Gửi chuẩn object { messages: [ ... ] } lên Server
@@ -142,6 +157,15 @@ export default function ChatScreen() {
         };
         setMessages((prev) => [...prev, botMsg]);
 
+        // Cập nhật thông số Token tiêu thụ thực tế
+        if (response.data.usage) {
+          setTokensUsed({
+            prompt: response.data.usage.prompt_tokens || 0,
+            completion: response.data.usage.completion_tokens || 0,
+            total: response.data.usage.total_tokens || 0,
+          });
+        }
+
         if (response.data.audioSegments) {
           playAudioSegments(response.data.audioSegments);
         }
@@ -156,20 +180,29 @@ export default function ChatScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title="Luyện Hội Thoại AI 🤖" />
+      <Header title="AI Oracle Chat" />
+
+      {/* Thanh điều khiển Token & Reset Lịch sử (Tối ưu hóa Token) */}
+      <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Text style={[styles.tokenText, { color: colors.textMuted, fontFamily: Platform.OS === "ios" ? "Georgia" : "serif" }]}>
+          Tokens: <Text style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Phản hồi: {tokensUsed.completion})
+        </Text>
+        <TouchableOpacity onPress={clearHistory} style={styles.clearBtn} activeOpacity={0.7}>
+          <MaterialIcons name="delete-sweep" size={22} color={colors.error} />
+        </TouchableOpacity>
+      </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined} // 🚀 ĐÃ FIX: Android dùng undefined tránh lỗi nhảy double thanh input
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
-        {/* 🚀 ĐÃ FIX: Thêm style={{ flex: 1 }} để FlatList đẩy ô nhập xuống đáy */}
         <FlatList
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <ChatBubble message={item.text} role={item.role} />
+            <ChatBubble message={item.text} role={item.role === "user" ? "user" : "bot"} />
           )}
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 15 }}
@@ -192,4 +225,29 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({ container: { flex: 1 } });
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  controlBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 1.5,
+    elevation: 1,
+  },
+  tokenText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+  },
+  clearBtn: {
+    padding: 6,
+    borderRadius: 8,
+  },
+});

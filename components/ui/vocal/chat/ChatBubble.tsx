@@ -1,7 +1,6 @@
 import { useTheme } from "@/src/context/ThemeContext";
-import React from "react";
-import { StyleSheet, View, Text } from "react-native";
-
+import React, { useEffect, useRef } from "react";
+import { StyleSheet, View, Text, Animated } from "react-native";
 
 interface ChatBubbleProps {
   message: string;
@@ -9,25 +8,48 @@ interface ChatBubbleProps {
 }
 
 export default function ChatBubble({ message, role }: ChatBubbleProps) {
-  const { colors } = useTheme(); // 🚀 ĐÓN NHẬN BỘ MÀU ĐỘNG TỪ ĐẠI NÃO
+  const { colors, isDark } = useTheme();
   const isUser = role === "user";
 
+  // Hoạt ảnh xuất hiện mượt mà (Fade-in và Slide-up từ phía dưới lên)
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 12,
+        bounciness: 4,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.bubbleContainer,
         isUser ? styles.userAlign : styles.botAlign,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+        },
       ]}
     >
       <View
         style={[
           styles.bubble,
           {
-            // 🔥 Tin nhắn User ăn màu cam hổ phách, Bot ăn màu Surface động
-            backgroundColor: isUser ? colors.amber : colors.surface,
-            borderColor: isUser ? colors.amber : colors.border,
-            borderBottomRightRadius: isUser ? 4 : 20,
-            borderBottomLeftRadius: isUser ? 20 : 4,
+            backgroundColor: isUser ? colors.indigo : colors.surface,
+            borderColor: isUser ? colors.indigo : colors.border,
+            borderBottomRightRadius: isUser ? 4 : 18,
+            borderBottomLeftRadius: isUser ? 18 : 4,
           },
         ]}
       >
@@ -35,22 +57,21 @@ export default function ChatBubble({ message, role }: ChatBubbleProps) {
           style={[
             styles.messageText,
             {
-              // 🔥 Chữ User màu trắng cho nổi bật, chữ Bot đổi động theo theme sáng/tối
-              color: isUser ? "#FFFFFF" : colors.text,
+              color: isUser ? (isDark ? "#120f08" : "#2b1d0f") : colors.text,
             },
           ]}
         >
           {message}
         </Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   bubbleContainer: {
     width: "100%",
-    marginVertical: 6,
+    marginVertical: 4,
     flexDirection: "row",
   },
   userAlign: {
@@ -60,21 +81,20 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   bubble: {
-    maxWidth: "75%",
+    maxWidth: "80%",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
+    paddingVertical: 11,
+    borderRadius: 18,
     borderWidth: 1,
-    // Đổ bóng nhẹ cho tin nhắn nhìn cao cấp
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1.5,
   },
   messageText: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14.5,
+    lineHeight: 21,
     fontWeight: "500",
   },
 });
