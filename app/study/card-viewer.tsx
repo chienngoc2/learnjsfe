@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -7,7 +7,6 @@ import {
   Dimensions,
   ActivityIndicator,
   SafeAreaView,
-  Animated,
   Pressable,
   Platform,
 } from "react-native";
@@ -16,12 +15,17 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as Speech from "expo-speech";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+} from "react-native-reanimated";
 
-
-const { width, height } = Dimensions.get("window");
+const { height } = Dimensions.get("window");
 
 export default function CardViewer() {
-  const { colors, isDark } = useTheme(); // 🚀 ĐÃ TÍCH HỢP: Lấy màu động từ hệ thống
+  const { colors, isDark } = useTheme();
   const { topicId, title } = useLocalSearchParams();
   const router = useRouter();
   const [isBackHovered, setIsBackHovered] = useState(false);
@@ -29,9 +33,8 @@ export default function CardViewer() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Animation lật thẻ
-  const [isFlipped, setIsFlipped] = useState(false);
-  const flipAnim = useRef(new Animated.Value(0)).current;
+  // Reanimated 3D flip value
+  const rotate = useSharedValue(0);
 
   useEffect(() => {
     api
@@ -44,46 +47,41 @@ export default function CardViewer() {
       .catch(() => setLoading(false));
   }, [topicId]);
 
-  // Xử lý Lật thẻ
   const handleFlip = () => {
-    Animated.timing(flipAnim, {
-      toValue: isFlipped ? 0 : 180,
-      duration: 320, // Tăng nhẹ một chút cho đầm tay
-      useNativeDriver: true,
-    }).start(() => setIsFlipped(!isFlipped));
+    rotate.value = withTiming(rotate.value === 0 ? 180 : 0, { duration: 400 });
   };
 
-  const frontInterpolate = flipAnim.interpolate({
-    inputRange: [0, 180],
-    outputRange: ["0deg", "180deg"],
-  });
-  const backInterpolate = flipAnim.interpolate({
-    inputRange: [0, 180],
-    outputRange: ["180deg", "360deg"],
+  const frontAnimatedStyle = useAnimatedStyle(() => {
+    const spin = interpolate(rotate.value, [0, 180], [0, 180]);
+    return {
+      transform: [{ rotateY: `${spin}deg` }],
+    };
   });
 
-  const frontAnimatedStyle = { transform: [{ rotateY: frontInterpolate }] };
-  const backAnimatedStyle = {
-    transform: [{ rotateY: backInterpolate }],
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  };
+  const backAnimatedStyle = useAnimatedStyle(() => {
+    const spin = interpolate(rotate.value, [0, 180], [180, 360]);
+    return {
+      transform: [{ rotateY: `${spin}deg` }],
+    };
+  });
 
-  // Xử lý chuyển câu (Tự động úp thẻ lại mặt trước)
   const nextCard = () => {
     if (index < words.length - 1) {
-      if (isFlipped) handleFlip();
-      setTimeout(() => setIndex(index + 1), isFlipped ? 320 : 0);
+      const isCurrentlyFlipped = rotate.value !== 0;
+      if (isCurrentlyFlipped) {
+        rotate.value = withTiming(0, { duration: 300 });
+      }
+      setTimeout(() => setIndex(index + 1), isCurrentlyFlipped ? 300 : 0);
     }
   };
 
   const prevCard = () => {
     if (index > 0) {
-      if (isFlipped) handleFlip();
-      setTimeout(() => setIndex(index - 1), isFlipped ? 320 : 0);
+      const isCurrentlyFlipped = rotate.value !== 0;
+      if (isCurrentlyFlipped) {
+        rotate.value = withTiming(0, { duration: 300 });
+      }
+      setTimeout(() => setIndex(index - 1), isCurrentlyFlipped ? 300 : 0);
     }
   };
 
@@ -95,7 +93,7 @@ export default function CardViewer() {
     Speech.speak(cleanText, { language: "ja-JP", rate: 0.85 });
   };
 
-  if (loading)
+  if (loading) {
     return (
       <View
         style={[
@@ -106,8 +104,9 @@ export default function CardViewer() {
         <ActivityIndicator size="large" color={colors.amber} />
       </View>
     );
+  }
 
-  if (words.length === 0)
+  if (words.length === 0) {
     return (
       <View
         style={[
@@ -126,6 +125,7 @@ export default function CardViewer() {
         </TouchableOpacity>
       </View>
     );
+  }
 
   const progressPercent = ((index + 1) / words.length) * 100;
 
@@ -134,10 +134,9 @@ export default function CardViewer() {
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* THẦN CHÚ ẨN HEADER MẶC ĐỊNH */}
         <Stack.Screen options={{ headerShown: false }} />
 
-        {/* 1. CUSTOM HEADER ĐỒNG BỘ THEME */}
+        {/* 1. CUSTOM HEADER */}
         <View style={styles.header}>
           <Pressable
             onPress={() => router.back()}
@@ -188,7 +187,7 @@ export default function CardViewer() {
           </TouchableOpacity>
         </View>
 
-        {/* 2. PROGRESS BAR ĐỘNG (Cam Hổ Phách rực rỡ) */}
+        {/* 2. PROGRESS BAR */}
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
             <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
@@ -213,51 +212,56 @@ export default function CardViewer() {
           </View>
         </View>
 
-        {/* 3. VÙNG HIỂN THỊ THẺ FLASHCARD */}
+        {/* 3. FLASHCARD CONTAINER */}
         <View style={styles.cardWrapper}>
           <TouchableOpacity
             activeOpacity={1}
             onPress={handleFlip}
             style={styles.flipTouchable}
           >
-            {/* MẶT TRƯỚC (Nghĩa Tiếng Việt) - Ăn theo màu Surface động */}
-            <Animated.View
-              style={[
-                styles.flashcardBox,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                frontAnimatedStyle,
-              ]}
-            >
-              <Text
+            <View style={{ flex: 1, position: "relative" }}>
+              {/* MẶT TRƯỚC: NGHĨA TIẾNG VIỆT */}
+              <Animated.View
                 style={[
-                  styles.cardTextTransparent,
-                  { color: colors.amber + "CC" },
+                  styles.flashcardBox,
+                  frontAnimatedStyle,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
                 ]}
               >
-                {words[index].def}
-              </Text>
-            </Animated.View>
+                <Text
+                  style={[
+                    styles.cardTextTransparent,
+                    { color: colors.amber },
+                  ]}
+                >
+                  {words[index].def}
+                </Text>
+              </Animated.View>
 
-            {/* MẶT SAU (Từ Tiếng Nhật) - Khối màu hổ phách chuyên dụng */}
-            <Animated.View
-              style={[
-                styles.flashcardBox,
-                styles.flashcardBoxBack,
-                {
-                  backgroundColor: colors.amberLight,
-                  borderColor: colors.amber + "40",
-                },
-                backAnimatedStyle as any,
-              ]}
-            >
-              <Text style={[styles.cardTextSolid, { color: colors.amber }]}>
-                {words[index].term}
-              </Text>
-            </Animated.View>
+              {/* MẶT SAU: TỪ TIẾNG NHẬT */}
+              <Animated.View
+                style={[
+                  styles.flashcardBox,
+                  styles.flashcardBoxBack,
+                  backAnimatedStyle,
+                  {
+                    backgroundColor: colors.amberLight,
+                    borderColor: colors.amber + "40",
+                  },
+                ]}
+              >
+                <Text style={[styles.cardTextSolid, { color: colors.text }]}>
+                  {words[index].term}
+                </Text>
+              </Animated.View>
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* 4. THANH ĐIỀU HƯỚNG GOM GỌN (Công thái học cao cấp) */}
+        {/* 4. BOTTOM CONTROLS */}
         <View style={styles.bottomControls}>
           <View
             style={[
@@ -280,7 +284,7 @@ export default function CardViewer() {
               />
             </TouchableOpacity>
 
-            {/* Nút Phát âm (Cam Hổ Phách rực rỡ ở tâm điểm) */}
+            {/* Nút Phát âm */}
             <TouchableOpacity
               style={[
                 styles.playBtn,
@@ -320,7 +324,6 @@ export default function CardViewer() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
-
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -337,8 +340,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   btnBackText: { color: "#FFF", fontWeight: "bold" },
-
-  // === CUSTOM HEADER ===
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -368,8 +369,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
   },
-
-  // === PROGRESS BAR ===
   progressSection: { paddingHorizontal: 20, paddingBottom: 30 },
   progressHeader: {
     flexDirection: "row",
@@ -387,8 +386,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 10,
   },
-
-  // === CARD VIEW DESIGN ===
   cardWrapper: {
     flex: 1,
     paddingHorizontal: 20,
@@ -397,6 +394,9 @@ const styles = StyleSheet.create({
   },
   flipTouchable: { width: "100%", height: height * 0.45 },
   flashcardBox: {
+    position: "absolute",
+    top: 0,
+    left: 0,
     width: "100%",
     height: "100%",
     borderRadius: 24,
@@ -412,20 +412,18 @@ const styles = StyleSheet.create({
     backfaceVisibility: "hidden",
   },
   flashcardBoxBack: {
-    borderWidth: 1,
+    backfaceVisibility: "hidden",
   },
   cardTextTransparent: {
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: "800",
     textAlign: "center",
   },
   cardTextSolid: {
-    fontSize: 42,
+    fontSize: 38,
     fontWeight: "800",
     textAlign: "center",
   },
-
-  // === BOTTOM NAVIGATION PILL ===
   bottomControls: { paddingBottom: 40, alignItems: "center" },
   pillContainer: {
     flexDirection: "row",

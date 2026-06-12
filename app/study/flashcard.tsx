@@ -147,7 +147,7 @@ export default function TopicListScreen() {
         </Pressable>
 
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          📚 Thư Viện Bài Học
+          Thư Viện Bài Học
         </Text>
 
         {/* Khối View trống để cân bằng layout giúp Title nằm giữa chính xác */}
@@ -217,7 +217,7 @@ export default function TopicListScreen() {
                     ]}
                     numberOfLines={1}
                   >
-                    {item.title} {isReviewCard && "🔥"}
+                    {item.title} {isReviewCard && " (Cần ôn tập)"}
                   </Text>
                   <Text
                     style={[
