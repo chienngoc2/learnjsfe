@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
@@ -17,6 +18,15 @@ export default function StudyMenuScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme(); // Đón nhận bộ màu động
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    (async () => {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        router.replace("/login" as any);
+      }
+    })();
+  }, []);
 
   // Danh sách các chức năng học tập được tối ưu màu sắc thích ứng sáng/tối
   const studyOptions = [

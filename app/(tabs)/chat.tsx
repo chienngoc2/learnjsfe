@@ -9,7 +9,8 @@ import {
   Platform,
 } from "react-native";
 import { Audio } from "expo-av";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import api from "../../services/api";
 
@@ -23,6 +24,7 @@ import { useTheme } from "@/src/context/ThemeContext";
 
 export default function ChatScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -44,6 +46,12 @@ export default function ChatScreen() {
 
   useEffect(() => {
     (async () => {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        router.replace("/login" as any);
+        return;
+      }
+
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,

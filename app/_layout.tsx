@@ -7,6 +7,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider>
         <Stack>
+          {/* 0. Màn hình đăng nhập */}
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+
           {/* 1. Màn hình chứa 3 cái Tabs (Trang chủ, Chat, Học tập) */}
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 

@@ -35,6 +35,12 @@ export default function DashboardScreen() {
     try {
       setLoading(true);
       
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        router.replace('/login' as any);
+        return;
+      }
+      
       // 1. Tính toán Streak (Chuỗi ngày)
       const lastLogin = await AsyncStorage.getItem('last_login');
       const currentStreak = await AsyncStorage.getItem('streak_count');
@@ -65,6 +71,16 @@ export default function DashboardScreen() {
       console.error("Lỗi cập nhật dữ liệu:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      router.replace('/login' as any);
+    } catch (error) {
+      console.error("Lỗi đăng xuất:", error);
     }
   };
 
@@ -103,14 +119,24 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          {/* Bell icon notification */}
-          <TouchableOpacity
-            style={[styles.bellBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            activeOpacity={0.8}
-          >
-            <MaterialIcons name="notifications-none" size={24} color={colors.text} />
-            <View style={styles.bellBadge} />
-          </TouchableOpacity>
+          {/* Action Row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={[styles.bellBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons name="notifications-none" size={24} color={colors.text} />
+              <View style={styles.bellBadge} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.bellBtn, { backgroundColor: colors.surface, borderColor: colors.border, marginLeft: 8 }]}
+              activeOpacity={0.8}
+              onPress={handleLogout}
+            >
+              <MaterialIcons name="logout" size={22} color={colors.error} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ================= SEARCH BAR ================= */}
