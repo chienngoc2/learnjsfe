@@ -2,32 +2,32 @@
 
 export const themes = {
   light: {
-    background: "#F4F6FF",      // Nền chính xanh nhạt/lavender cực sang
-    surface: "#FFFFFF",         // Nền thẻ trắng tinh
-    text: "#1E1B4B",            // Chữ màu tím than đậm sang trọng
-    textMuted: "#64748B",       // Chữ xám mờ
-    border: "#E2E8F0",          // Viền nhạt
+    background: "#fcfaf2",      // Nền chính giấy Shoji ấm áp
+    surface: "#ffffff",         // Nền thẻ trắng tinh khiết
+    text: "#181c24",            // Chữ đen Sumi sang trọng
+    textMuted: "#576574",       // Chữ xám trầm
+    border: "#e8e3d5",          // Viền nhạt màu giấy sẫm
     
-    // Giữ nguyên các màu nhấn của sếp
-    amber: "#D97706",
-    amberLight: "#FFEDD5",
-    indigo: "#4F46E5",
-    indigoLight: "#E0E7FF",
+    // Màu nhấn sơn mài & Kyoto Gold
+    amber: "#dfb15b",           // Vàng kim Kyoto
+    amberLight: "#fef8eb",
+    indigo: "#d43f3a",          // Sơn mài đỏ Hinomaru
+    indigoLight: "#fbeeed",
     error: "#EF4444",
     errorLight: "#FEF2F2",
   },
   dark: {
-    background: "#0F172A",      // Nền chính xanh đen sâu (Slate 900)
-    surface: "#1E293B",         // Nền thẻ xám xanh (Slate 800)
-    text: "#F8FAFC",            // Chữ trắng gần tinh khiết
-    textMuted: "#94A3B8",       // Chữ xám sáng
-    border: "#334155",          // Viền tối (Slate 700)
+    background: "#090a0f",      // Nền chính mực Sumi sâu lắng
+    surface: "#141721",         // Nền thẻ xám sumi tối
+    text: "#f3f4f6",            // Chữ trắng sữa
+    textMuted: "#9ca3af",       // Chữ xám mờ
+    border: "#1f2433",          // Viền xám sẫm
     
-    // Tinh chỉnh nhẹ độ sáng các màu nhấn để hiển thị tốt trên nền tối
-    amber: "#F59E0B",
-    amberLight: "#2D1A05",      // Nền cam cực tối cho Dark Mode
-    indigo: "#6366F1",
-    indigoLight: "#1E1B4B",     // Nền indigo tối
+    // Màu nhấn sơn mài & Kyoto Gold cho tối
+    amber: "#dfb15b",           // Vàng kim Kyoto
+    amberLight: "#2e230f",
+    indigo: "#f43f5e",          // Đỏ anh đào Cyber Crimson
+    indigoLight: "#331218",
     error: "#F87171",
     errorLight: "#450A0A",
   }

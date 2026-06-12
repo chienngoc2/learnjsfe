@@ -135,7 +135,7 @@ export default function DashboardScreen() {
 
         {/* ================= STATS WIDGET (BLUE GRADIENT) ================= */}
         <LinearGradient
-          colors={isDark ? ['#1E1B4B', '#312E81'] : ['#4F46E5', '#6366F1']}
+          colors={isDark ? ['#141721', '#450a0a'] : ['#d43f3a', '#dfb15b']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.statsCard}
@@ -153,7 +153,7 @@ export default function DashboardScreen() {
           <View style={styles.statsCardRight}>
             <View style={styles.circleProgressOuter}>
               {/* Fake circular chart using border borders */}
-              <View style={[styles.circleProgressIndicator, { borderRightColor: '#60A5FA', borderTopColor: '#60A5FA' }]} />
+              <View style={[styles.circleProgressIndicator, { borderRightColor: colors.indigo, borderTopColor: colors.indigo }]} />
               <View style={styles.circleProgressInner}>
                 <Text style={styles.circleProgressText}>{completionPercent}%</Text>
               </View>
@@ -170,8 +170,8 @@ export default function DashboardScreen() {
             onPress={() => router.push('/vocab')}
             activeOpacity={0.8}
           >
-            <View style={[styles.gridIconCircle, { backgroundColor: '#EFF6FF' }]}>
-              <MaterialIcons name="view-carousel" size={24} color="#3B82F6" />
+            <View style={[styles.gridIconCircle, { backgroundColor: colors.indigoLight }]}>
+              <MaterialIcons name="view-carousel" size={24} color={colors.indigo} />
             </View>
             <Text style={[styles.gridLabel, { color: colors.text }]}>Học thẻ</Text>
           </TouchableOpacity>
@@ -206,8 +206,8 @@ export default function DashboardScreen() {
             onPress={() => router.push('/chat')}
             activeOpacity={0.8}
           >
-            <View style={[styles.gridIconCircle, { backgroundColor: '#FFFBEB' }]}>
-              <MaterialIcons name="emoji-events" size={24} color="#F59E0B" />
+            <View style={[styles.gridIconCircle, { backgroundColor: colors.amberLight }]}>
+              <MaterialIcons name="emoji-events" size={24} color={colors.amber} />
             </View>
             <Text style={[styles.gridLabel, { color: colors.text }]}>Chơi game</Text>
           </TouchableOpacity>
@@ -236,7 +236,7 @@ export default function DashboardScreen() {
             <Text style={[styles.deckSub, { color: colors.textMuted }]}>• {vocabCount > 0 ? vocabCount : 120} thẻ đã thuộc</Text>
             <View style={styles.deckProgressRow}>
               <View style={[styles.deckProgressBarBg, { backgroundColor: colors.border }]}>
-                <View style={[styles.deckProgressBarFill, { backgroundColor: '#3B82F6', width: `${completionPercent}%` }]} />
+                <View style={[styles.deckProgressBarFill, { backgroundColor: colors.indigo, width: `${completionPercent}%` }]} />
               </View>
               <Text style={[styles.deckPercent, { color: colors.textMuted }]}>{completionPercent}%</Text>
             </View>
@@ -258,7 +258,7 @@ export default function DashboardScreen() {
             <Text style={[styles.deckSub, { color: colors.textMuted }]}>• Xem nét vẽ, sửa & xóa</Text>
             <View style={styles.deckProgressRow}>
               <View style={[styles.deckProgressBarBg, { backgroundColor: colors.border }]}>
-                <View style={[styles.deckProgressBarFill, { backgroundColor: '#10B981', width: '45%' }]} />
+                <View style={[styles.deckProgressBarFill, { backgroundColor: colors.amber, width: '45%' }]} />
               </View>
               <Text style={[styles.deckPercent, { color: colors.textMuted }]}>45%</Text>
             </View>
@@ -280,7 +280,7 @@ export default function DashboardScreen() {
             <Text style={[styles.deckSub, { color: colors.textMuted }]}>• Luyện tập & cấu trúc</Text>
             <View style={styles.deckProgressRow}>
               <View style={[styles.deckProgressBarBg, { backgroundColor: colors.border }]}>
-                <View style={[styles.deckProgressBarFill, { backgroundColor: '#8B5CF6', width: '30%' }]} />
+                <View style={[styles.deckProgressBarFill, { backgroundColor: colors.amber, width: '30%' }]} />
               </View>
               <Text style={[styles.deckPercent, { color: colors.textMuted }]}>30%</Text>
             </View>
