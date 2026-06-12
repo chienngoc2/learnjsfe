@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   Animated,
+  KeyboardAvoidingView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -214,11 +215,15 @@ export default function AddGrammarScreen() {
         title={isEditMode ? "✏️ Sửa Cấu Trúc" : "✍️ Biên Soạn Tài Liệu"}
       />
 
-      <ScrollView
-        style={{ flex: 1, padding: 16 }}
-        contentContainerStyle={{ paddingBottom: 60 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          style={{ flex: 1, padding: 16 }}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          showsVerticalScrollIndicator={false}
+        >
         {grammarList.map((item, index) => {
           // 🚀 BỘ LỌC ĐỘNG (FUZZY SEARCH CHUẨN ĐÉT TẠI ĐÂY)
           const currentQuery = item.topicName.trim().toLowerCase();
@@ -424,6 +429,7 @@ export default function AddGrammarScreen() {
           onPress={handleSubmit}
         />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

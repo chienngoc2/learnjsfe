@@ -18,6 +18,7 @@ import {
   Stack,
   useFocusEffect,
 } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import api from "../../services/api";
 
@@ -125,6 +126,7 @@ function GrammarCardItem({
 export default function GrammarViewerScreen() {
   const { topicId, title } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [grammarData, setGrammarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
@@ -293,7 +295,10 @@ export default function GrammarViewerScreen() {
       </Modal>
 
       {/* HEADER */}
-      <View style={styles.customHeader}>
+      <View style={[
+        styles.customHeader,
+        { paddingTop: insets.top > 0 ? insets.top : (Platform.OS === "android" ? 50 : 20) }
+      ]}>
         <Pressable
           onPress={() => router.back()}
           onHoverIn={() => setIsHovered(true)}
@@ -497,7 +502,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#F0F9FF",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 8,
     marginRight: 10,
     borderWidth: 1,
@@ -514,7 +519,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FEF2F2",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#FECACA",

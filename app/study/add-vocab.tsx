@@ -9,6 +9,7 @@ import {
   Animated,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -251,11 +252,15 @@ export default function AddVocabScreen() {
         title={currentEditId ? "✍️ Chỉnh Sửa Bài Học" : "📚 Tạo Bài Học Mới"}
       />
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 50 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={{ paddingBottom: 50 }}
+          showsVerticalScrollIndicator={false}
+        >
         {/* THẺ TÊN CHỦ ĐỀ */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           {/* 🚀 VỊ TRÍ 4 ĐÃ THÊM: Hiển thị giao diện các Chip chủ đề gợi ý lướt ngang */}
@@ -492,6 +497,7 @@ export default function AddVocabScreen() {
           onPress={handleSubmit}
         />
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -526,7 +532,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
   },
-  btnMiniDelete: { padding: 8, marginLeft: 4, borderRadius: 8 },
+  btnMiniDelete: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 4,
+  },
   btnDashed: {
     flexDirection: "row",
     alignItems: "center",

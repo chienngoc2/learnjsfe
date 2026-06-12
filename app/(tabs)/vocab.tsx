@@ -11,10 +11,12 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function StudyMenuScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme(); // Đón nhận bộ màu động
+  const insets = useSafeAreaInsets();
 
   // Danh sách các chức năng học tập được tối ưu màu sắc thích ứng sáng/tối
   const studyOptions = [
@@ -82,7 +84,10 @@ export default function StudyMenuScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top > 0 ? insets.top + 10 : (Platform.OS === 'android' ? 60 : 30) }
+      ]}
     >
       <Stack.Screen options={{ headerShown: false }} />
 

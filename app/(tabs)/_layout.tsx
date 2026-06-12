@@ -1,11 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-// import { useColorScheme } from 'react-native'; // Gọi trực tiếp từ react-native nếu muốn dùng hệ thống
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
   // Fix cứng 'light' để tránh lỗi file Colors và focus vào code logic trước sếp nhé
   const colorScheme = 'light'; 
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -15,8 +17,8 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#8E8E93',
         headerShown: true, // Hiện tiêu đề màn hình
         tabBarStyle: {
-          height: 60,
-          paddingBottom: 10,
+          height: Platform.OS === 'ios' ? 60 + insets.bottom : 60,
+          paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 10) : 10,
         },
       }}>
       

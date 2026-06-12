@@ -14,6 +14,7 @@ import { useRouter, useFocusEffect, Stack } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 
 export default function TopicListScreen() {
@@ -21,6 +22,7 @@ export default function TopicListScreen() {
   const [topics, setTopics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // State quản lý Hover cho nút Back trên Header (Dành cho bản Web)
   const [isHovered, setIsHovered] = useState(false);
@@ -109,7 +111,13 @@ export default function TopicListScreen() {
 
       {/* CUSTOM HEADER ĐỒNG BỘ THEME ĐỘNG */}
       <View
-        style={[styles.customHeader, { backgroundColor: colors.background }]}
+        style={[
+          styles.customHeader,
+          { 
+            backgroundColor: colors.background,
+            paddingTop: insets.top > 0 ? insets.top : (Platform.OS === "android" ? 50 : 20)
+          }
+        ]}
       >
         <Pressable
           onPress={() => router.back()}

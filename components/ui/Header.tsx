@@ -1,8 +1,9 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, Pressable, StyleSheet, TouchableOpacity, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 
 interface HeaderProps {
@@ -13,13 +14,18 @@ interface HeaderProps {
 export default function Header({ title, rightAction }: HeaderProps) {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme(); // 🚀 Lấy màu và hàm đổi theme
+  const insets = useSafeAreaInsets();
 
   return (
     // 🔥 Thay thế background cứng thành màu động colors.background
     <View
       style={[
         styles.customHeader,
-        { backgroundColor: colors.background, borderColor: colors.border },
+        { 
+          backgroundColor: colors.background, 
+          borderColor: colors.border,
+          paddingTop: insets.top > 0 ? insets.top : (Platform.OS === "ios" ? 44 : 20),
+        },
       ]}
     >
       <Pressable onPress={() => router.back()} style={styles.btnBackHeader}>

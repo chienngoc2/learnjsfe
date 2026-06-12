@@ -128,7 +128,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   btnAction: {
-    padding: 4,
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
     marginLeft: 6,
   },
   rightActions: {

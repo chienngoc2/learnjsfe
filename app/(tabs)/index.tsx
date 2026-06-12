@@ -16,10 +16,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import api from '../../services/api';
 import { useTheme } from '@/src/context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
   const [vocabCount, setVocabCount] = useState(0);
@@ -82,7 +84,10 @@ export default function DashboardScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top > 0 ? insets.top + 10 : (Platform.OS === 'android' ? 50 : 25) }
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* ================= HEADER ROW ================= */}

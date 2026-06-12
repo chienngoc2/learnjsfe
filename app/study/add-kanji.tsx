@@ -9,6 +9,7 @@ import {
   Animated,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
@@ -326,12 +327,16 @@ export default function AddKanjiScreen() {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* ====================================================
             CHẾ ĐỘ NHẬP THỦ CÔNG
             ==================================================== */}
@@ -693,6 +698,7 @@ export default function AddKanjiScreen() {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

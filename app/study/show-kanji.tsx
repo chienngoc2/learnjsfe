@@ -603,9 +603,9 @@ const styles = StyleSheet.create({
     }),
   },
   deleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
