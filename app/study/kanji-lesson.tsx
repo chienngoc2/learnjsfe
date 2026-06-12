@@ -773,8 +773,8 @@ const styles = StyleSheet.create({
   // DECK CONTAINER
   deckContainer: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   activeCardContainer: {
     flex: 1,
@@ -782,15 +782,7 @@ const styles = StyleSheet.create({
   },
   cardSurface: {
     flex: 1,
-    borderRadius: 28,
     padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.04)",
-    shadowColor: "#1E1B4B",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-    elevation: 4,
   },
 
   // CARD HEADER
