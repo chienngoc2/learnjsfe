@@ -16,15 +16,12 @@ import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-
 export default function TopicListScreen() {
-  const { colors, isDark } = useTheme(); // 🚀 ĐÃ TÍCH HỢP: Đón nhận bộ màu động sáng/tối
+  const { colors, isDark } = useTheme();
   const [topics, setTopics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-
-  // State quản lý Hover cho nút Back trên Header (Dành cho bản Web)
   const [isHovered, setIsHovered] = useState(false);
 
   useFocusEffect(
@@ -99,24 +96,23 @@ export default function TopicListScreen() {
           { justifyContent: "center", backgroundColor: colors.background },
         ]}
       >
-        <ActivityIndicator size="large" color={colors.amber} />
+        <ActivityIndicator size="large" color={colors.indigo} />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ẨN HEADER MẶC ĐỊNH CỦA EXPO */}
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* CUSTOM HEADER ĐỒNG BỘ THEME ĐỘNG */}
+      {/* CUSTOM HEADER */}
       <View
         style={[
           styles.customHeader,
-          { 
+          {
             backgroundColor: colors.background,
-            paddingTop: insets.top > 0 ? insets.top : (Platform.OS === "android" ? 50 : 20)
-          }
+            paddingTop: insets.top > 0 ? insets.top : (Platform.OS === "android" ? 50 : 20),
+          },
         ]}
       >
         <Pressable
@@ -130,9 +126,9 @@ export default function TopicListScreen() {
               borderColor: colors.border,
             },
             (isHovered || pressed) && {
-              backgroundColor: colors.amberLight,
-              borderColor: colors.amber,
-              shadowColor: colors.amber,
+              backgroundColor: colors.indigoLight,
+              borderColor: colors.indigo,
+              shadowColor: colors.indigo,
             },
           ]}
         >
@@ -140,17 +136,16 @@ export default function TopicListScreen() {
             <MaterialIcons
               name="arrow-back-ios"
               size={20}
-              color={isHovered || pressed ? colors.amber : colors.textMuted}
+              color={isHovered || pressed ? colors.indigo : colors.textMuted}
               style={{ marginLeft: 6 }}
             />
           )}
         </Pressable>
 
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Thư Viện Bài Học
+          Tàng Thư Các
         </Text>
 
-        {/* Khối View trống để cân bằng layout giúp Title nằm giữa chính xác */}
         <View style={{ width: 44 }} />
       </View>
 
@@ -168,10 +163,13 @@ export default function TopicListScreen() {
                 styles.topicCard,
                 { backgroundColor: colors.surface, borderColor: colors.border },
                 isReviewCard && {
-                  backgroundColor: isDark ? "#2C1A10" : "#FFF7ED", // Động: Tối dùng Cam cháy, Sáng dùng Cam pastel
-                  borderWidth: 2,
-                  borderColor: colors.amber,
-                  shadowColor: colors.amber,
+                  backgroundColor: isDark ? "rgba(245, 199, 107, 0.08)" : "#FFFBEB",
+                  borderWidth: 1.5,
+                  borderColor: colors.indigo,
+                  shadowColor: colors.indigo,
+                  shadowOpacity: 0.15,
+                  shadowRadius: 10,
+                  elevation: 4,
                 },
               ]}
             >
@@ -187,23 +185,21 @@ export default function TopicListScreen() {
                 <View
                   style={[
                     styles.iconCircle,
-                    { backgroundColor: isDark ? "#334155" : "#EEF2F6" },
+                    { backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F1F5F9" },
                     isReviewCard && {
-                      backgroundColor: isDark ? "#45230F" : "#FFEDD5",
+                      backgroundColor: isDark ? "rgba(245, 199, 107, 0.15)" : "#FEF3C7",
                     },
                   ]}
                 >
                   <MaterialIcons
                     name={
-                      isReviewCard ? "local-fire-department" : "library-books"
+                      isReviewCard ? "local-fire-department" : "menu-book"
                     }
-                    size={24}
+                    size={22}
                     color={
                       isReviewCard
-                        ? colors.amber
-                        : isDark
-                          ? "#818CF8"
-                          : "#4F46E5"
+                        ? colors.indigo
+                        : colors.purple
                     }
                   />
                 </View>
@@ -213,34 +209,31 @@ export default function TopicListScreen() {
                     style={[
                       styles.topicTitle,
                       { color: colors.text },
-                      isReviewCard && { color: isDark ? "#FDBA74" : "#9A3412" }, // Màu chữ cam dịu hơn ở Dark Mode
+                      isReviewCard && { color: colors.indigo },
                     ]}
                     numberOfLines={1}
                   >
-                    {item.title} {isReviewCard && " (Cần ôn tập)"}
+                    {item.title} {isReviewCard && " (Cực Hạn Ôn Tập)"}
                   </Text>
                   <Text
                     style={[
                       styles.wordCount,
                       { color: colors.textMuted },
-                      isReviewCard && { color: isDark ? "#FB923C" : "#C2410C" },
+                      isReviewCard && { color: colors.amber },
                     ]}
                   >
-                    {item.words ? item.words.length : 0} TỪ chưa thuộc này sếp
+                    {item.words ? item.words.length : 0} khẩu quyết chưa thuộc
                   </Text>
                 </View>
               </TouchableOpacity>
 
-              {/* KHỐI NÚT CHỨC NĂNG HÒA THEO THEME ĐỘNG */}
+              {/* ACTION BUTTONS */}
               <View style={styles.actionGroup}>
-                {/* Nút Game */}
+                {/* Luyện gõ phím */}
                 <TouchableOpacity
                   style={[
                     styles.btnAction,
-                    { backgroundColor: isDark ? "#334155" : "#EEF2F6" },
-                    isReviewCard && {
-                      backgroundColor: isDark ? "#45230F" : "#FFEDD5",
-                    },
+                    { backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F1F5F9", borderColor: colors.border, borderWidth: 1 },
                   ]}
                   onPress={() =>
                     router.push({
@@ -250,26 +243,17 @@ export default function TopicListScreen() {
                   }
                 >
                   <MaterialIcons
-                    name="sports-esports"
-                    size={20}
-                    color={
-                      isReviewCard
-                        ? colors.amber
-                        : isDark
-                          ? "#818CF8"
-                          : "#4F46E5"
-                    }
+                    name="keyboard"
+                    size={18}
+                    color={colors.indigo}
                   />
                 </TouchableOpacity>
 
-                {/* Nút Ngữ Pháp */}
+                {/* Ngữ Pháp */}
                 <TouchableOpacity
                   style={[
                     styles.btnAction,
-                    { backgroundColor: isDark ? "#334155" : "#EEF2F6" },
-                    isReviewCard && {
-                      backgroundColor: isDark ? "#45230F" : "#FFEDD5",
-                    },
+                    { backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F1F5F9", borderColor: colors.border, borderWidth: 1 },
                   ]}
                   onPress={() =>
                     router.push(
@@ -278,48 +262,39 @@ export default function TopicListScreen() {
                   }
                 >
                   <MaterialIcons
-                    name="menu-book"
-                    size={18}
-                    color={
-                      isReviewCard
-                        ? colors.amber
-                        : isDark
-                          ? "#34D399"
-                          : "#059669"
-                    }
+                    name="collections-bookmark"
+                    size={16}
+                    color={colors.blue}
                   />
                 </TouchableOpacity>
 
-                {/* Nút Sửa */}
+                {/* Sửa */}
                 <TouchableOpacity
                   style={[
                     styles.btnAction,
-                    { backgroundColor: isDark ? "#334155" : "#EEF2F6" },
-                    isReviewCard && {
-                      backgroundColor: isDark ? "#45230F" : "#FFEDD5",
-                    },
+                    { backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F1F5F9", borderColor: colors.border, borderWidth: 1 },
                   ]}
                   onPress={() => handleEdit(item._id)}
                 >
                   <MaterialIcons
                     name="edit"
-                    size={18}
+                    size={16}
                     color={colors.textMuted}
                   />
                 </TouchableOpacity>
 
-                {/* Nút Xóa */}
+                {/* Xóa */}
                 <TouchableOpacity
                   style={[
                     styles.btnAction,
-                    { backgroundColor: isDark ? "#451A1A" : "#FEF2F2" },
+                    { backgroundColor: isDark ? "rgba(239, 68, 68, 0.1)" : "#FEF2F2" },
                   ]}
                   onPress={() => handleDelete(item._id, item.title)}
                 >
                   <MaterialIcons
                     name="delete-outline"
-                    size={18}
-                    color={isDark ? "#F87171" : "#EF4444"}
+                    size={16}
+                    color={colors.error}
                   />
                 </TouchableOpacity>
               </View>
@@ -333,21 +308,18 @@ export default function TopicListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  // === STYLE CHO CUSTOM HEADER ===
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === "android" ? 50 : 20,
     paddingBottom: 15,
     zIndex: 10,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "800",
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   btnBackHeader: {
     width: 44,
@@ -364,14 +336,12 @@ const styles = StyleSheet.create({
       web: { transition: "all 0.2s ease" },
     }),
   },
-
-  // === STYLE DANH SÁCH THẺ ===
   topicCard: {
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
-    padding: 12,
+    padding: 14,
     borderWidth: 1,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.02,
@@ -388,17 +358,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-  topicTitle: { fontSize: 16, fontWeight: "700" },
+  topicTitle: { fontSize: 15, fontWeight: "700" },
   wordCount: {
-    fontSize: 13,
+    fontSize: 12,
     marginTop: 3,
     fontWeight: "500",
   },
   actionGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
   btnAction: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },

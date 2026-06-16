@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
 import api from "../services/api";
@@ -67,11 +68,21 @@ export default function LoginScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={[styles.loginCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Animated.View 
+          entering={FadeInDown.duration(800)}
+          style={[
+            styles.loginCard, 
+            { 
+              backgroundColor: colors.surface, 
+              borderColor: colors.indigo, // Sử dụng màu vàng kim chính tông làm viền
+              shadowColor: colors.indigo,
+            }
+          ]}
+        >
           {/* Header */}
           <View style={styles.headerContainer}>
             <Text style={[styles.title, { color: colors.text }]}>AI SENSEI</Text>
-            <Text style={[styles.subtitle, { color: colors.indigo }]}>SECURE PORTAL LOGIN</Text>
+            <Text style={[styles.subtitle, { color: colors.indigo }]}>CỔNG THÔNG THIÊN PHÁP TRẬN</Text>
           </View>
 
           {/* Error Message */}
@@ -84,10 +95,17 @@ export default function LoginScreen() {
           {/* Form Fields */}
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textMuted }]}>Tên tài khoản</Text>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Tên tài khoản (Tu sĩ)</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                placeholder="Nhập tên đăng nhập..."
+                style={[
+                  styles.input, 
+                  { 
+                    backgroundColor: isDark ? "#050814" : colors.background, 
+                    borderColor: colors.border, 
+                    color: colors.text 
+                  }
+                ]}
+                placeholder="Nhập tên pháp danh đăng nhập..."
                 placeholderTextColor={colors.textMuted + "80"}
                 value={username}
                 onChangeText={setUsername}
@@ -97,10 +115,17 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textMuted }]}>Mật khẩu bảo mật</Text>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Mật khẩu mật mã</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                placeholder="Nhập mật khẩu..."
+                style={[
+                  styles.input, 
+                  { 
+                    backgroundColor: isDark ? "#050814" : colors.background, 
+                    borderColor: colors.border, 
+                    color: colors.text 
+                  }
+                ]}
+                placeholder="Nhập khẩu quyết bảo mật..."
                 placeholderTextColor={colors.textMuted + "80"}
                 secureTextEntry
                 value={password}
@@ -118,13 +143,13 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               {loading ? (
-                <ActivityIndicator color={colors.background} />
+                <ActivityIndicator color="#050814" />
               ) : (
-                <Text style={[styles.loginButtonText, { color: colors.background }]}>XÁC THỰC TRUY CẬP</Text>
+                <Text style={[styles.loginButtonText, { color: "#050814" }]}>KHAI THÔNG ĐẠO HẠNH</Text>
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Pressable,
   Platform,
+  ScrollView,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -21,6 +22,7 @@ import Animated, {
   withTiming,
   interpolate,
 } from "react-native-reanimated";
+import { parseWord } from "../../src/utils/wordParser";
 
 const { height } = Dimensions.get("window");
 
@@ -33,7 +35,7 @@ export default function CardViewer() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Reanimated 3D flip value
+  // Reanimated 3D flip value (0 for front, 180 for back)
   const rotate = useSharedValue(0);
 
   useEffect(() => {
@@ -55,6 +57,8 @@ export default function CardViewer() {
     const spin = interpolate(rotate.value, [0, 180], [0, 180]);
     return {
       transform: [{ rotateY: `${spin}deg` }],
+      opacity: rotate.value > 90 ? 0 : 1,
+      zIndex: rotate.value > 90 ? 1 : 2,
     };
   });
 
@@ -62,6 +66,8 @@ export default function CardViewer() {
     const spin = interpolate(rotate.value, [0, 180], [180, 360]);
     return {
       transform: [{ rotateY: `${spin}deg` }],
+      opacity: rotate.value < 90 ? 0 : 1,
+      zIndex: rotate.value > 90 ? 2 : 1,
     };
   });
 
@@ -69,9 +75,9 @@ export default function CardViewer() {
     if (index < words.length - 1) {
       const isCurrentlyFlipped = rotate.value !== 0;
       if (isCurrentlyFlipped) {
-        rotate.value = withTiming(0, { duration: 300 });
+        rotate.value = withTiming(0, { duration: 250 });
       }
-      setTimeout(() => setIndex(index + 1), isCurrentlyFlipped ? 300 : 0);
+      setTimeout(() => setIndex(index + 1), isCurrentlyFlipped ? 250 : 0);
     }
   };
 
@@ -79,9 +85,9 @@ export default function CardViewer() {
     if (index > 0) {
       const isCurrentlyFlipped = rotate.value !== 0;
       if (isCurrentlyFlipped) {
-        rotate.value = withTiming(0, { duration: 300 });
+        rotate.value = withTiming(0, { duration: 250 });
       }
-      setTimeout(() => setIndex(index - 1), isCurrentlyFlipped ? 300 : 0);
+      setTimeout(() => setIndex(index - 1), isCurrentlyFlipped ? 250 : 0);
     }
   };
 
@@ -101,7 +107,7 @@ export default function CardViewer() {
           { backgroundColor: colors.background },
         ]}
       >
-        <ActivityIndicator size="large" color={colors.amber} />
+        <ActivityIndicator size="large" color={colors.indigo} />
       </View>
     );
   }
@@ -118,7 +124,7 @@ export default function CardViewer() {
           Chưa có từ vựng nào sếp ơi.
         </Text>
         <TouchableOpacity
-          style={[styles.btnBackEmpty, { backgroundColor: colors.amber }]}
+          style={[styles.btnBackEmpty, { backgroundColor: colors.indigo }]}
           onPress={() => router.back()}
         >
           <Text style={styles.btnBackText}>Quay lại</Text>
@@ -127,7 +133,20 @@ export default function CardViewer() {
     );
   }
 
+  const currentWord = words[index];
+  const parsed = parseWord(currentWord?.term || "", currentWord?.def || "");
   const progressPercent = ((index + 1) / words.length) * 100;
+
+  // Bản dịch loại từ sang Tiếng Việt dã sử Xianxia
+  const getWordTypeLabel = (type: string) => {
+    const lower = (type || "").toLowerCase();
+    if (lower === "noun" || lower === "n") return "Danh Từ";
+    if (lower === "verb" || lower === "v") return "Động Từ";
+    if (lower === "adjective" || lower === "adj") return "Tính Từ";
+    if (lower === "adverb" || lower === "adv") return "Trạng Từ";
+    if (lower === "particle") return "Trợ Từ";
+    return type || "Chưa rõ";
+  };
 
   return (
     <SafeAreaView
@@ -146,9 +165,9 @@ export default function CardViewer() {
               styles.btnIconHeader,
               { backgroundColor: colors.surface, borderColor: colors.border },
               (isBackHovered || pressed) && {
-                backgroundColor: colors.amberLight,
-                borderColor: colors.amber,
-                shadowColor: colors.amber,
+                backgroundColor: colors.indigoLight,
+                borderColor: colors.indigo,
+                shadowColor: colors.indigo,
               },
             ]}
           >
@@ -157,7 +176,7 @@ export default function CardViewer() {
                 name="arrow-back-ios"
                 size={20}
                 color={
-                  isBackHovered || pressed ? colors.amber : colors.textMuted
+                  isBackHovered || pressed ? colors.indigo : colors.textMuted
                 }
                 style={{ marginLeft: 6 }}
               />
@@ -172,7 +191,7 @@ export default function CardViewer() {
               {title}
             </Text>
             <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-              {words.length} thẻ từ vựng
+              {words.length} cổ tự tinh hoa
             </Text>
           </View>
 
@@ -181,9 +200,9 @@ export default function CardViewer() {
               styles.btnIconHeader,
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
-            onPress={() => speak(words[index].term)}
+            onPress={() => speak(parsed.word)}
           >
-            <MaterialIcons name="headset" size={22} color={colors.amber} />
+            <MaterialIcons name="headset" size={22} color={colors.indigo} />
           </TouchableOpacity>
         </View>
 
@@ -191,22 +210,22 @@ export default function CardViewer() {
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
             <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
-              TIẾN ĐỘ ÔN TẬP
+              LUYỆN TẬP PHÁP LỰC
             </Text>
-            <Text style={[styles.progressCounter, { color: colors.amber }]}>
+            <Text style={[styles.progressCounter, { color: colors.indigo }]}>
               {index + 1} / {words.length}
             </Text>
           </View>
           <View
             style={[
               styles.progressBarBg,
-              { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+              { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" },
             ]}
           >
             <View
               style={[
                 styles.progressBarFill,
-                { width: `${progressPercent}%`, backgroundColor: colors.amber },
+                { width: `${progressPercent}%`, backgroundColor: colors.indigo },
               ]}
             />
           </View>
@@ -227,18 +246,39 @@ export default function CardViewer() {
                   frontAnimatedStyle,
                   {
                     backgroundColor: colors.surface,
-                    borderColor: colors.border,
+                    borderColor: colors.indigo + "40",
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.cardTextTransparent,
-                    { color: colors.amber },
-                  ]}
-                >
-                  {words[index].def}
-                </Text>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardHeaderTag, { color: colors.indigo }]}>
+                    【 CỔ TỰ PHÁP NGHĨA 】
+                  </Text>
+                </View>
+
+                <View style={styles.cardContent}>
+                  <Text style={[styles.cardTextDef, { color: colors.text }]}>
+                    {parsed.meaning}
+                  </Text>
+                </View>
+
+                <View style={styles.cardFooter}>
+                  <View style={styles.badgeRow}>
+                    <View style={[styles.badge, { borderColor: colors.purple }]}>
+                      <Text style={[styles.badgeText, { color: colors.purple }]}>
+                        {parsed.jlpt}
+                      </Text>
+                    </View>
+                    <View style={[styles.badge, { borderColor: colors.blue }]}>
+                      <Text style={[styles.badgeText, { color: colors.blue }]}>
+                        {getWordTypeLabel(parsed.type)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.tapToFlip, { color: colors.textMuted }]}>
+                    ⚡ Chạm để giải ấn linh tự
+                  </Text>
+                </View>
               </Animated.View>
 
               {/* MẶT SAU: TỪ TIẾNG NHẬT */}
@@ -248,14 +288,66 @@ export default function CardViewer() {
                   styles.flashcardBoxBack,
                   backAnimatedStyle,
                   {
-                    backgroundColor: colors.amberLight,
-                    borderColor: colors.amber + "40",
+                    backgroundColor: colors.surface,
+                    borderColor: colors.indigo,
                   },
                 ]}
               >
-                <Text style={[styles.cardTextSolid, { color: colors.text }]}>
-                  {words[index].term}
-                </Text>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardHeaderTag, { color: colors.indigo }]}>
+                    【 CHÂN NGÔN GIẢI CHÚ 】
+                  </Text>
+                </View>
+
+                <ScrollView
+                  contentContainerStyle={styles.cardBackScroll}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.japaneseWrapper}>
+                    <Text style={[styles.cardTextSolid, { color: colors.amber }]}>
+                      {parsed.word}
+                    </Text>
+                    {parsed.reading && parsed.reading !== parsed.word && (
+                      <Text style={[styles.readingText, { color: colors.textMuted }]}>
+                        {parsed.reading}
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Ví dụ & Ghi chú */}
+                  {parsed.examples && parsed.examples.length > 0 && (
+                    <View style={styles.detailsSection}>
+                      <Text style={[styles.sectionTitle, { color: colors.indigo }]}>
+                        ✦ Minh Họa Trận Pháp
+                      </Text>
+                      {parsed.examples.map((ex, idx) => (
+                        <View key={idx} style={styles.exampleItem}>
+                          <Text style={[styles.exampleJp, { color: colors.text }]}>
+                            {ex.jp}
+                          </Text>
+                          <Text style={[styles.exampleVn, { color: colors.textMuted }]}>
+                            {ex.vn}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {parsed.notes ? (
+                    <View style={[styles.notesSection, { borderColor: colors.purple + "40" }]}>
+                      <Text style={[styles.notesText, { color: colors.textMuted }]}>
+                        <Text style={{ color: colors.purple, fontWeight: "bold" }}>Ghi chú: </Text>
+                        {parsed.notes}
+                      </Text>
+                    </View>
+                  ) : null}
+                </ScrollView>
+
+                <View style={[styles.cardFooter, { marginTop: 10 }]}>
+                  <Text style={[styles.tapToFlip, { color: colors.textMuted }]}>
+                    ⚡ Chạm để phong ấn lại
+                  </Text>
+                </View>
               </Animated.View>
             </View>
           </TouchableOpacity>
@@ -279,7 +371,7 @@ export default function CardViewer() {
                 name="keyboard-arrow-left"
                 size={32}
                 color={
-                  index === 0 ? (isDark ? "#334155" : "#CBD5E1") : colors.text
+                  index === 0 ? (isDark ? "#1E293B" : "#CBD5E1") : colors.text
                 }
               />
             </TouchableOpacity>
@@ -288,12 +380,12 @@ export default function CardViewer() {
             <TouchableOpacity
               style={[
                 styles.playBtn,
-                { backgroundColor: colors.amber, shadowColor: colors.amber },
+                { backgroundColor: colors.indigo, shadowColor: colors.indigo },
               ]}
-              onPress={() => speak(words[index].term)}
+              onPress={() => speak(parsed.word)}
               activeOpacity={0.7}
             >
-              <MaterialIcons name="volume-up" size={28} color="#FFF" />
+              <MaterialIcons name="volume-up" size={28} color="#050814" />
             </TouchableOpacity>
 
             {/* Nút Tiến */}
@@ -308,7 +400,7 @@ export default function CardViewer() {
                 color={
                   index === words.length - 1
                     ? isDark
-                      ? "#334155"
+                      ? "#1E293B"
                       : "#CBD5E1"
                     : colors.text
                 }
@@ -339,7 +431,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
   },
-  btnBackText: { color: "#FFF", fontWeight: "bold" },
+  btnBackText: { color: "#050814", fontWeight: "bold" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -369,13 +461,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
   },
-  progressSection: { paddingHorizontal: 20, paddingBottom: 30 },
+  progressSection: { paddingHorizontal: 20, paddingBottom: 15 },
   progressHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  progressLabel: { fontSize: 12, fontWeight: "800" },
+  progressLabel: { fontSize: 12, fontWeight: "800", letterSpacing: 1 },
   progressCounter: { fontSize: 13, fontWeight: "800" },
   progressBarBg: {
     height: 6,
@@ -392,7 +484,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  flipTouchable: { width: "100%", height: height * 0.45 },
+  flipTouchable: { width: "100%", height: height * 0.52 },
   flashcardBox: {
     position: "absolute",
     top: 0,
@@ -400,31 +492,129 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    shadowColor: "#0F172A",
+    padding: 24,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 4,
-    borderWidth: 1,
+    elevation: 6,
+    borderWidth: 1.5,
     backfaceVisibility: "hidden",
+    justifyContent: "space-between",
   },
   flashcardBoxBack: {
     backfaceVisibility: "hidden",
   },
-  cardTextTransparent: {
-    fontSize: 32,
+  cardHeader: {
+    alignItems: "center",
+    width: "100%",
+    paddingBottom: 10,
+  },
+  cardHeaderTag: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 2,
+  },
+  cardContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardBackScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  cardTextDef: {
+    fontSize: 26,
     fontWeight: "800",
     textAlign: "center",
+    lineHeight: 36,
   },
   cardTextSolid: {
-    fontSize: 38,
+    fontSize: 34,
     fontWeight: "800",
     textAlign: "center",
   },
-  bottomControls: { paddingBottom: 40, alignItems: "center" },
+  japaneseWrapper: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  readingText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 8,
+    letterSpacing: 1,
+  },
+  cardFooter: {
+    alignItems: "center",
+    width: "100%",
+    paddingTop: 10,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  badge: {
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "transparent",
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  tapToFlip: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  detailsSection: {
+    width: "100%",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(245, 199, 107, 0.15)",
+    paddingTop: 15,
+    marginTop: 10,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  exampleItem: {
+    marginBottom: 10,
+    paddingLeft: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: "#4DA8FF",
+  },
+  exampleJp: {
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  exampleVn: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  notesSection: {
+    width: "100%",
+    marginTop: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    backgroundColor: "rgba(124, 92, 255, 0.05)",
+  },
+  notesText: {
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  bottomControls: { paddingBottom: height * 0.05, paddingTop: 20, alignItems: "center" },
   pillContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -435,7 +625,7 @@ const styles = StyleSheet.create({
     gap: 25,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.3,
     shadowRadius: 15,
     elevation: 5,
     borderWidth: 1,

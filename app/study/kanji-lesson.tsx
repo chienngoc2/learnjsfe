@@ -260,8 +260,9 @@ export default function KanjiLessonScreen() {
   };
 
   const generateStrokeHtml = (char: string) => {
-    const strokeColor = isDark ? "#F59E0B" : "#4F46E5";
-    const outlineColor = isDark ? "#334155" : "#E2E8F0";
+    const strokeColor = isDark ? "#F5C76B" : "#b0822e";
+    const outlineColor = isDark ? "#1E293B" : "#E2E8F0";
+    const radicalColor = "#7C5CFF";
     return `<!DOCTYPE html>
 <html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -278,7 +279,7 @@ export default function KanjiLessonScreen() {
     width:130,height:130,padding:4,
     strokeAnimationSpeed:1.0,delayBetweenStrokes:200,
     strokeColor:'${strokeColor}',outlineColor:'${outlineColor}',
-    radicalColor:'#EF4444',showOutline:true
+    radicalColor:'${radicalColor}',showOutline:true
   });
   w.animateCharacter();
 </script>
@@ -291,7 +292,7 @@ export default function KanjiLessonScreen() {
 
   return (
     <LinearGradient
-      colors={isDark ? ["#0F172A", "#1E1B4B"] : ["#EEF2FF", "#C7D2FE"]}
+      colors={isDark ? ["#050814", "#0F172A"] : ["#f5edd6", "#fffdf8"]}
       style={styles.container}
     >
       <Stack.Screen options={{ headerShown: false }} />
@@ -382,7 +383,7 @@ export default function KanjiLessonScreen() {
                 <View style={styles.topSectionRow}>
                   {/* Left info block */}
                   <View style={styles.leftInfoBlock}>
-                    <Text style={[styles.bigKanjiChar, { color: "#1E1B4B" }]}>
+                    <Text style={[styles.bigKanjiChar, { color: colors.text }]}>
                       {currentKanji.character}
                     </Text>
                     <Text style={[styles.backHanViet, { color: colors.indigo }]}>
@@ -530,7 +531,7 @@ export default function KanjiLessonScreen() {
               onPress={() => speakKanji(currentKanji.character)}
               activeOpacity={0.8}
             >
-              <MaterialIcons name="volume-up" size={32} color="#FFF" />
+              <MaterialIcons name="volume-up" size={32} color={isDark ? "#050814" : "#FFF"} />
             </TouchableOpacity>
             <Text style={[styles.controlBtnLabel, { color: colors.indigo, fontWeight: "800" }]}>Phát âm</Text>
           </View>

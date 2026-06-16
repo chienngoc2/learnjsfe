@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
+  ImageBackground,
 } from "react-native";
 import { Audio } from "expo-av";
 import { Stack, useRouter } from "expo-router";
@@ -23,11 +25,12 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 
-// IMPORT COMPONENT UI
+// IMPORT COMPONENT UI & STORE
 import ChatBubble from "@/components/ui/vocal/chat/ChatBubble";
 import ChatInput from "@/components/ui/vocal/chat/ChatInput";
 import Header from "../../components/ui/Header";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useCultivationStore } from "../../store/useCultivationStore";
 
 export default function ChatScreen() {
   const { colors, isDark } = useTheme();
@@ -38,6 +41,9 @@ export default function ChatScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const flatListRef = useRef<FlatList>(null);
+
+  // Zustand Store
+  const { tokensUsed, addTokens, clearTokens } = useCultivationStore();
 
   // Voice Chat States
   const [voiceChatMode, setVoiceChatMode] = useState(false);
@@ -97,16 +103,9 @@ export default function ChatScreen() {
     }
   }, [voiceChatStatus]);
 
-  // 🤖 Token tracking state
-  const [tokensUsed, setTokensUsed] = useState({
-    prompt: 0,
-    completion: 0,
-    total: 0,
-  });
-
   const clearHistory = () => {
     setMessages([]);
-    setTokensUsed({ prompt: 0, completion: 0, total: 0 });
+    clearTokens();
   };
 
   useEffect(() => {
@@ -234,11 +233,9 @@ export default function ChatScreen() {
         setMessages((prev) => [...prev, botMsg]);
 
         if (response.data.usage) {
-          setTokensUsed({
-            prompt: response.data.usage.prompt_tokens || 0,
-            completion: response.data.usage.completion_tokens || 0,
-            total: response.data.usage.total_tokens || 0,
-          });
+          const prompt = response.data.usage.prompt_tokens || 0;
+          const completion = response.data.usage.completion_tokens || 0;
+          addTokens(prompt, completion);
         }
 
         if (response.data.audioSegments) {
@@ -291,12 +288,28 @@ export default function ChatScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title="AI Chatbot Room" />
+      <Header title="Truyền Tin Điện" />
 
-      {/* Control bar */}
+      {/* SENSEI AVATAR HEADER CARD */}
+      <View style={[styles.masterCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Image
+          source={require("../../assets/images/ai_master.png")}
+          style={[styles.masterAvatar, { borderColor: colors.indigo }]}
+        />
+        <View style={styles.masterInfo}>
+          <Text style={[styles.masterName, { color: colors.text }]}>Khương Tử Nha (AI Sensei)</Text>
+          <Text style={[styles.masterTitle, { color: colors.indigo }]}>【 Hóa Thần Cảnh Linh Anh 】</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: colors.blue }]} />
+            <Text style={[styles.statusText, { color: colors.textMuted }]}>Tĩnh tọa truyền pháp</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* CONTROL BAR */}
       <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Text style={[styles.tokenText, { color: colors.textMuted }]}>
-          Tokens: <Text style={{ fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Rep: {tokensUsed.completion})
+          Linh lực tiêu hao: <Text style={{ fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Rep: {tokensUsed.completion})
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <TouchableOpacity onPress={toggleVoiceMode} style={styles.voiceToggleBtn} activeOpacity={0.7}>
@@ -313,25 +326,27 @@ export default function ChatScreen() {
       </View>
 
       {!voiceChatMode ? (
-        /* STANDARD CHAT VIEW */
+        /* STANDARD CHAT VIEW WITH PARCHMENT SCROLL STYLE BACKGROUND */
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <ChatBubble message={item.text} role={item.role === "user" ? "user" : "bot"} />
-            )}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 15 }}
-            onContentSizeChange={() =>
-              flatListRef.current?.scrollToEnd({ animated: true })
-            }
-          />
+          <View style={styles.scrollBackground}>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <ChatBubble message={item.text} role={item.role === "user" ? "user" : "bot"} />
+              )}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 15, paddingBottom: 30 }}
+              onContentSizeChange={() =>
+                flatListRef.current?.scrollToEnd({ animated: true })
+              }
+            />
+          </View>
 
           <ChatInput
             onSendText={handleChat}
@@ -342,7 +357,7 @@ export default function ChatScreen() {
           />
         </KeyboardAvoidingView>
       ) : (
-        /* PREMIUM VOICE CHAT MODE OVERLAY */
+        /* PREMIUM VOICE CHAT MODE OVERLAY (KIM ĐAN CORE STYLE) */
         <View style={[styles.voiceOverlay, { backgroundColor: colors.background }]}>
           <Text style={[styles.voiceTitle, { color: colors.indigo }]}>Sensei Voice Portal</Text>
           
@@ -351,7 +366,7 @@ export default function ChatScreen() {
             <Animated.View style={[styles.rippleRing, rippleStyle1, { borderColor: colors.indigo }]} />
             <Animated.View style={[styles.rippleRing, rippleStyle2, { borderColor: colors.indigo }]} />
 
-            {/* Main Interactive Orb */}
+            {/* Main Interactive Orb (Glowing Kim Đan) */}
             <TouchableOpacity
               onPress={() => {
                 if (voiceChatStatus === "idle") {
@@ -374,9 +389,10 @@ export default function ChatScreen() {
                         : voiceChatStatus === "speaking"
                         ? colors.indigo
                         : isDark
-                        ? "#151821"
-                        : "#faebd7",
+                        ? "#121824"
+                        : "#FEF3C7",
                     borderColor: colors.indigo,
+                    shadowColor: colors.indigo,
                   },
                 ]}
               >
@@ -394,7 +410,7 @@ export default function ChatScreen() {
                     size={42}
                     color={
                       voiceChatStatus === "recording" || voiceChatStatus === "speaking"
-                        ? "#FFFFFF"
+                        ? "#050814"
                         : colors.indigo
                     }
                   />
@@ -404,16 +420,16 @@ export default function ChatScreen() {
           </View>
 
           <Text style={[styles.voiceStatusText, { color: colors.text }]}>
-            {voiceChatStatus === "idle" && "Chạm vào vòng tròn vàng để nói"}
-            {voiceChatStatus === "recording" && "Đang ghi âm, chạm để hoàn tất"}
-            {voiceChatStatus === "transcribing" && "Đang giải mã âm thanh..."}
-            {voiceChatStatus === "thinking" && "Đang suy nghĩ câu trả lời..."}
-            {voiceChatStatus === "speaking" && "Sensei đang nói..."}
+            {voiceChatStatus === "idle" && "Chạm vào Kim Đan để đàm đạo"}
+            {voiceChatStatus === "recording" && "Đang truyền đạt thần niệm..."}
+            {voiceChatStatus === "transcribing" && "Đang giải mã thần niệm..."}
+            {voiceChatStatus === "thinking" && "Sensei đang cân nhắc..."}
+            {voiceChatStatus === "speaking" && "Sensei đang thuyết pháp..."}
           </Text>
 
           {messages.length > 0 && (
             <View style={[styles.voiceTranscriptContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.voiceTranscriptLabel, { color: colors.textMuted }]}>Giao dịch gần nhất</Text>
+              <Text style={[styles.voiceTranscriptLabel, { color: colors.textMuted }]}>Thần Niệm Cuối Cùng</Text>
               <Text style={[styles.voiceTranscriptBody, { color: colors.text }]} numberOfLines={3}>
                 {messages[messages.length - 1].text}
               </Text>
@@ -421,7 +437,7 @@ export default function ChatScreen() {
           )}
 
           <TouchableOpacity onPress={toggleVoiceMode} style={[styles.exitVoiceBtn, { borderColor: colors.border }]} activeOpacity={0.7}>
-            <Text style={{ color: colors.textMuted, fontWeight: "600", fontSize: 13 }}>Quay lại giao diện gõ</Text>
+            <Text style={{ color: colors.textMuted, fontWeight: "600", fontSize: 13 }}>Quay lại giao diện truyền tin</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -433,6 +449,55 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  masterCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  masterAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+  },
+  masterInfo: {
+    marginLeft: 14,
+    flex: 1,
+  },
+  masterName: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  masterTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
   controlBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -441,6 +506,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     elevation: 1,
+    marginTop: 10,
   },
   tokenText: {
     fontSize: 11,
@@ -453,6 +519,11 @@ const styles = StyleSheet.create({
   voiceToggleBtn: {
     padding: 6,
     borderRadius: 8,
+  },
+  scrollBackground: {
+    flex: 1,
+    // Adds a subtle background look for a scroll parchment atmosphere
+    backgroundColor: "transparent",
   },
   voiceOverlay: {
     flex: 1,
@@ -488,11 +559,10 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 8,
-    shadowColor: "#000",
+    elevation: 10,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   voiceStatusText: {
     fontSize: 14,

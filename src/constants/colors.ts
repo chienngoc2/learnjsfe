@@ -13,22 +13,26 @@ export const themes = {
     indigoLight: "#f9f4e8",
     amber: "#991b1b",           // Đỏ son niêm phong (Secondary)
     amberLight: "#fdebeb",
+    purple: "#7C5CFF",          // Tím linh thảo
+    blue: "#4DA8FF",            // Xanh thủy triều
     error: "#b91c1c",
     errorLight: "#FEF2F2",
   },
   dark: {
-    background: "#050608",      // Nền chính Obsidian huyền bí
-    surface: "#0d0f15",         // Nền thẻ Obsidian tối
-    text: "#f3f1eb",            // Chữ trắng da thuộc
-    textMuted: "#8e8d89",       // Chữ xám tro tàn
-    border: "#1c1d24",          // Viền sắt rèn tối
+    background: "#050814",      // Nền chính Xianxia (Dark Blue-Black)
+    surface: "#0F172A",         // Nền thẻ Slate dark
+    text: "#FFFFFF",            // Chữ trắng tinh anh
+    textMuted: "#94A3B8",       // Chữ xám mờ
+    border: "#1E293B",          // Viền mờ
     
-    // Màu nhấn Antique Gold & Dragon Crimson
-    indigo: "#dfb15b",          // Vàng kim Kyoto cổ điển (Primary)
-    indigoLight: "#2e230f",
-    amber: "#b91c1c",           // Đỏ máu rồng (Secondary)
-    amberLight: "#331218",
-    error: "#ef4444",
+    // Màu nhấn Kyoto Gold & Accent Purple/Blue
+    indigo: "#F5C76B",          // Vàng kim Kyoto chính tông (Primary Gold)
+    indigoLight: "#1E1E2F",     // Nền mờ hoặc nền tím mờ
+    amber: "#FFE8A3",           // Vàng kim nhạt (Secondary Gold)
+    amberLight: "#161D30",
+    purple: "#7C5CFF",          // Tím linh thảo
+    blue: "#4DA8FF",            // Xanh thủy triều
+    error: "#EF4444",
     errorLight: "#450A0A",
   }
 };

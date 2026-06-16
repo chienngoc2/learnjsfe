@@ -24,6 +24,7 @@ import Animated, {
   withTiming,
   withSequence,
 } from "react-native-reanimated";
+import { useCultivationStore } from "../../store/useCultivationStore";
 
 const { width } = Dimensions.get("window");
 
@@ -33,13 +34,34 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   
+  // Zustand Cultivation Store
+  const { 
+    level, 
+    stage, 
+    tuVi, 
+    dailyQuests, 
+    currentTitle,
+    streak: cultivationStreak,
+    setStreak: setStoreStreak,
+    completeQuestDirectly
+  } = useCultivationStore();
+  
   // Data states
   const [username, setUsername] = useState("Sếp");
-  const [streak, setStreak] = useState(0);
   const [vocabCount, setVocabCount] = useState(0);
   const [kanjiCount, setKanjiCount] = useState(0);
   const [grammarCount, setGrammarCount] = useState(0);
   const [serverOnline, setServerOnline] = useState(true);
+
+  const maxTuVi = level * 100 + 500;
+  const tuViPercent = Math.min(100, Math.round((tuVi / maxTuVi) * 100));
+  const nextStage = level < 11 
+    ? 'Trúc Cơ 期 (築基期 - N4)' 
+    : level < 21 
+      ? 'Kim Đan 期 (金丹期 - N3)' 
+      : level < 31 
+        ? 'Nguyên Anh 期 (元嬰期 - N2)' 
+        : 'Hóa Thần 期 (化神期 - N1)';
 
   // Shared value for breathing connection dot
   const pulseValue = useSharedValue(1);
@@ -95,7 +117,8 @@ export default function DashboardScreen() {
       const today = new Date().toDateString();
 
       if (lastLogin === today) {
-        setStreak(Number(currentStreak) || 0);
+        const val = Number(currentStreak) || 0;
+        setStoreStreak(val);
       } else {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
@@ -107,7 +130,7 @@ export default function DashboardScreen() {
         
         await AsyncStorage.setItem("last_login", today);
         await AsyncStorage.setItem("streak_count", newStreak.toString());
-        setStreak(newStreak);
+        setStoreStreak(newStreak);
       }
 
       // 2. Fetch Stats from Backend
@@ -200,7 +223,10 @@ export default function DashboardScreen() {
             />
             <View style={styles.greetingBox}>
               <Text style={[styles.greetingTitle, { color: colors.text }]}>
-                Chào sếp {username}
+                {currentTitle ? `【${currentTitle}】` : ''} {username}
+              </Text>
+              <Text style={{ fontSize: 11, color: colors.indigo, fontWeight: "700", marginTop: 2 }}>
+                Cảnh giới: {stage} (Cấp {level})
               </Text>
               
               {/* Pulsing server connection indicator */}
@@ -245,7 +271,7 @@ export default function DashboardScreen() {
         </Text>
 
         <View style={styles.bentoContainer}>
-          {/* Widget 1: Streak Progress (Large Widget) */}
+          {/* Widget 1: Tu Vi Progress (Large Widget) */}
           <Animated.View 
             entering={FadeInDown.delay(50).duration(500)}
             style={[
@@ -259,28 +285,28 @@ export default function DashboardScreen() {
             ]}
           >
             <View style={styles.bentoLargeContent}>
-              <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>CHUỖI HỌC TẬP</Text>
-              <Text style={[styles.bentoValue, { color: colors.text }]}>{streak} ngày liên tục</Text>
+              <Text style={[styles.bentoLabel, { color: colors.indigo, fontWeight: "800" }]}>TU VI TIẾN TRÌNH</Text>
+              <Text style={[styles.bentoValue, { color: colors.text }]}>{tuVi} / {maxTuVi} Linh Khí</Text>
               
-              <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+              <View style={[styles.progressBarBg, { backgroundColor: isDark ? "#121824" : colors.border }]}>
                 <View 
                   style={[
                     styles.progressBarFill, 
                     { 
                       backgroundColor: colors.indigo, 
-                      width: `${Math.min(100, (streak / 30) * 100)}%` 
+                      width: `${tuViPercent}%` 
                     }
                   ]} 
                 />
               </View>
               <Text style={[styles.progressBarText, { color: colors.textMuted }]}>
-                Đạt {vocabCount} từ trên mục tiêu {targetCards} từ vựng
+                Cảnh giới tiếp theo: {nextStage}
               </Text>
             </View>
 
             <View style={styles.circleContainer}>
-              <View style={[styles.circleProgress, { borderColor: colors.border }]}>
-                <Text style={[styles.circlePercent, { color: colors.indigo }]}>{completionPercent}%</Text>
+              <View style={[styles.circleProgress, { borderColor: colors.border, backgroundColor: isDark ? "#101625" : "#FFF" }]}>
+                <Text style={[styles.circlePercent, { color: colors.indigo }]}>{tuViPercent}%</Text>
               </View>
             </View>
           </Animated.View>
@@ -326,18 +352,62 @@ export default function DashboardScreen() {
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Cấu trúc ngữ pháp</Text>
             </Animated.View>
 
-            {/* Widget 5: Target Level */}
+            {/* Widget 5: Streak count */}
             <Animated.View 
               entering={FadeInDown.delay(450).duration(500)}
               style={[styles.bentoMedium, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
               <View style={[styles.iconBadge, { backgroundColor: colors.indigoLight }]}>
-                <MaterialIcons name="stars" size={22} color={colors.indigo} />
+                <MaterialIcons name="whatshot" size={22} color={colors.indigo} />
               </View>
-              <Text style={[styles.bentoNumber, { color: colors.text }]}>N5</Text>
-              <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Cấp độ mục tiêu</Text>
+              <Text style={[styles.bentoNumber, { color: colors.text }]}>{cultivationStreak}</Text>
+              <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Tu luyện liên tục (Ngày)</Text>
             </Animated.View>
           </View>
+        </View>
+
+        {/* ================= DAILY QUESTS ================= */}
+        <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 20, marginBottom: 12 }]}>
+          Nhiệm vụ tu luyện hôm nay
+        </Text>
+        <View style={styles.questsList}>
+          {dailyQuests.map((quest) => (
+            <TouchableOpacity
+              key={quest.id}
+              activeOpacity={0.8}
+              onPress={() => {
+                if (!quest.completed) {
+                  completeQuestDirectly(quest.id);
+                }
+              }}
+              style={[
+                styles.questItem,
+                { 
+                  backgroundColor: colors.surface, 
+                  borderColor: quest.completed ? "#10b98140" : colors.border,
+                  borderLeftWidth: 3.5,
+                  borderLeftColor: quest.completed ? "#10b981" : colors.indigo
+                }
+              ]}
+            >
+              <View style={styles.questLeft}>
+                <MaterialIcons
+                  name={quest.completed ? "check-circle" : "radio-button-unchecked"}
+                  size={18}
+                  color={quest.completed ? "#10b981" : colors.textMuted}
+                />
+                <View style={styles.questInfo}>
+                  <Text style={[styles.questJpLabel, { color: colors.text }]}>{quest.jpLabel}</Text>
+                  <Text style={[styles.questLabel, { color: colors.textMuted }]}>
+                    {quest.label} ({quest.current}/{quest.target})
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.questReward, { color: quest.completed ? "#10b981" : colors.indigo }]}>
+                +{quest.rewardTuVi} Tu Vi
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* ================= QUICK LINK WIDGETS ================= */}
@@ -766,5 +836,43 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 5 },
     }),
+  },
+  
+  // QUESTS
+  questsList: {
+    gap: 8,
+    marginBottom: 10,
+  },
+  questItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  questLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  questInfo: {
+    flex: 1,
+  },
+  questJpLabel: {
+    fontSize: 12.5,
+    fontWeight: "800",
+  },
+  questLabel: {
+    fontSize: 10.5,
+    fontWeight: "600",
+    marginTop: 1.5,
+  },
+  questReward: {
+    fontSize: 11,
+    fontWeight: "900",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
 });
