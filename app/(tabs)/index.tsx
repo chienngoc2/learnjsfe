@@ -138,8 +138,9 @@ export default function DashboardScreen() {
       try {
         const vocabRes = await api.get("/api/vocab/lists");
         if (active) {
-          const totalWords = vocabRes.data.reduce(
-            (acc: number, list: any) => acc + (list.words?.length || 0),
+          const list = vocabRes.data.data || vocabRes.data || [];
+          const totalWords = list.reduce(
+            (acc: number, item: any) => acc + (item.words?.length || 0),
             0
           );
           setVocabCount(totalWords);
@@ -450,6 +451,30 @@ export default function DashboardScreen() {
               <MaterialIcons name="border-color" size={22} color={colors.indigo} />
             </View>
             <Text style={[styles.quickLabel, { color: colors.text }]}>Luyện tập</Text>
+          </TouchableOpacity>
+
+          {/* Trắc nghiệm */}
+          <TouchableOpacity
+            style={[styles.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push("/study/practice-quiz")}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickIconCircle, { backgroundColor: colors.indigoLight }]}>
+              <MaterialIcons name="quiz" size={22} color={colors.indigo} />
+            </View>
+            <Text style={[styles.quickLabel, { color: colors.text }]}>Trắc nghiệm</Text>
+          </TouchableOpacity>
+
+          {/* Chia thể động từ */}
+          <TouchableOpacity
+            style={[styles.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push("/study/practice-conjugation")}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickIconCircle, { backgroundColor: colors.indigoLight }]}>
+              <MaterialIcons name="transform" size={22} color={colors.indigo} />
+            </View>
+            <Text style={[styles.quickLabel, { color: colors.text }]}>Chia thể</Text>
           </TouchableOpacity>
 
           {/* Luyện nói AI */}

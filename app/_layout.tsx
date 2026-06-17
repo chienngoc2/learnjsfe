@@ -35,6 +35,18 @@ export default function RootLayout() {
               headerShown: false,
             }}
           />
+          <Stack.Screen
+            name="study/practice-quiz"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="study/practice-conjugation"
+            options={{
+              headerShown: false,
+            }}
+          />
         </Stack>
       </ThemeProvider>
     </SafeAreaProvider>

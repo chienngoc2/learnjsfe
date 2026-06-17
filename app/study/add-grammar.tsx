@@ -8,6 +8,7 @@ import {
   Platform,
   Animated,
   KeyboardAvoidingView,
+  TextInput,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -43,15 +44,30 @@ export default function AddGrammarScreen() {
   const [existingTopics, setExistingTopics] = useState<string[]>([]);
 
   // Khởi tạo state dạng mảng examples
+  const getInitialExamples = (): string[] => {
+    if (params.examples) {
+      try {
+        const parsed = JSON.parse(params.examples as string);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (params.example) return [params.example as string];
+    return [""];
+  };
+
   const [grammarList, setGrammarList] = useState<GrammarItem[]>([
     {
       topicName: (params.topicName as string) || currentTitle || "",
       title: (params.title as string) || "",
       formula: (params.formula as string) || "",
       meaning: (params.meaning as string) || "",
-      examples: [(params.example as string) || ""],
+      examples: getInitialExamples(),
     },
   ]);
+  const [activeTab, setActiveTab] = useState<"manual" | "json">("manual");
+  const [jsonText, setJsonText] = useState<string>("");
 
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -153,19 +169,69 @@ export default function AddGrammarScreen() {
       setGrammarList(grammarList.filter((_, i) => i !== index));
   };
 
+  const parseJsonText = (text: string): GrammarItem[] => {
+    const trimmed = text.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      const list = Array.isArray(parsed) ? parsed : [parsed];
+      return list.map((item: any) => {
+        const defaultTopicName = grammarList[0]?.topicName || currentTitle || "";
+        return {
+          topicName: item.topicName || defaultTopicName,
+          title: item.title || "",
+          formula: item.formula || "",
+          meaning: item.meaning || "",
+          examples: Array.isArray(item.examples) ? item.examples.map(String) : (item.examples ? [String(item.examples)] : [""]),
+        };
+      }).filter((g: any) => g.title && g.meaning);
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const handleChangeTab = (nextTab: "manual" | "json") => {
+    if (nextTab === "json") {
+      const formatted = grammarList.map(g => ({
+        topicName: g.topicName,
+        title: g.title,
+        formula: g.formula,
+        meaning: g.meaning,
+        examples: g.examples.filter(ex => ex.trim() !== "")
+      }));
+      setJsonText(JSON.stringify(formatted, null, 2));
+    } else if (nextTab === "manual") {
+      const parsed = parseJsonText(jsonText);
+      if (parsed.length > 0) {
+        setGrammarList(parsed);
+      }
+    }
+    setActiveTab(nextTab);
+  };
+
   const handleSubmit = async () => {
-    const hasEmpty = grammarList.some(
-      (g) => !g.topicName.trim() || !g.title.trim() || !g.meaning.trim(),
-    );
-    if (hasEmpty) {
-      triggerToast(
-        "error",
-        "Sếp vui lòng điền đầy đủ Tên bài, Tên cấu trúc và Ý nghĩa nhé!",
+    let finalGrammarList: GrammarItem[] = [];
+    if (activeTab === "json") {
+      finalGrammarList = parseJsonText(jsonText);
+      if (finalGrammarList.length === 0) {
+        triggerToast("error", "Dữ liệu JSON trống hoặc không hợp lệ!");
+        return;
+      }
+    } else {
+      const hasEmpty = grammarList.some(
+        (g) => !g.topicName.trim() || !g.title.trim() || !g.meaning.trim(),
       );
-      return;
+      if (hasEmpty) {
+        triggerToast(
+          "error",
+          "Sếp vui lòng điền đầy đủ Tên bài, Tên cấu trúc và Ý nghĩa nhé!",
+        );
+        return;
+      }
+      finalGrammarList = grammarList;
     }
 
-    const cleanGrammarList = grammarList.map((item) => ({
+    const cleanGrammarList = finalGrammarList.map((item) => ({
       ...item,
       examples: item.examples.filter((ex) => ex.trim() !== ""),
     }));
@@ -224,201 +290,294 @@ export default function AddGrammarScreen() {
           contentContainerStyle={{ paddingBottom: 60 }}
           showsVerticalScrollIndicator={false}
         >
-        {grammarList.map((item, index) => {
-          // 🚀 BỘ LỌC ĐỘNG (FUZZY SEARCH CHUẨN ĐÉT TẠI ĐÂY)
-          const currentQuery = item.topicName.trim().toLowerCase();
-          const filteredTopics = existingTopics.filter((topic) =>
-            topic.toLowerCase().includes(currentQuery),
-          );
-
-          return (
-            <View
-              key={index}
-              style={[
-                styles.grammarCard,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <Text
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor: isDark ? "#45230F" : "#FFF7ED",
-                      color: colors.amber,
-                    },
-                  ]}
-                >
-                  {isEditMode
-                    ? "Đang chỉnh sửa"
-                    : `Tài liệu cấu trúc #${index + 1}`}
-                </Text>
-                {!isEditMode && (
-                  <TouchableOpacity
-                    onPress={() => removeGrammarBlock(index)}
-                    disabled={grammarList.length === 1}
-                    style={grammarList.length === 1 && { opacity: 0.3 }}
-                  >
-                    <MaterialIcons
-                      name="delete"
-                      size={22}
-                      color={isDark ? "#F87171" : "#EF4444"}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* 🚀 THANH GỢI Ý ĐÃ ĐƯỢC LÊN ĐỜI: Chỉ hiện các topic khớp nội dung đang nhập */}
-              {!isEditMode && index === 0 && filteredTopics.length > 0 && (
-                <View>
-                  <Text style={[styles.label, { color: colors.textMuted }]}>
-                    Chủ đề gợi ý gần giống:
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.suggestionContainer}
-                  >
-                    {filteredTopics.map((topic, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        style={[
-                          styles.suggestionChip,
-                          {
-                            backgroundColor: isDark ? "#2C1A10" : "#FFEDD5",
-                            borderColor: isDark ? "#45230F" : "#FDBA74",
-                          },
-                        ]}
-                        onPress={() => handleChange(index, "topicName", topic)}
-                      >
-                        <Text
-                          style={[
-                            styles.suggestionText,
-                            { color: isDark ? "#FDBA74" : "#C2410C" },
-                          ]}
-                        >
-                          {topic}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              <InputField
-                label="Tên bài học / Chủ đề"
-                iconName="folder-open"
-                value={item.topicName}
-                onChangeText={(text: string) => handleChange(index, "topicName", text)}
-                placeholder="Ví dụ: Bài 8 - Động từ thao tác"
-              />
-
-              <InputField
-                label="Tên cấu trúc ngữ pháp"
-                value={item.title}
-                onChangeText={(text: string) => handleChange(index, "title", text)}
-                placeholder="VD: Cấu trúc nhờ vả V-te"
-              />
-
-              <InputField
-                label="Công thức áp dụng"
-                highlight
-                iconName="functions"
-                value={item.formula}
-                onChangeText={(text: string) => handleChange(index, "formula", text)}
-                placeholder="VD: V-て + ください"
-              />
-
-              <InputField
-                label="Ý nghĩa & Ngữ cảnh dùng"
-                value={item.meaning}
-                onChangeText={(text: string) => handleChange(index, "meaning", text)}
-                multiline
-                style={styles.textArea}
-                placeholder="Dùng để yêu cầu người khác làm gì một cách lịch sự..."
-              />
-
-              <View style={styles.exampleHeaderRow}>
-                <Text
-                  style={[
-                    styles.label,
-                    { color: colors.textMuted, marginTop: 0 },
-                  ]}
-                >
-                  Danh sách ví dụ mẫu:
-                </Text>
-              </View>
-
-              {item.examples.map((ex, exIndex) => (
-                <View key={exIndex} style={styles.exampleRow}>
-                  <View style={{ flex: 1 }}>
-                    <InputField
-                      label={`Ví dụ #${exIndex + 1}`}
-                      value={ex}
-                      onChangeText={(text: string) =>
-                        handleExampleChange(index, exIndex, text)
-                      }
-                      multiline
-                      style={styles.textArea}
-                      placeholder="VD: ここに入ってください (Hãy vào đây)"
-                    />
-                  </View>
-                  {item.examples.length > 1 && (
-                    <TouchableOpacity
-                      style={[
-                        styles.btnMiniDelete,
-                        { backgroundColor: isDark ? "#451A1A" : "#FEF2F2" },
-                      ]}
-                      onPress={() => removeExampleRow(index, exIndex)}
-                    >
-                      <MaterialIcons
-                        name="remove-circle-outline"
-                        size={20}
-                        color={isDark ? "#F87171" : "#EF4444"}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
-
-              <TouchableOpacity
-                style={[
-                  styles.btnInnerAddExample,
-                  { borderColor: colors.amber },
-                ]}
-                onPress={() => addExampleRow(index)}
-              >
-                <MaterialIcons name="add" size={16} color={colors.amber} />
-                <Text
-                  style={[
-                    styles.btnInnerAddExampleText,
-                    { color: colors.amber },
-                  ]}
-                >
-                  Thêm ví dụ mẫu
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-
-        {!isEditMode && (
+        <View
+          style={[
+            styles.tabContainer,
+            { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" },
+          ]}
+        >
           <TouchableOpacity
             style={[
-              styles.btnAddBlock,
-              { backgroundColor: colors.amberLight, borderColor: colors.amber },
+              styles.tabButton,
+              activeTab === "manual" && { backgroundColor: colors.surface },
             ]}
-            onPress={addGrammarBlock}
+            onPress={() => handleChangeTab("manual")}
           >
-            <MaterialIcons
-              name="add-circle-outline"
-              size={20}
-              color={colors.amber}
-            />
-            <Text style={[styles.btnAddBlockText, { color: colors.amber }]}>
-              Thêm cấu trúc khác
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === "manual" ? colors.text : colors.textMuted },
+              ]}
+            >
+              ✍️ Nhập thủ công
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "json" && { backgroundColor: colors.surface },
+            ]}
+            onPress={() => handleChangeTab("json")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === "json" ? colors.text : colors.textMuted },
+              ]}
+            >
+              📄 Import JSON
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === "manual" && (
+          <>
+            {grammarList.map((item, index) => {
+              // 🚀 BỘ LỌC ĐỘNG (FUZZY SEARCH CHUẨN ĐÉT TẠI ĐÂY)
+              const currentQuery = item.topicName.trim().toLowerCase();
+              const filteredTopics = existingTopics.filter((topic) =>
+                topic.toLowerCase().includes(currentQuery),
+              );
+
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.grammarCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                >
+                  <View style={styles.cardHeader}>
+                    <Text
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor: isDark ? "#45230F" : "#FFF7ED",
+                          color: colors.amber,
+                        },
+                      ]}
+                    >
+                      {isEditMode
+                        ? "Đang chỉnh sửa"
+                        : `Tài liệu cấu trúc #${index + 1}`}
+                    </Text>
+                    {!isEditMode && (
+                      <TouchableOpacity
+                        onPress={() => removeGrammarBlock(index)}
+                        disabled={grammarList.length === 1}
+                        style={grammarList.length === 1 && { opacity: 0.3 }}
+                      >
+                        <MaterialIcons
+                          name="delete"
+                          size={22}
+                          color={isDark ? "#F87171" : "#EF4444"}
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* 🚀 thanh gợi ý */}
+                  {!isEditMode && index === 0 && filteredTopics.length > 0 && (
+                    <View>
+                      <Text style={[styles.label, { color: colors.textMuted }]}>
+                        Chủ đề gợi ý gần giống:
+                      </Text>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.suggestionContainer}
+                      >
+                        {filteredTopics.map((topic, i) => (
+                          <TouchableOpacity
+                            key={i}
+                            style={[
+                              styles.suggestionChip,
+                              {
+                                backgroundColor: isDark ? "#2C1A10" : "#FFEDD5",
+                                borderColor: isDark ? "#45230F" : "#FDBA74",
+                              },
+                            ]}
+                            onPress={() => handleChange(index, "topicName", topic)}
+                          >
+                            <Text
+                              style={[
+                                styles.suggestionText,
+                                { color: isDark ? "#FDBA74" : "#C2410C" },
+                              ]}
+                            >
+                              {topic}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  <InputField
+                    label="Tên bài học / Chủ đề"
+                    iconName="folder-open"
+                    value={item.topicName}
+                    onChangeText={(text: string) => handleChange(index, "topicName", text)}
+                    placeholder="Ví dụ: Bài 8 - Động từ thao tác"
+                  />
+
+                  <InputField
+                    label="Tên cấu trúc ngữ pháp"
+                    value={item.title}
+                    onChangeText={(text: string) => handleChange(index, "title", text)}
+                    placeholder="VD: Cấu trúc nhờ vả V-te"
+                  />
+
+                  <InputField
+                    label="Công thức áp dụng"
+                    highlight
+                    iconName="functions"
+                    value={item.formula}
+                    onChangeText={(text: string) => handleChange(index, "formula", text)}
+                    placeholder="VD: V-て + ください"
+                  />
+
+                  <InputField
+                    label="Ý nghĩa & Ngữ cảnh dùng"
+                    value={item.meaning}
+                    onChangeText={(text: string) => handleChange(index, "meaning", text)}
+                    multiline
+                    style={styles.textArea}
+                    placeholder="Dùng để yêu cầu người khác làm gì một cách lịch sự..."
+                  />
+
+                  <View style={styles.exampleHeaderRow}>
+                    <Text
+                      style={[
+                        styles.label,
+                        { color: colors.textMuted, marginTop: 0 },
+                      ]}
+                    >
+                      Danh sách ví dụ mẫu:
+                    </Text>
+                  </View>
+
+                  {item.examples.map((ex, exIndex) => (
+                    <View key={exIndex} style={styles.exampleRow}>
+                      <View style={{ flex: 1 }}>
+                        <InputField
+                          label={`Ví dụ #${exIndex + 1}`}
+                          value={ex}
+                          onChangeText={(text: string) =>
+                            handleExampleChange(index, exIndex, text)
+                          }
+                          multiline
+                          style={styles.textArea}
+                          placeholder="VD: ここに入ってください (Hãy vào đây)"
+                        />
+                      </View>
+                      {item.examples.length > 1 && (
+                        <TouchableOpacity
+                          style={[
+                            styles.btnMiniDelete,
+                            { backgroundColor: isDark ? "#451A1A" : "#FEF2F2" },
+                          ]}
+                          onPress={() => removeExampleRow(index, exIndex)}
+                        >
+                          <MaterialIcons
+                            name="remove-circle-outline"
+                            size={20}
+                            color={isDark ? "#F87171" : "#EF4444"}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+
+                  <TouchableOpacity
+                    style={[
+                      styles.btnInnerAddExample,
+                      { borderColor: colors.amber },
+                    ]}
+                    onPress={() => addExampleRow(index)}
+                  >
+                    <MaterialIcons name="add" size={16} color={colors.amber} />
+                    <Text
+                      style={[
+                        styles.btnInnerAddExampleText,
+                        { color: colors.amber },
+                      ]}
+                    >
+                      Thêm ví dụ mẫu
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+
+            {!isEditMode && (
+              <TouchableOpacity
+                style={[
+                  styles.btnAddBlock,
+                  { backgroundColor: colors.amberLight, borderColor: colors.amber },
+                ]}
+                onPress={addGrammarBlock}
+              >
+                <MaterialIcons
+                  name="add-circle-outline"
+                  size={20}
+                  color={colors.amber}
+                />
+                <Text style={[styles.btnAddBlockText, { color: colors.amber }]}>
+                  Thêm cấu trúc khác
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {activeTab === "json" && (
+          <View style={[styles.grammarCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.hintBox,
+                {
+                  backgroundColor: isDark ? "#281E45" : "#F5F3FF",
+                  borderColor: isDark ? "#4338CA" : "#DDD6FE",
+                  padding: 12,
+                  borderRadius: 12,
+                  marginBottom: 14,
+                  borderWidth: 1,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.hintText,
+                  { color: isDark ? "#C7D2FE" : "#5B21B6", fontSize: 13, lineHeight: 18 },
+                ]}
+              >
+                Dán chuỗi mảng JSON ngữ pháp đúng định dạng chứa topicName, title, formula, meaning, examples (mảng chuỗi).
+              </Text>
+            </View>
+            <TextInput
+              style={[
+                styles.textArea,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  color: colors.text,
+                  minHeight: 200,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  padding: 14,
+                  fontSize: 14,
+                  textAlignVertical: "top",
+                },
+              ]}
+              value={jsonText}
+              onChangeText={setJsonText}
+              placeholder='[{"topicName": "Bài 8", "title": "〜てください", "formula": "V-て + ください", "meaning": "Hãy làm V", "examples": ["câu ví dụ 1", "câu ví dụ 2"]}]'
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={10}
+            />
+          </View>
         )}
 
         <Button
@@ -524,4 +683,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 4,
   },
+  tabContainer: {
+    flexDirection: "row",
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 10,
+  },
+  tabText: { fontSize: 13, fontWeight: "600" },
+  hintBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+  hintText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });

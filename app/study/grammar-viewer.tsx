@@ -19,11 +19,13 @@ import {
   useFocusEffect,
 } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MaterialIcons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import api from "../../services/api";
+import { useTheme } from "@/src/context/ThemeContext";
 
 // =========================================================================
-// 🚀 THÀNH PHẦN 1: SUB-COMPONENT THÈ NGỮ PHÁP (ĐÃ CẬP NHẬT MẢNG EXAMPLES)
+// 🚀 THÀNH PHẦN 1: SUB-COMPONENT THẺ NGỮ PHÁP (ĐÃ CẬP NHẬT MẢNG EXAMPLES)
 // =========================================================================
 function GrammarCardItem({
   item,
@@ -36,82 +38,199 @@ function GrammarCardItem({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { colors, isDark } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <View style={[styles.card, isExpanded && styles.cardActive]}>
+    <View 
+      style={[
+        styles.card, 
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        isExpanded && { borderColor: colors.indigo, borderWidth: 1.5 }
+      ]}
+    >
       <Pressable
         onPress={() => setIsExpanded(!isExpanded)}
         style={styles.cardHeaderAction}
       >
         <View style={styles.headerLeft}>
           <View
-            style={[styles.indexCircle, isExpanded && styles.indexCircleActive]}
+            style={[
+              styles.indexCircle, 
+              { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" },
+              isExpanded && { backgroundColor: colors.indigo }
+            ]}
           >
-            <Text style={styles.indexText}>{index + 1}</Text>
+            <Text 
+              style={[
+                styles.indexText, 
+                { color: isExpanded ? "#050814" : colors.text }
+              ]}
+            >
+              {String(index + 1).padStart(2, '0')}
+            </Text>
           </View>
           <Text
-            style={[styles.cardTitle, isExpanded && { color: "#EA580C" }]}
-            numberOfLines={1}
+            style={[
+              styles.cardTitle, 
+              { color: colors.text },
+              isExpanded && { color: colors.indigo }
+            ]}
+            numberOfLines={2}
           >
             {item.title}
           </Text>
         </View>
-        <MaterialIcons
-          name={isExpanded ? "keyboard-arrow-up" : "keyboard-arrow-down"}
-          size={26}
-          color={isExpanded ? "#EA580C" : "#64748B"}
+        <Feather
+          name={isExpanded ? "chevron-up" : "chevron-down"}
+          size={22}
+          color={isExpanded ? colors.indigo : colors.textMuted}
         />
       </Pressable>
 
       {isExpanded && (
         <View style={styles.cardContent}>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          
+          {/* 1. CỤM CÔNG THỨC (Màu Vàng Kyoto Gold) */}
           {item.formula ? (
-            <View style={styles.formulaBox}>
-              <MaterialIcons
-                name="functions"
-                size={18}
-                color="#D97706"
+            <View 
+              style={[
+                styles.formulaBox, 
+                { 
+                  backgroundColor: isDark ? "#1E1A10" : "#FDF8EB", 
+                  borderColor: isDark ? "rgba(245, 199, 107, 0.4)" : "rgba(176, 130, 46, 0.3)" 
+                }
+              ]}
+            >
+              <View style={styles.sectionHeaderRow}>
+                <Feather
+                  name="code"
+                  size={14}
+                  color={colors.indigo}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.sectionTitle, { color: colors.indigo, marginBottom: 0 }]}>
+                  CÔNG THỨC ÁP DỤNG
+                </Text>
+              </View>
+              <Text style={[styles.formulaText, { color: colors.indigo, marginTop: 8 }]}>
+                {item.formula}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* 2. CỤM Ý NGHĨA (Màu Xanh Thủy Triều) */}
+          <View 
+            style={[
+              styles.meaningBox, 
+              { 
+                backgroundColor: isDark ? "#0A1424" : "#F0F7FF", 
+                borderColor: isDark ? "rgba(77, 168, 255, 0.35)" : "rgba(77, 168, 255, 0.25)" 
+              }
+            ]}
+          >
+            <View style={styles.sectionHeaderRow}>
+              <Feather
+                name="info"
+                size={14}
+                color={colors.blue}
                 style={{ marginRight: 6 }}
               />
-              <Text style={styles.formulaText}>{item.formula}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.blue, marginBottom: 0 }]}>
+                Ý NGHĨA & NGỮ CẢNH
+              </Text>
             </View>
-          ) : null}
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Ý nghĩa & Cách dùng:</Text>
-            <Text style={styles.sectionContent}>{item.meaning}</Text>
+            <Text style={[styles.sectionContent, { color: colors.text, marginTop: 8 }]}>
+              {item.meaning}
+            </Text>
           </View>
 
-          {/* 🚀 VỊ TRÍ 1 ĐÃ SỬA: DUYỆT ĐỘNG MẢNG VÍ DỤ MẪU EXAMPLES */}
+          {/* 3. CỤM VÍ DỤ MẪU (Màu Tím Linh Thảo) */}
           {item.examples && item.examples.length > 0 ? (
-            <View style={[styles.section, styles.exampleSection]}>
-              <Text style={styles.sectionTitle}>Danh sách ví dụ mẫu:</Text>
-              {item.examples.map((ex: string, exIdx: number) => (
-                <Text key={exIdx} style={styles.exampleText}>
-                  {item.examples.length > 1 ? `• ` : ""}
-                  {ex}
+            <View 
+              style={[
+                styles.examplesBox,
+                { 
+                  backgroundColor: isDark ? "#120F24" : "#F5F3FF", 
+                  borderColor: isDark ? "rgba(124, 92, 255, 0.35)" : "rgba(124, 92, 255, 0.25)" 
+                }
+              ]}
+            >
+              <View style={styles.sectionHeaderRow}>
+                <Feather
+                  name="book-open"
+                  size={14}
+                  color={colors.purple}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.sectionTitle, { color: colors.purple, marginBottom: 0 }]}>
+                  CÂU VÍ DỤ MẪU
                 </Text>
-              ))}
+              </View>
+              <View style={{ marginTop: 8 }}>
+                {item.examples.map((ex: string, exIdx: number) => (
+                  <View key={exIdx} style={[styles.exampleItem, { borderLeftColor: colors.purple }]}>
+                    <Text style={[styles.exampleText, { color: colors.text }]}>
+                      {ex}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
           ) : item.example ? (
-            /* Khiên phòng thủ: Nếu trúng data chữ đơn cũ dưới DB, vẫn hiện mượt mà */
-            <View style={[styles.section, styles.exampleSection]}>
-              <Text style={styles.sectionTitle}>Ví dụ mẫu:</Text>
-              <Text style={styles.exampleText}>{item.example}</Text>
+            <View 
+              style={[
+                styles.examplesBox,
+                { 
+                  backgroundColor: isDark ? "#120F24" : "#F5F3FF", 
+                  borderColor: isDark ? "rgba(124, 92, 255, 0.35)" : "rgba(124, 92, 255, 0.25)" 
+                }
+              ]}
+            >
+              <View style={styles.sectionHeaderRow}>
+                <Feather
+                  name="book-open"
+                  size={14}
+                  color={colors.purple}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.sectionTitle, { color: colors.purple, marginBottom: 0 }]}>
+                  CÂU VÍ DỤ MẪU
+                </Text>
+              </View>
+              <View style={{ marginTop: 8 }}>
+                <View style={[styles.exampleItem, { borderLeftColor: colors.purple }]}>
+                  <Text style={[styles.exampleText, { color: colors.text }]}>
+                    {item.example}
+                  </Text>
+                </View>
+              </View>
             </View>
           ) : null}
 
-          <View style={styles.itemActionContainer}>
-            <TouchableOpacity style={styles.btnItemEdit} onPress={onEdit}>
-              <MaterialIcons name="edit" size={16} color="#0369A1" />
-              <Text style={styles.btnItemEditText}>Chỉnh sửa</Text>
+          {/* CỤM HÀNH ĐỘNG */}
+          <View style={[styles.itemActionContainer, { borderTopColor: colors.border }]}>
+            <TouchableOpacity 
+              style={[
+                styles.btnItemEdit, 
+                { backgroundColor: colors.indigoLight, borderColor: colors.indigo }
+              ]} 
+              onPress={onEdit}
+            >
+              <Feather name="edit-2" size={14} color={colors.indigo} />
+              <Text style={[styles.btnItemEditText, { color: colors.indigo }]}>Sửa cấu trúc</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.btnItemDelete} onPress={onDelete}>
-              <MaterialIcons name="delete-outline" size={16} color="#B91C1C" />
-              <Text style={styles.btnItemDeleteText}>Xóa cấu trúc</Text>
+            <TouchableOpacity 
+              style={[
+                styles.btnItemDelete, 
+                { backgroundColor: colors.errorLight, borderColor: colors.error }
+              ]} 
+              onPress={onDelete}
+            >
+              <Feather name="trash-2" size={14} color={colors.error} />
+              <Text style={[styles.btnItemDeleteText, { color: colors.error }]}>Xóa cấu trúc</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -127,9 +246,10 @@ export default function GrammarViewerScreen() {
   const { topicId, title } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
+  
   const [grammarData, setGrammarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isHovered, setIsHovered] = useState(false);
 
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -186,9 +306,7 @@ export default function GrammarViewerScreen() {
     );
   };
 
-  // 🚀 VỊ TRÍ 2 ĐÃ SỬA: ĐÓNG GÓI MẢNG EXAMPLES QUA PARAMS ROUTER
   const handleEditItem = (item: any) => {
-    // Gom mảng ví dụ thành mảng sạch, nếu trúng data cũ thì bọc chuỗi đơn thành mảng []
     const cleanExamples =
       item.examples && item.examples.length > 0
         ? item.examples
@@ -205,7 +323,6 @@ export default function GrammarViewerScreen() {
         title: item.title,
         formula: item.formula || "",
         meaning: item.meaning,
-        // 🔥 MẸO HAY CHÍ MẠNG: Mã hóa mảng ví dụ thành một chuỗi JSON String để chuyển trang an toàn, không bị rớt dữ liệu
         examples: JSON.stringify(cleanExamples),
       },
     });
@@ -230,7 +347,7 @@ export default function GrammarViewerScreen() {
         `/api/vocab/delete-grammar/${topicId}/${grammarId}`,
       );
       if (res.data.success) {
-        triggerToast("success", "🗑️ Đã xóa cấu trúc ngữ pháp!");
+        triggerToast("success", "Đã xóa cấu trúc ngữ pháp thành công!");
         fetchGrammarList();
       }
     } catch (error) {
@@ -239,199 +356,211 @@ export default function GrammarViewerScreen() {
     }
   };
 
-  if (loading)
+  const bgColors: readonly [string, string, ...string[]] = isDark 
+    ? ["#050814", "#0a0e1c"] 
+    : ["#f5edd6", "#fcf8ed"];
+
+  if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#F97316" />
+      <View style={[styles.center, { backgroundColor: bgColors[0] }]}>
+        <ActivityIndicator size="large" color={colors.indigo} />
       </View>
     );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: bgColors[0] }]}>
+      <LinearGradient colors={bgColors} style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
 
-      {/* COMPONENT TOAST */}
-      {toast && (
-        <Animated.View
-          style={[
-            styles.toastContainer,
-            toast.type === "success" ? styles.toastSuccess : styles.toastError,
-            { transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          <Text style={styles.toastText}>{toast.text}</Text>
-        </Animated.View>
-      )}
+        {/* COMPONENT TOAST */}
+        {toast && (
+          <Animated.View
+            style={[
+              styles.toastContainer,
+              toast.type === "success" 
+                ? { backgroundColor: "#F0FDF4", borderColor: "#A7F3D0" } 
+                : { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" },
+              { transform: [{ translateY: slideAnim }] },
+            ]}
+          >
+            <Text style={styles.toastText}>{toast.text}</Text>
+          </Animated.View>
+        )}
 
-      {/* COMPONENT MODAL XÁC NHẬN XÓA */}
-      <Modal transparent visible={confirmModal.visible} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <View style={styles.modalIconBox}>
-              <MaterialIcons name="warning" size={32} color="#EF4444" />
-            </View>
-            <Text style={styles.modalTitle}>Xác nhận xóa</Text>
-            <Text style={styles.modalMessage}>
-              Bạn có chắc chắn muốn xóa cấu trúc này không? Hành động này không
-              thể hoàn tác.
-            </Text>
+        {/* COMPONENT MODAL XÁC NHẬN XÓA */}
+        <Modal transparent visible={confirmModal.visible} animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalBox, { backgroundColor: colors.surface }]}>
+              <View style={[styles.modalIconBox, { backgroundColor: colors.errorLight }]}>
+                <Feather name="alert-triangle" size={32} color={colors.error} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Xác nhận xóa</Text>
+              <Text style={[styles.modalMessage, { color: colors.textMuted }]}>
+                Bạn có chắc chắn muốn xóa cấu trúc này không? Hành động này không
+                thể hoàn tác.
+              </Text>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.btnModalCancel}
-                onPress={() => setConfirmModal({ visible: false, id: null })}
-              >
-                <Text style={styles.btnModalCancelText}>Hủy Bỏ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.btnModalConfirm}
-                onPress={executeDelete}
-              >
-                <Text style={styles.btnModalConfirmText}>Xóa Luôn</Text>
-              </TouchableOpacity>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.btnModalCancel, { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" }]}
+                  onPress={() => setConfirmModal({ visible: false, id: null })}
+                >
+                  <Text style={[styles.btnModalCancelText, { color: colors.text }]}>Hủy Bỏ</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnModalConfirm, { backgroundColor: colors.error }]}
+                  onPress={executeDelete}
+                >
+                  <Text style={styles.btnModalConfirmText}>Xóa Luôn</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* HEADER */}
-      <View style={[
-        styles.customHeader,
-        { paddingTop: insets.top > 0 ? insets.top : (Platform.OS === "android" ? 50 : 20) }
-      ]}>
-        <Pressable
-          onPress={() => router.back()}
-          onHoverIn={() => setIsHovered(true)}
-          onHoverOut={() => setIsHovered(false)}
-          style={({ pressed }) => [
-            styles.btnBackHeader,
-            (isHovered || pressed) && styles.btnBackHeaderHover,
-          ]}
-        >
-          {({ pressed }) => (
-            <MaterialIcons
-              name="arrow-back-ios"
-              size={20}
-              color={isHovered || pressed ? "#EA580C" : "#475569"}
-              style={{ marginLeft: 6 }}
-            />
-          )}
-        </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          Sổ Tay: {title}
-        </Text>
-        <TouchableOpacity style={styles.btnHeaderAdd} onPress={handleAddNew}>
-          <MaterialIcons name="add" size={24} color="#FFF" />
-        </TouchableOpacity>
-      </View>
-
-      {/* LIST NGỮ PHÁP */}
-      {grammarData.length === 0 ? (
-        <View style={styles.center}>
-          <MaterialIcons name="menu-book" size={60} color="#CBD5E1" />
-          <Text style={styles.emptyText}>Chưa có tài liệu ngữ pháp nào.</Text>
-          <Pressable style={styles.btnEmpty} onPress={handleAddNew}>
-            <Text style={{ color: "#FFF", fontWeight: "bold" }}>
-              Thêm mới ngay
-            </Text>
+        {/* HEADER */}
+        <View style={[
+          styles.customHeader,
+          { paddingTop: insets.top > 0 ? insets.top : (Platform.OS === "android" ? 50 : 20) }
+        ]}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [
+              styles.btnBackHeader,
+              { 
+                backgroundColor: colors.surface, 
+                borderColor: colors.border,
+                transform: [{ scale: pressed ? 0.95 : 1 }]
+              },
+            ]}
+          >
+            <Feather name="chevron-left" size={20} color={colors.text} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+            Sách Ngữ Pháp: {title}
+          </Text>
+          <Pressable 
+            style={({ pressed }) => [
+              styles.btnHeaderAdd, 
+              { 
+                backgroundColor: colors.indigo,
+                transform: [{ scale: pressed ? 0.95 : 1 }]
+              }
+            ]} 
+            onPress={handleAddNew}
+          >
+            <Feather name="plus" size={22} color="#050814" />
           </Pressable>
         </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {grammarData.map((item, index) => (
-            <GrammarCardItem
-              key={item._id || index}
-              item={item}
-              index={index}
-              onEdit={() => handleEditItem(item)}
-              onDelete={() => requestDelete(item._id)}
-            />
-          ))}
-        </ScrollView>
-      )}
+
+        {/* LIST NGỮ PHÁP */}
+        {grammarData.length === 0 ? (
+          <View style={styles.center}>
+            <Feather name="book-open" size={60} color={colors.textMuted} style={{ marginBottom: 16 }} />
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>Chưa có tài liệu ngữ pháp nào.</Text>
+            <Pressable 
+              style={({ pressed }) => [
+                styles.btnEmpty, 
+                { backgroundColor: colors.indigo, transform: [{ scale: pressed ? 0.95 : 1 }] }
+              ]} 
+              onPress={handleAddNew}
+            >
+              <Text style={{ color: "#050814", fontWeight: "bold" }}>
+                Thêm mới ngay
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {grammarData.map((item, index) => (
+              <GrammarCardItem
+                key={item._id || index}
+                item={item}
+                index={index}
+                onEdit={() => handleEditItem(item)}
+                onDelete={() => requestDelete(item._id)}
+              />
+            ))}
+          </ScrollView>
+        )}
+      </LinearGradient>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F1F5F9" },
+  safeArea: { flex: 1 },
+  container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: {
-    marginTop: 16,
     color: "#64748B",
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 20,
   },
   btnEmpty: {
-    backgroundColor: "#F97316",
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   customHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === "android" ? 50 : 20,
     paddingBottom: 15,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "transparent",
     zIndex: 10,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1E293B",
     flex: 1,
     textAlign: "center",
+    marginHorizontal: 10,
   },
   btnBackHeader: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-  },
-  btnBackHeaderHover: {
-    backgroundColor: "#FFF7ED",
-    borderColor: "#F97316",
-    transform: [{ scale: 1.05 }],
+    borderWidth: 1,
   },
   btnHeaderAdd: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F97316",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#F97316",
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     elevation: 3,
   },
   scrollContent: { padding: 16, paddingBottom: 40 },
 
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 20,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1,
   },
-  cardActive: { borderColor: "#FDBA74" },
   cardHeaderAction: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
   headerLeft: {
     flexDirection: "row",
@@ -440,111 +569,122 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
   indexCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#64748B",
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-  indexCircleActive: { backgroundColor: "#EA580C" },
-  indexText: { color: "#FFF", fontWeight: "900", fontSize: 13 },
-  cardTitle: { fontSize: 16, fontWeight: "800", color: "#1E293B", flex: 1 },
-  cardContent: { paddingHorizontal: 16, paddingBottom: 16 },
-  divider: { height: 1, backgroundColor: "#F1F5F9", marginBottom: 14 },
+  indexText: { 
+    fontWeight: "700", 
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  cardTitle: { 
+    fontSize: 18, 
+    fontWeight: "800", 
+    flex: 1,
+    lineHeight: 24,
+  },
+  cardContent: { paddingHorizontal: 18, paddingBottom: 18 },
+  divider: { height: 1, marginBottom: 16 },
+  
   formulaBox: {
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  meaningBox: {
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  examplesBox: {
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEF3C7",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
   },
-  formulaText: { fontSize: 14, fontWeight: "800", color: "#B45309", flex: 1 },
-  section: { marginBottom: 12 },
+  
+  formulaText: { 
+    fontSize: 16, 
+    fontWeight: "800", 
+    flex: 1,
+    letterSpacing: 0.5,
+  },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#64748B",
-    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.5,
   },
-  sectionContent: { fontSize: 15, color: "#334155", lineHeight: 22 },
+  sectionContent: { 
+    fontSize: 16, 
+    lineHeight: 24,
+    fontWeight: "500",
+  },
 
-  // Ô chứa danh sách ví dụ xếp chồng gọn gàng
-  exampleSection: {
-    backgroundColor: "#F8FAFC",
-    padding: 12,
-    borderRadius: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: "#F97316",
-    gap: 4, // 🚀 Tạo khoảng cách đều giữa các dòng ví dụ con
+  exampleItem: {
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    marginBottom: 10,
   },
   exampleText: {
-    fontSize: 14,
-    color: "#0F172A",
-    fontStyle: "italic",
+    fontSize: 15,
     lineHeight: 22,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   itemActionContainer: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 8,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
   },
   btnItemEdit: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F0F9FF",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: "#BAE6FD",
   },
   btnItemEditText: {
-    color: "#0369A1",
     fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 4,
+    fontWeight: "700",
+    marginLeft: 6,
   },
   btnItemDelete: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEF2F2",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#FECACA",
   },
   btnItemDeleteText: {
-    color: "#B91C1C",
     fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 4,
+    fontWeight: "700",
+    marginLeft: 6,
   },
 
   toastContainer: {
     position: "absolute",
     top: 10,
     right: 16,
-    padding: 12,
-    borderRadius: 10,
+    padding: 14,
+    borderRadius: 12,
     zIndex: 9999,
     borderWidth: 1,
-    backgroundColor: "#F0FDF4",
-    borderColor: "#A7F3D0",
   },
-  toastSuccess: { borderColor: "#A7F3D0", backgroundColor: "#F0FDF4" },
-  toastError: { borderColor: "#FCA5A5", backgroundColor: "#FEF2F2" },
-  toastText: { fontWeight: "600", color: "#1E293B" },
+  toastText: { fontWeight: "700", color: "#1E293B" },
 
   modalOverlay: {
     flex: 1,
@@ -554,8 +694,7 @@ const styles = StyleSheet.create({
   },
   modalBox: {
     width: 320,
-    backgroundColor: "#FFF",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
     alignItems: "center",
     elevation: 10,
@@ -564,10 +703,9 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   modalIconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#FEF2F2",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
@@ -575,12 +713,10 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1E293B",
     marginBottom: 8,
   },
   modalMessage: {
     fontSize: 14,
-    color: "#64748B",
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 20,
@@ -593,19 +729,17 @@ const styles = StyleSheet.create({
   btnModalCancel: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: "#F1F5F9",
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
     marginRight: 8,
   },
-  btnModalCancelText: { color: "#475569", fontWeight: "700", fontSize: 15 },
+  btnModalCancelText: { fontWeight: "700", fontSize: 14 },
   btnModalConfirm: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: "#EF4444",
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
     marginLeft: 8,
   },
-  btnModalConfirmText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
+  btnModalConfirmText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
 });

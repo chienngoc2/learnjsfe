@@ -14,6 +14,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import api from "../../services/api";
+import { parseWord } from "../../src/utils/wordParser";
 
 // IMPORT CÁC COMPONENT UI DÙNG CHUNG CỦA SẾP
 import Button from "../../components/ui/Button";
@@ -25,6 +26,18 @@ import { useTheme } from "@/src/context/ThemeContext";
 interface WordItem {
   term: string;
   def: string;
+  reading?: string;
+  type?: string;
+  jlpt?: string;
+  examples?: any[];
+  audio?: string;
+  tags?: string[];
+  notes?: string;
+  te?: string;
+  ta?: string;
+  nai?: string;
+  ru?: string;
+  masu?: string;
 }
 
 export default function AddVocabScreen() {
@@ -34,13 +47,14 @@ export default function AddVocabScreen() {
 
   const [currentEditId, setCurrentEditId] = useState<string | null>(null);
   const [title, setTitle] = useState<string>("");
-  const [isBulkMode, setIsBulkMode] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<"manual" | "bulk" | "json">("manual");
   const [words, setWords] = useState<WordItem[]>([{ term: "", def: "" }]);
   const [bulkText, setBulkText] = useState<string>("");
+  const [jsonText, setJsonText] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [fetchingOldData, setFetchingOldData] = useState<boolean>(false);
 
-  // 🚀 VỊ TRÍ 1 ĐÃ THÊM: State lưu trữ danh sách các chủ đề từ vựng cũ từ DB về máy
+  // 🚀 State lưu trữ danh sách các chủ đề từ vựng cũ từ DB về máy
   const [existingTopics, setExistingTopics] = useState<string[]>([]);
 
   const [toast, setToast] = useState<{
@@ -65,7 +79,7 @@ export default function AddVocabScreen() {
     }, 3000);
   };
 
-  // 🚀 VỊ TRÍ 2 ĐÃ THÊM: Fetch toàn bộ chủ đề cũ để chuẩn bị dữ liệu cho bộ lọc gợi ý
+  // Fetch toàn bộ chủ đề cũ để chuẩn bị dữ liệu cho bộ lọc gợi ý
   useEffect(() => {
     if (!editId) {
       const fetchExistingTopics = async () => {
@@ -96,10 +110,26 @@ export default function AddVocabScreen() {
           if (res.data.success) {
             const { title, words: oldWords } = res.data.data;
             setTitle(title);
-            setWords(oldWords || [{ term: "", def: "" }]);
 
-            if (oldWords && oldWords.length > 0) {
-              const formattedText = oldWords
+            // Sử dụng parseWord để hiển thị nghĩa tiếng Việt sạch sẽ lên UI
+            const parsedWords = (oldWords || []).map((w: any) => {
+              const parsed = parseWord(w.term, w.def);
+              return {
+                term: w.term,
+                def: parsed.meaning, // Chỉ lấy phần nghĩa
+                reading: parsed.reading,
+                type: parsed.type,
+                jlpt: parsed.jlpt,
+                examples: parsed.examples,
+                audio: parsed.audio,
+                tags: parsed.tags,
+                notes: parsed.notes,
+              };
+            });
+            setWords(parsedWords.length > 0 ? parsedWords : [{ term: "", def: "" }]);
+
+            if (parsedWords && parsedWords.length > 0) {
+              const formattedText = parsedWords
                 .map((w: WordItem) => `${w.term} : ${w.def}`)
                 .join("\n");
               setBulkText(formattedText);
@@ -120,12 +150,62 @@ export default function AddVocabScreen() {
     value: string,
   ) => {
     const updatedWords = [...words];
-    updatedWords[index][field] = value;
+    updatedWords[index][field] = value as any;
     setWords(updatedWords);
   };
   const addWordRow = () => setWords([...words, { term: "", def: "" }]);
   const removeWordRow = (index: number) => {
     if (words.length > 1) setWords(words.filter((_, i) => i !== index));
+  };
+
+  const parseJsonText = (text: string): WordItem[] => {
+    const trimmed = text.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      const list = Array.isArray(parsed) ? parsed : [parsed];
+      return list.map((item: any) => {
+        if (item.word !== undefined) {
+          return {
+            term: String(item.word),
+            def: typeof item.meaning === "string" ? item.meaning : String(item.meaning || ""),
+            reading: item.reading || item.word || "",
+            type: item.type || "noun",
+            jlpt: item.jlpt || "N5",
+            examples: item.examples || [],
+            audio: item.audio || "",
+            tags: item.tags || [],
+            notes: item.notes || "",
+            te: item.te || item.conjugations?.te || "",
+            ta: item.ta || item.conjugations?.ta || "",
+            nai: item.nai || item.conjugations?.nai || "",
+            ru: item.ru || item.conjugations?.ru || "",
+            masu: item.masu || item.conjugations?.masu || "",
+          };
+        }
+        if (item.term !== undefined && item.def !== undefined) {
+          return {
+            term: String(item.term),
+            def: typeof item.def === "object" ? JSON.stringify(item.def) : String(item.def),
+            reading: item.reading,
+            type: item.type,
+            jlpt: item.jlpt,
+            examples: item.examples,
+            audio: item.audio,
+            tags: item.tags,
+            notes: item.notes,
+            te: item.te || item.conjugations?.te || "",
+            ta: item.ta || item.conjugations?.ta || "",
+            nai: item.nai || item.conjugations?.nai || "",
+            ru: item.ru || item.conjugations?.ru || "",
+            masu: item.masu || item.conjugations?.masu || "",
+          };
+        }
+        return null;
+      }).filter((w: any) => w !== null && w.term) as WordItem[];
+    } catch (e) {
+      return [];
+    }
   };
 
   const parseBulkText = (text: string): WordItem[] => {
@@ -145,9 +225,11 @@ export default function AddVocabScreen() {
     return parsedList;
   };
 
-  const previewCount = isBulkMode
-    ? parseBulkText(bulkText).length
-    : words.length;
+  const previewCount = activeTab === "manual"
+    ? words.length
+    : activeTab === "bulk"
+      ? parseBulkText(bulkText).length
+      : parseJsonText(jsonText).length;
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -156,10 +238,16 @@ export default function AddVocabScreen() {
     }
 
     let finalWordsList: WordItem[] = [];
-    if (isBulkMode) {
+    if (activeTab === "bulk") {
       finalWordsList = parseBulkText(bulkText);
       if (finalWordsList.length === 0) {
         triggerToast("error", "Cấu trúc nhập chưa đúng hoặc trống!");
+        return;
+      }
+    } else if (activeTab === "json") {
+      finalWordsList = parseJsonText(jsonText);
+      if (finalWordsList.length === 0) {
+        triggerToast("error", "Dữ liệu JSON trống hoặc không hợp lệ!");
         return;
       }
     } else {
@@ -171,18 +259,38 @@ export default function AddVocabScreen() {
       finalWordsList = words;
     }
 
+    // Chuẩn hóa và đóng gói JSON def trước khi gửi lên API
+    const serializedList = finalWordsList.map((w: any) => ({
+      term: w.term.trim(),
+      def: JSON.stringify({
+        reading: w.reading || w.term || "",
+        meaning: w.def.trim(),
+        type: w.type || "noun",
+        jlpt: w.jlpt || "N5",
+        examples: w.examples || [],
+        audio: w.audio || "",
+        tags: w.tags || [],
+        notes: w.notes || "",
+        te: w.te || "",
+        ta: w.ta || "",
+        nai: w.nai || "",
+        ru: w.ru || "",
+        masu: w.masu || "",
+      }),
+    }));
+
     setLoading(true);
     try {
       let response;
       if (currentEditId) {
         response = await api.put(`/api/vocab/update/${currentEditId}`, {
           title,
-          list: finalWordsList,
+          list: serializedList,
         });
       } else {
         response = await api.post("/api/vocab/save", {
           title,
-          list: finalWordsList,
+          list: serializedList,
         });
       }
 
@@ -199,6 +307,7 @@ export default function AddVocabScreen() {
           setTitle("");
           setWords([{ term: "", def: "" }]);
           setBulkText("");
+          setJsonText("");
         }
       } else {
         triggerToast("error", response.data.error || "Gặp lỗi khi lưu.");
@@ -210,17 +319,39 @@ export default function AddVocabScreen() {
     }
   };
 
-  const handleToggleTab = (toBulk: boolean) => {
-    if (toBulk) {
+  const handleChangeTab = (nextTab: "manual" | "bulk" | "json") => {
+    if (nextTab === "bulk") {
       const formattedText = words
         .map((w: WordItem) => `${w.term} : ${w.def}`)
         .join("\n");
       setBulkText(formattedText);
-    } else {
-      const parsed = parseBulkText(bulkText);
-      if (parsed.length > 0) setWords(parsed);
+    } else if (nextTab === "json") {
+      const jsonList = words.map(w => ({
+        word: w.term,
+        reading: w.reading || w.term,
+        meaning: w.def,
+        type: w.type || "noun",
+        jlpt: w.jlpt || "N5",
+        examples: w.examples || [],
+        tags: w.tags || [],
+        notes: w.notes || "",
+        te: w.te || "",
+        ta: w.ta || "",
+        nai: w.nai || "",
+        ru: w.ru || "",
+        masu: w.masu || ""
+      }));
+      setJsonText(JSON.stringify(jsonList, null, 2));
+    } else if (nextTab === "manual") {
+      if (activeTab === "bulk") {
+        const parsed = parseBulkText(bulkText);
+        if (parsed.length > 0) setWords(parsed);
+      } else if (activeTab === "json") {
+        const parsed = parseJsonText(jsonText);
+        if (parsed.length > 0) setWords(parsed);
+      }
     }
-    setIsBulkMode(toBulk);
+    setActiveTab(nextTab);
   };
 
   if (fetchingOldData) {
@@ -323,33 +454,49 @@ export default function AddVocabScreen() {
           <TouchableOpacity
             style={[
               styles.tabButton,
-              !isBulkMode && { backgroundColor: colors.surface },
+              activeTab === "manual" && { backgroundColor: colors.surface },
             ]}
-            onPress={() => handleToggleTab(false)}
+            onPress={() => handleChangeTab("manual")}
           >
             <Text
               style={[
                 styles.tabText,
-                { color: !isBulkMode ? colors.text : colors.textMuted },
+                { color: activeTab === "manual" ? colors.text : colors.textMuted },
               ]}
             >
-              ✍️ Nhập thủ công
+              ✍️ Nhập
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.tabButton,
-              isBulkMode && { backgroundColor: colors.surface },
+              activeTab === "bulk" && { backgroundColor: colors.surface },
             ]}
-            onPress={() => handleToggleTab(true)}
+            onPress={() => handleChangeTab("bulk")}
           >
             <Text
               style={[
                 styles.tabText,
-                { color: isBulkMode ? colors.text : colors.textMuted },
+                { color: activeTab === "bulk" ? colors.text : colors.textMuted },
               ]}
             >
-              📋 Dán hàng loạt
+              📋 Hàng loạt
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "json" && { backgroundColor: colors.surface },
+            ]}
+            onPress={() => handleChangeTab("json")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === "json" ? colors.text : colors.textMuted },
+              ]}
+            >
+              📄 JSON
             </Text>
           </TouchableOpacity>
         </View>
@@ -372,7 +519,7 @@ export default function AddVocabScreen() {
           </View>
         </View>
 
-        {!isBulkMode ? (
+        {activeTab === "manual" && (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             {words.map((word, index) => (
               <View key={index} style={styles.wordRow}>
@@ -449,7 +596,9 @@ export default function AddVocabScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        ) : (
+        )}
+
+        {activeTab === "bulk" && (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <View
               style={[
@@ -484,6 +633,46 @@ export default function AddVocabScreen() {
               placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={8}
+              textAlignVertical="top"
+            />
+          </View>
+        )}
+
+        {activeTab === "json" && (
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <View
+              style={[
+                styles.hintBox,
+                {
+                  backgroundColor: isDark ? "#281E45" : "#F5F3FF",
+                  borderColor: isDark ? "#4338CA" : "#DDD6FE",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.hintText,
+                  { color: isDark ? "#C7D2FE" : "#5B21B6" },
+                ]}
+              >
+                Dán chuỗi mảng JSON từ vựng đúng định dạng chứa word, reading, meaning.
+              </Text>
+            </View>
+            <TextInput
+              style={[
+                styles.textArea,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              value={jsonText}
+              onChangeText={setJsonText}
+              placeholder='[\n  {\n    "word": "食べる",\n    "reading": "たべる",\n    "meaning": "ăn",\n    "type": "verb",\n    "te": "食べて",\n    "ta": "食べた",\n    "nai": "食べない",\n    "ru": "食べる",\n    "masu": "食べます",\n    "examples": [\n      {\n        "jp": "りんごを食べる。",\n        "vn": "Ăn quả táo."\n      }\n    ]\n  }\n]'
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={10}
               textAlignVertical="top"
             />
           </View>

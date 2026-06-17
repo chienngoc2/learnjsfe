@@ -160,9 +160,11 @@ export default function PracticeGrammarScreen() {
 
       const responses = await Promise.all(requests);
       const questionsData: QuizQuestion[] = responses.map((res) => {
-        return typeof res.data.reply === "string"
-          ? JSON.parse(res.data.reply)
-          : res.data.reply;
+        if (typeof res.data.reply === "string") {
+          const cleaned = res.data.reply.replace(/```json\n|\n```|```/g, "").trim();
+          return JSON.parse(cleaned);
+        }
+        return res.data.reply;
       });
 
       setCurrentQuizzes(questionsData);
