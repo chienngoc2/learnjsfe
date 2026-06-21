@@ -182,7 +182,21 @@ export default function AddGrammarScreen() {
           title: item.title || "",
           formula: item.formula || "",
           meaning: item.meaning || "",
-          examples: Array.isArray(item.examples) ? item.examples.map(String) : (item.examples ? [String(item.examples)] : [""]),
+          examples: Array.isArray(item.examples)
+            ? item.examples.map((ex: any) => {
+                if (typeof ex === "string") return ex;
+                if (ex && typeof ex === "object") {
+                  return `${ex.jp || ""} : ${ex.vn || ""}`;
+                }
+                return String(ex);
+              })
+            : item.examples
+            ? [
+                typeof item.examples === "object"
+                  ? `${item.examples.jp || ""} : ${item.examples.vn || ""}`
+                  : String(item.examples),
+              ]
+            : [""],
         };
       }).filter((g: any) => g.title && g.meaning);
     } catch (e) {
@@ -233,7 +247,15 @@ export default function AddGrammarScreen() {
 
     const cleanGrammarList = finalGrammarList.map((item) => ({
       ...item,
-      examples: item.examples.filter((ex) => ex.trim() !== ""),
+      examples: item.examples
+        .map((ex: any) => {
+          if (typeof ex === "string") return ex;
+          if (ex && typeof ex === "object") {
+            return `${ex.jp || ""} : ${ex.vn || ""}`;
+          }
+          return String(ex);
+        })
+        .filter((ex) => ex.trim() !== ""),
     }));
 
     setLoading(true);

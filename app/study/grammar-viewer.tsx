@@ -114,9 +114,24 @@ function GrammarCardItem({
                   CÔNG THỨC ÁP DỤNG
                 </Text>
               </View>
-              <Text style={[styles.formulaText, { color: colors.indigo, marginTop: 8 }]}>
-                {item.formula}
-              </Text>
+              <View style={{ flexDirection: "column", gap: 6, marginTop: 8, alignItems: "flex-start" }}>
+                {item.formula.split("|").map((part: string, idx: number) => (
+                  <View 
+                    key={idx} 
+                    style={[
+                      styles.formulaPill, 
+                      { 
+                        backgroundColor: isDark ? "rgba(245, 199, 107, 0.1)" : "rgba(176, 130, 46, 0.05)",
+                        borderColor: isDark ? "rgba(245, 199, 107, 0.25)" : "rgba(176, 130, 46, 0.2)"
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.formulaText, { color: colors.indigo }]}>
+                      {part.trim()}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
           ) : null}
 
@@ -169,13 +184,30 @@ function GrammarCardItem({
                 </Text>
               </View>
               <View style={{ marginTop: 8 }}>
-                {item.examples.map((ex: string, exIdx: number) => (
-                  <View key={exIdx} style={[styles.exampleItem, { borderLeftColor: colors.purple }]}>
-                    <Text style={[styles.exampleText, { color: colors.text }]}>
-                      {ex}
-                    </Text>
-                  </View>
-                ))}
+                {item.examples.map((ex: any, exIdx: number) => {
+                  let jp = "";
+                  let vn = "";
+                  if (typeof ex === "string") {
+                    const parts = ex.split(":");
+                    jp = parts[0]?.trim() || "";
+                    vn = parts.slice(1).join(":")?.trim() || "";
+                  } else if (ex && typeof ex === "object") {
+                    jp = ex.jp || "";
+                    vn = ex.vn || "";
+                  }
+                  return (
+                    <View key={exIdx} style={[styles.exampleItem, { borderLeftColor: colors.purple }]}>
+                      <Text style={[styles.exampleTextJp, { color: colors.text }]}>
+                        🇯🇵 {jp}
+                      </Text>
+                      {vn ? (
+                        <Text style={[styles.exampleTextVn, { color: colors.textMuted }]}>
+                          🇻🇳 {vn}
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
               </View>
             </View>
           ) : item.example ? (
@@ -201,9 +233,18 @@ function GrammarCardItem({
               </View>
               <View style={{ marginTop: 8 }}>
                 <View style={[styles.exampleItem, { borderLeftColor: colors.purple }]}>
-                  <Text style={[styles.exampleText, { color: colors.text }]}>
-                    {item.example}
+                  <Text style={[styles.exampleTextJp, { color: colors.text }]}>
+                    {typeof item.example === "string" && item.example.includes(":") ? (
+                      `🇯🇵 ${item.example.split(":")[0]?.trim() || ""}`
+                    ) : (
+                      item.example
+                    )}
                   </Text>
+                  {typeof item.example === "string" && item.example.includes(":") ? (
+                    <Text style={[styles.exampleTextVn, { color: colors.textMuted }]}>
+                      🇻🇳 {item.example.split(":").slice(1).join(":")?.trim() || ""}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -613,10 +654,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   
+  formulaPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignSelf: "flex-start",
+  },
   formulaText: { 
-    fontSize: 16, 
+    fontSize: 14, 
     fontWeight: "800", 
-    flex: 1,
     letterSpacing: 0.5,
   },
   sectionTitle: {
@@ -635,10 +682,16 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     marginBottom: 10,
   },
-  exampleText: {
+  exampleTextJp: {
     fontSize: 15,
     lineHeight: 22,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  exampleTextVn: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+    marginTop: 2,
   },
   itemActionContainer: {
     flexDirection: "row",
