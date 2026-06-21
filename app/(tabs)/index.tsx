@@ -441,16 +441,16 @@ export default function DashboardScreen() {
             <Text style={[styles.quickLabel, { color: colors.text }]}>Học Kanji</Text>
           </TouchableOpacity>
 
-          {/* Luyện tập */}
+          {/* Game Ghép Câu */}
           <TouchableOpacity
             style={[styles.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.push("/study/practice-grammar")}
             activeOpacity={0.8}
           >
             <View style={[styles.quickIconCircle, { backgroundColor: colors.indigoLight }]}>
-              <MaterialIcons name="border-color" size={22} color={colors.indigo} />
+              <MaterialIcons name="extension" size={22} color={colors.indigo} />
             </View>
-            <Text style={[styles.quickLabel, { color: colors.text }]}>Luyện tập</Text>
+            <Text style={[styles.quickLabel, { color: colors.text }]}>Game Ghép Câu</Text>
           </TouchableOpacity>
 
           {/* Trắc nghiệm */}

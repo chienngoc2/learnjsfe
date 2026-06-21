@@ -62,6 +62,14 @@ export default function StudyMenuScreen() {
       color: isDark ? "#C084FC" : "#A855F7", // Tím mộng mơ
       route: "/study/practice-grammar",
     },
+    {
+      id: "grammar_match",
+      title: "Game Ghép Câu",
+      desc: "Ghép ví dụ ngữ pháp Nhật - Việt để tăng tu vi",
+      icon: "extension",
+      color: isDark ? "#F472B6" : "#EC4899", // Hồng tươi tắn
+      route: "/study/practice-grammar",
+    },
     // 🚀 TÍNH NĂNG MỚI: TRA CỨU KANJI HOẠT HỌA NÉT VẼ
     {
       id: "kanji_search",

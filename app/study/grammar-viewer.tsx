@@ -254,19 +254,35 @@ function GrammarCardItem({
 
           {/* CỤM LUYỆN TẬP ĐỘC QUYỀN */}
           <View style={styles.practiceActionContainer}>
-            <TouchableOpacity 
-              style={[
-                styles.btnPracticeGrammar, 
-                { backgroundColor: colors.indigoLight, borderColor: colors.indigo }
-              ]} 
-              onPress={() => router.push({
-                pathname: "/study/practice-grammar",
-                params: { topicTitle: item.topicName || title }
-              } as any)}
-            >
-              <Feather name="zap" size={14} color={colors.indigo} />
-              <Text style={[styles.btnPracticeText, { color: colors.indigo }]}>Luyện Ngữ Pháp</Text>
-            </TouchableOpacity>
+            <View style={styles.practiceRow}>
+              <TouchableOpacity 
+                style={[
+                  styles.btnPracticeGrammar, 
+                  { backgroundColor: colors.indigoLight, borderColor: colors.indigo }
+                ]} 
+                onPress={() => router.push({
+                  pathname: "/study/practice-grammar",
+                  params: { topicTitle: item.belongingTopic || title }
+                } as any)}
+              >
+                <Feather name="layers" size={14} color={colors.indigo} />
+                <Text style={[styles.btnPracticeText, { color: colors.indigo }]} numberOfLines={1}>Game Ghép Câu</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[
+                  styles.btnPracticeGrammar, 
+                  { backgroundColor: isDark ? "rgba(245, 158, 11, 0.12)" : "#FEF3C7", borderColor: colors.amber }
+                ]} 
+                onPress={() => router.push({
+                  pathname: "/study/practice-grammar",
+                  params: { title: item.title }
+                } as any)}
+              >
+                <Feather name="zap" size={14} color={colors.amber} />
+                <Text style={[styles.btnPracticeText, { color: colors.amber }]} numberOfLines={1}>AI Luyện Tập</Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity 
               style={[
@@ -279,7 +295,7 @@ function GrammarCardItem({
               } as any)}
             >
               <Feather name="help-circle" size={14} color="#10B981" />
-              <Text style={[styles.btnPracticeText, { color: "#10B981" }]}>Trắc Nghiệm</Text>
+              <Text style={[styles.btnPracticeText, { color: "#10B981" }]}>Trắc Nghiệm Từ Vựng</Text>
             </TouchableOpacity>
           </View>
 
@@ -829,9 +845,12 @@ const styles = StyleSheet.create({
   },
   btnModalConfirmText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
   practiceActionContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: "column",
     marginTop: 14,
+    gap: 8,
+  },
+  practiceRow: {
+    flexDirection: "row",
     gap: 8,
   },
   btnPracticeGrammar: {
@@ -839,13 +858,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
   },
   btnPracticeQuiz: {
-    flex: 1,
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
