@@ -40,6 +40,8 @@ function GrammarCardItem({
 }) {
   const { colors, isDark } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
+  const router = useRouter();
+  const { topicId, title } = useLocalSearchParams<{ topicId?: string; title?: string }>();
 
   return (
     <View 
@@ -249,6 +251,37 @@ function GrammarCardItem({
               </View>
             </View>
           ) : null}
+
+          {/* CỤM LUYỆN TẬP ĐỘC QUYỀN */}
+          <View style={styles.practiceActionContainer}>
+            <TouchableOpacity 
+              style={[
+                styles.btnPracticeGrammar, 
+                { backgroundColor: colors.indigoLight, borderColor: colors.indigo }
+              ]} 
+              onPress={() => router.push({
+                pathname: "/study/practice-grammar",
+                params: { topicTitle: item.topicName || title }
+              } as any)}
+            >
+              <Feather name="zap" size={14} color={colors.indigo} />
+              <Text style={[styles.btnPracticeText, { color: colors.indigo }]}>Luyện Ngữ Pháp</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[
+                styles.btnPracticeQuiz, 
+                { backgroundColor: isDark ? "rgba(16, 185, 129, 0.12)" : "#ECFDF5", borderColor: "#10B981" }
+              ]} 
+              onPress={() => router.push({
+                pathname: "/study/practice-quiz",
+                params: { topicId: topicId }
+              } as any)}
+            >
+              <Feather name="help-circle" size={14} color="#10B981" />
+              <Text style={[styles.btnPracticeText, { color: "#10B981" }]}>Trắc Nghiệm</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* CỤM HÀNH ĐỘNG */}
           <View style={[styles.itemActionContainer, { borderTopColor: colors.border }]}>
@@ -795,4 +828,35 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   btnModalConfirmText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
+  practiceActionContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 14,
+    gap: 8,
+  },
+  btnPracticeGrammar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  btnPracticeQuiz: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  btnPracticeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginLeft: 6,
+  },
 });
