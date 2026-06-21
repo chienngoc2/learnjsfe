@@ -11,7 +11,7 @@ import {
   TextInput,
   Platform,
 } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
@@ -97,6 +97,7 @@ function FuriganaText({
 export default function PracticeGrammarScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ title?: string; topicTitle?: string }>();
 
   const [allGrammarPoints, setAllGrammarPoints] = useState<GrammarPoint[]>([]);
   const [selectedGrammar, setSelectedGrammar] = useState<GrammarPoint | null>(
@@ -116,19 +117,6 @@ export default function PracticeGrammarScreen() {
   const [gradingStates, setGradingStates] = useState<boolean[]>(
     new Array(6).fill(false),
   );
-
-  useEffect(() => {
-    setLoadingList(true);
-    api
-      .get("/api/vocab/all-grammar-points")
-      .then((res) => {
-        if (res.data.success && Array.isArray(res.data.data)) {
-          setAllGrammarPoints(res.data.data);
-        }
-      })
-      .catch((err) => console.error("❌ Lỗi gọi API:", err))
-      .finally(() => setLoadingList(false));
-  }, []);
 
   const startPractice = async (grammar: GrammarPoint) => {
     setSelectedGrammar(grammar);
@@ -174,6 +162,30 @@ export default function PracticeGrammarScreen() {
       setLoadingQuiz(false);
     }
   };
+
+  useEffect(() => {
+    setLoadingList(true);
+    api
+      .get("/api/vocab/all-grammar-points")
+      .then((res) => {
+        if (res.data.success && Array.isArray(res.data.data)) {
+          setAllGrammarPoints(res.data.data);
+          
+          if (params.title || params.topicTitle) {
+            const matched = res.data.data.find((item: any) => 
+              (params.title && item.title?.toLowerCase().includes(params.title.toLowerCase())) ||
+              (params.topicTitle && item.belongingTopic?.toLowerCase().includes(params.topicTitle.toLowerCase()))
+            );
+            if (matched) {
+              startPractice(matched);
+            }
+          }
+        }
+      })
+      .catch((err) => console.error("❌ Lỗi gọi API:", err))
+      .finally(() => setLoadingList(false));
+  }, [params.title, params.topicTitle]);
+
 
   const submitIndividualAnswer = async (quizIdx: number) => {
     const currentQuiz = currentQuizzes[quizIdx];

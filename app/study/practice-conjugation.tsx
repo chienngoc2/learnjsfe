@@ -10,7 +10,7 @@ import {
   Platform,
   Dimensions,
 } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Speech from "expo-speech";
@@ -44,6 +44,7 @@ interface Question {
 export default function PracticeConjugationScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const params = useLocalSearchParams<{ topicId?: string; listId?: string }>();
   
   // Cultivation store rewards
   const { addTuVi, addXP } = useCultivationStore();
@@ -87,18 +88,114 @@ export default function PracticeConjugationScreen() {
 
           setVocabLists(listsWithVerbs);
           
-          const defaultSelect = listsWithVerbs.find((l: any) => l.verbCount > 0);
-          if (defaultSelect) {
-            setSelectedListIds([defaultSelect._id]);
+          const targetId = params.topicId || params.listId;
+          if (targetId) {
+            const matched = listsWithVerbs.find((l: any) => l._id.toString() === targetId.toString());
+            if (matched) {
+              setSelectedListIds([matched._id]);
+            } else {
+              const defaultSelect = listsWithVerbs.find((l: any) => l.verbCount > 0);
+              if (defaultSelect) {
+                setSelectedListIds([defaultSelect._id]);
+              }
+            }
+          } else {
+            const defaultSelect = listsWithVerbs.find((l: any) => l.verbCount > 0);
+            if (defaultSelect) {
+              setSelectedListIds([defaultSelect._id]);
+            }
           }
         }
-        setLoadingLists(false)
+        setLoadingLists(false);
       })
       .catch((err) => {
         console.error("Lỗi lấy danh sách bài học:", err);
         setLoadingLists(false);
       });
-  }, []);
+  }, [params.topicId, params.listId]);
+
+  // Auto start quiz if listId or topicId param exists
+  useEffect(() => {
+    const targetId = params.topicId || params.listId;
+    if (targetId && vocabLists.length > 0 && selectedListIds.length > 0 && !isPlaying) {
+      const matched = vocabLists.find((l: any) => l._id.toString() === targetId.toString());
+      if (matched && selectedListIds.includes(matched._id) && (matched.verbCount || 0) > 0) {
+        // Collect verbs
+        const selectedVerbs: VerbDetail[] = [];
+        if (matched.words && matched.words.length > 0) {
+          matched.words.forEach((w: any) => {
+            const parsed = parseWord(w.term, w.def);
+            const isVerb = (parsed.type || "").toLowerCase().includes("verb") || 
+              !!(parsed.te || parsed.ta || parsed.nai || parsed.ru || parsed.masu);
+            
+            if (isVerb) {
+              selectedVerbs.push({
+                word: parsed.word,
+                reading: parsed.reading || parsed.word,
+                meaning: parsed.meaning,
+                te: parsed.te || "",
+                ta: parsed.ta || "",
+                nai: parsed.nai || "",
+                ru: parsed.ru || parsed.word || "",
+                masu: parsed.masu || "",
+              });
+            }
+          });
+        }
+        
+        if (selectedVerbs.length > 0) {
+          const shuffledVerbs = [...selectedVerbs].sort(() => Math.random() - 0.5);
+          const limit = questionCount === "all" ? shuffledVerbs.length : (typeof questionCount === 'number' ? questionCount : 10);
+          const finalVerbs = shuffledVerbs.slice(0, limit);
+          
+          const quizQuestions: Question[] = finalVerbs.map((verb) => {
+            const availableTypes: ConjType[] = [];
+            if (verb.te) availableTypes.push("te");
+            if (verb.ta) availableTypes.push("ta");
+            if (verb.nai) availableTypes.push("nai");
+            if (verb.masu) availableTypes.push("masu");
+            const targetType = availableTypes.length > 0
+              ? availableTypes[Math.floor(Math.random() * availableTypes.length)]
+              : "masu";
+            let correctAnswer = "";
+            if (targetType === "te") correctAnswer = verb.te;
+            else if (targetType === "ta") correctAnswer = verb.ta;
+            else if (targetType === "nai") correctAnswer = verb.nai;
+            else correctAnswer = verb.masu;
+            
+            const wrongOptionsSet = new Set<string>();
+            if (verb.te && targetType !== "te") wrongOptionsSet.add(verb.te);
+            if (verb.ta && targetType !== "ta") wrongOptionsSet.add(verb.ta);
+            if (verb.nai && targetType !== "nai") wrongOptionsSet.add(verb.nai);
+            if (verb.masu && targetType !== "masu") wrongOptionsSet.add(verb.masu);
+            if (verb.ru && verb.ru !== correctAnswer) wrongOptionsSet.add(verb.ru);
+            if (wrongOptionsSet.size < 3) {
+              const otherVerbsForms = selectedVerbs
+                .filter((v) => v.word !== verb.word)
+                .map((v) => [v.te, v.ta, v.nai, v.masu])
+                .flat()
+                .filter((f) => f && f !== correctAnswer);
+              const shuffledOthers = otherVerbsForms.sort(() => Math.random() - 0.5);
+              shuffledOthers.forEach((opt) => {
+                if (wrongOptionsSet.size < 3) wrongOptionsSet.add(opt);
+              });
+            }
+            const options = [correctAnswer, ...Array.from(wrongOptionsSet).slice(0, 3)].sort(() => Math.random() - 0.5);
+            return { verb, targetType, options, correctAnswer };
+          });
+          
+          setQuizVerbs(finalVerbs);
+          setQuestions(quizQuestions);
+          setCurrentIdx(0);
+          setScore(0);
+          setIsAnswered(false);
+          setSelectedAnswer(null);
+          setIsFinished(false);
+          setIsPlaying(true);
+        }
+      }
+    }
+  }, [vocabLists, selectedListIds, params.topicId, params.listId]);
 
   const handleToggleList = (id: string) => {
     setSelectedListIds((prev) =>

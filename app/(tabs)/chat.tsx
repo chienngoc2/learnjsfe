@@ -238,6 +238,49 @@ export default function ChatScreen() {
           addTokens(prompt, completion);
         }
 
+        // --- XỬ LÝ ĐIỀU HƯỚNG TỰ ĐỘNG BẰNG AI TRÊN MOBILE ---
+        if (response.data.navigation) {
+          const { tab, game, mode, listId, topicTitle } = response.data.navigation;
+          setTimeout(() => {
+            if (tab === "match") {
+              // Trên mobile, Game Center tương ứng với các màn hình luyện tập trong thư mục study
+              if (game === "grammar_match") {
+                router.push({ pathname: "/study/practice-grammar", params: { topicTitle } } as any);
+              } else if (game === "tower") {
+                router.push({ pathname: "/study/practice-quiz", params: { topicId: listId } } as any);
+              } else if (game === "missing") {
+                router.push({ pathname: "/study/practice-typing", params: { topicId: listId } } as any);
+              } else {
+                router.push({ pathname: "/study/practice-conjugation", params: { topicId: listId } } as any);
+              }
+            } else if (tab === "vocab") {
+              // Màn hình học tập (vocab) trên mobile
+              router.push("/vocab" as any);
+            } else if (tab === "grammar") {
+              // Ngữ pháp trên mobile nằm trong practice-grammar (danh sách menu)
+              router.push({ pathname: "/study/practice-grammar", params: { topicTitle } } as any);
+            } else if (tab === "flashcards" || tab === "study") {
+              if (listId) {
+                router.push({ pathname: "/study/card-viewer", params: { topicId: listId } } as any);
+              } else {
+                router.push("/study/flashcard" as any);
+              }
+            } else if (tab === "quiz") {
+              if (mode === "grammar") {
+                router.push({ pathname: "/study/practice-grammar", params: { topicTitle } } as any);
+              } else {
+                router.push({ pathname: "/study/practice-quiz", params: { topicId: listId } } as any);
+              }
+            } else if (tab === "overview") {
+              router.push("/" as any);
+            } else if (tab === "statistics" || tab === "profile" || tab === "achievements") {
+              router.push("/profile" as any);
+            } else {
+              router.push(`/${tab}` as any);
+            }
+          }, 1500); // Trễ 1.5s để học viên đọc xong phản hồi của AI
+        }
+
         if (response.data.audioSegments) {
           if (voiceChatMode) setVoiceChatStatus("speaking");
           await playAudioSegments(response.data.audioSegments);

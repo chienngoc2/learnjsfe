@@ -10,7 +10,7 @@ import {
   Platform,
   Dimensions,
 } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Speech from "expo-speech";
@@ -36,6 +36,7 @@ interface Question {
 export default function PracticeQuizScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const params = useLocalSearchParams<{ topicId?: string; listId?: string }>();
   
   // Cultivation store rewards
   const { addTuVi, addXP } = useCultivationStore();
@@ -63,10 +64,19 @@ export default function PracticeQuizScreen() {
       .get("/api/vocab/lists")
       .then((res) => {
         if (res.data.success && res.data.data) {
-          setVocabLists(res.data.data);
-          // Auto-select first list if available
-          if (res.data.data.length > 0) {
-            setSelectedListIds([res.data.data[0]._id]);
+          const data = res.data.data;
+          setVocabLists(data);
+          
+          const targetId = params.topicId || params.listId;
+          if (targetId) {
+            const matched = data.find((l: any) => l._id.toString() === targetId.toString());
+            if (matched) {
+              setSelectedListIds([matched._id]);
+            } else if (data.length > 0) {
+              setSelectedListIds([data[0]._id]);
+            }
+          } else if (data.length > 0) {
+            setSelectedListIds([data[0]._id]);
           }
         }
         setLoadingLists(false);
@@ -75,7 +85,57 @@ export default function PracticeQuizScreen() {
         console.error("Lỗi lấy danh sách bài học:", err);
         setLoadingLists(false);
       });
-  }, []);
+  }, [params.topicId, params.listId]);
+
+  // Auto start quiz if listId or topicId param exists
+  useEffect(() => {
+    const targetId = params.topicId || params.listId;
+    if (targetId && vocabLists.length > 0 && selectedListIds.length > 0 && !isPlaying) {
+      const matched = vocabLists.find((l: any) => l._id.toString() === targetId.toString());
+      if (matched && selectedListIds.includes(matched._id)) {
+        // Collect all words
+        const allWords: WordDetail[] = [];
+        if (matched.words && matched.words.length > 0) {
+          matched.words.forEach((w: any) => {
+            const parsed = parseWord(w.term, w.def);
+            allWords.push({
+              word: parsed.word,
+              reading: parsed.reading || parsed.word,
+              meaning: parsed.meaning,
+            });
+          });
+        }
+        
+        if (allWords.length > 0) {
+          const shuffledWords = [...allWords].sort(() => Math.random() - 0.5);
+          const limit = questionCount === "all" ? shuffledWords.length : (typeof questionCount === 'number' ? questionCount : 10);
+          const finalWords = shuffledWords.slice(0, limit);
+          
+          const quizQuestions: Question[] = finalWords.map((word) => {
+            const correctAns = word.meaning;
+            const otherMeanings = allWords.filter((w) => w.meaning !== correctAns).map((w) => w.meaning);
+            const uniqueWrong = Array.from(new Set(otherMeanings));
+            const shuffledWrong = uniqueWrong.sort(() => Math.random() - 0.5);
+            const fallbackOptions = ["Ăn", "Uống", "Trường học", "Nhà"];
+            const finalWrongOptions = shuffledWrong.length >= 3 
+              ? shuffledWrong.slice(0, 3) 
+              : [...shuffledWrong, ...fallbackOptions].slice(0, 3);
+            const options = [correctAns, ...finalWrongOptions].sort(() => Math.random() - 0.5);
+            return { questionWord: word, options, correctAnswer: correctAns };
+          });
+          
+          setQuizWords(finalWords);
+          setQuestions(quizQuestions);
+          setCurrentIdx(0);
+          setScore(0);
+          setIsAnswered(false);
+          setSelectedAnswer(null);
+          setIsFinished(false);
+          setIsPlaying(true);
+        }
+      }
+    }
+  }, [vocabLists, selectedListIds, params.topicId, params.listId]);
 
   const handleToggleList = (id: string) => {
     setSelectedListIds((prev) =>
