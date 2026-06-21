@@ -36,7 +36,7 @@ interface Question {
 export default function PracticeQuizScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const params = useLocalSearchParams<{ topicId?: string; listId?: string }>();
+  const params = useLocalSearchParams<{ topicId?: string; listId?: string; mode?: string }>();
   
   // Cultivation store rewards
   const { addTuVi, addXP } = useCultivationStore();
@@ -44,9 +44,11 @@ export default function PracticeQuizScreen() {
   // Settings phase state
   const [isPlaying, setIsPlaying] = useState(false);
   const [vocabLists, setVocabLists] = useState<any[]>([]);
+  const [allGrammarPoints, setAllGrammarPoints] = useState<any[]>([]);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState<number | "all">(10);
   const [loadingLists, setLoadingLists] = useState(true);
+  const [quizMode, setQuizMode] = useState<"vocab" | "grammar">("vocab");
 
   // Active quiz phase state
   const [quizWords, setQuizWords] = useState<WordDetail[]>([]);
@@ -60,11 +62,23 @@ export default function PracticeQuizScreen() {
   const [isFinished, setIsFinished] = useState(false);
 
   useEffect(() => {
-    api
-      .get("/api/vocab/lists")
-      .then((res) => {
-        if (res.data.success && res.data.data) {
-          const data = res.data.data;
+    if (params.mode === "grammar") {
+      setQuizMode("grammar");
+    } else {
+      setQuizMode("vocab");
+    }
+  }, [params.mode]);
+
+  useEffect(() => {
+    setLoadingLists(true);
+    
+    const fetchLists = api.get("/api/vocab/lists");
+    const fetchGrammars = api.get("/api/vocab/all-grammar-points").catch(() => ({ data: { success: false, data: [] } }));
+
+    Promise.all([fetchLists, fetchGrammars])
+      .then(([listsRes, grammarsRes]) => {
+        if (listsRes.data.success && listsRes.data.data) {
+          const data = listsRes.data.data;
           setVocabLists(data);
           
           const targetId = params.topicId || params.listId;
@@ -79,13 +93,125 @@ export default function PracticeQuizScreen() {
             setSelectedListIds([data[0]._id]);
           }
         }
+        if (grammarsRes.data.success && grammarsRes.data.data) {
+          setAllGrammarPoints(grammarsRes.data.data);
+        }
         setLoadingLists(false);
       })
       .catch((err) => {
-        console.error("Lỗi lấy danh sách bài học:", err);
+        console.error("Lỗi lấy danh sách:", err);
         setLoadingLists(false);
       });
   }, [params.topicId, params.listId]);
+
+  const generateGrammarQuestions = (selectedDecks: any[]) => {
+    const deckIds = selectedDecks.map((d) => d._id.toString());
+    const filteredGrammar = allGrammarPoints.filter((g) => 
+      g.topicId && deckIds.includes(g.topicId.toString())
+    );
+
+    if (filteredGrammar.length === 0) {
+      alert("Các bài học được chọn chưa có cấu trúc ngữ pháp nào sếp ơi!");
+      return null;
+    }
+
+    const allMeanings = allGrammarPoints.map((g) => g.meaning).filter(Boolean);
+    const allFormulas = allGrammarPoints.map((g) => g.formula).filter(Boolean);
+
+    const shuffledGrammar = [...filteredGrammar].sort(() => Math.random() - 0.5);
+    const limit = questionCount === "all" ? shuffledGrammar.length : (typeof questionCount === "number" ? questionCount : 10);
+    const finalGrammar = shuffledGrammar.slice(0, limit);
+
+    const generatedQuestions: Question[] = [];
+
+    finalGrammar.forEach((g) => {
+      const possibleTypes = ["meaning"];
+      if (g.formula) possibleTypes.push("formula");
+      
+      const parsedExamples: { jp: string; vn: string }[] = [];
+      if (g.examples && g.examples.length > 0) {
+        g.examples.forEach((ex: any) => {
+          let jp = "", vn = "";
+          if (typeof ex === "string") {
+            const parts = ex.split(":");
+            jp = parts[0]?.trim() || "";
+            vn = parts.slice(1).join(":")?.trim() || "";
+          } else if (ex && typeof ex === "object") {
+            jp = ex.jp || "";
+            vn = ex.vn || "";
+          }
+          if (jp && vn) parsedExamples.push({ jp, vn });
+        });
+      }
+
+      if (parsedExamples.length > 0) {
+        possibleTypes.push("translation");
+      }
+
+      const chosenType = possibleTypes[Math.floor(Math.random() * possibleTypes.length)];
+
+      if (chosenType === "meaning") {
+        const wrongMeanings = allMeanings.filter((m) => m !== g.meaning);
+        const uniqueWrong = Array.from(new Set(wrongMeanings)).sort(() => Math.random() - 0.5);
+        const distractors = uniqueWrong.slice(0, 3);
+        while (distractors.length < 3) distractors.push("Ăn", "Uống", "Học tập");
+        const options = [g.meaning, ...distractors].sort(() => Math.random() - 0.5);
+
+        generatedQuestions.push({
+          questionWord: {
+            word: `Ý nghĩa của cấu trúc ngữ pháp "${g.title}" là gì?`,
+            reading: "CHỌN Ý NGHĨA PHÙ HỢP",
+            meaning: g.meaning,
+          },
+          options,
+          correctAnswer: g.meaning,
+        });
+      } else if (chosenType === "formula") {
+        const wrongFormulas = allFormulas.filter((f) => f !== g.formula);
+        const uniqueWrong = Array.from(new Set(wrongFormulas)).sort(() => Math.random() - 0.5);
+        const distractors = uniqueWrong.slice(0, 3);
+        while (distractors.length < 3) distractors.push("N + に", "V + る", "A + い");
+        const options = [g.formula, ...distractors].sort(() => Math.random() - 0.5);
+
+        generatedQuestions.push({
+          questionWord: {
+            word: `Công thức áp dụng của cấu trúc "${g.title}" là gì?`,
+            reading: "CHỌN CÔNG THỨC ĐÚNG",
+            meaning: g.formula,
+          },
+          options,
+          correctAnswer: g.formula,
+        });
+      } else {
+        const randomEx = parsedExamples[Math.floor(Math.random() * parsedExamples.length)];
+        const otherVns = allGrammarPoints
+          .flatMap((gp) =>
+            (gp.examples || []).map((ex: any) => {
+              if (typeof ex === "string") return ex.split(":")[1]?.trim() || "";
+              return ex.vn || "";
+            })
+          )
+          .filter((vn) => vn && vn !== randomEx.vn);
+
+        const uniqueWrong = Array.from(new Set(otherVns)).sort(() => Math.random() - 0.5);
+        const distractors = uniqueWrong.slice(0, 3);
+        while (distractors.length < 3) distractors.push("Tôi đi học.", "Hôm nay trời đẹp.", "Xin chào.");
+        const options = [randomEx.vn, ...distractors].sort(() => Math.random() - 0.5);
+
+        generatedQuestions.push({
+          questionWord: {
+            word: `Chọn bản dịch đúng cho câu:\n"${randomEx.jp}"`,
+            reading: `CẤU TRÚC: ${g.title}`,
+            meaning: randomEx.vn,
+          },
+          options,
+          correctAnswer: randomEx.vn,
+        });
+      }
+    });
+
+    return generatedQuestions;
+  };
 
   // Auto start quiz if listId or topicId param exists
   useEffect(() => {
@@ -93,49 +219,64 @@ export default function PracticeQuizScreen() {
     if (targetId && vocabLists.length > 0 && selectedListIds.length > 0 && !isPlaying) {
       const matched = vocabLists.find((l: any) => l._id.toString() === targetId.toString());
       if (matched && selectedListIds.includes(matched._id)) {
-        // Collect all words
-        const allWords: WordDetail[] = [];
-        if (matched.words && matched.words.length > 0) {
-          matched.words.forEach((w: any) => {
-            const parsed = parseWord(w.term, w.def);
-            allWords.push({
-              word: parsed.word,
-              reading: parsed.reading || parsed.word,
-              meaning: parsed.meaning,
+        if (params.mode === "grammar") {
+          if (allGrammarPoints.length > 0) {
+            const quizQuestions = generateGrammarQuestions([matched]);
+            if (quizQuestions && quizQuestions.length > 0) {
+              setQuestions(quizQuestions);
+              setCurrentIdx(0);
+              setScore(0);
+              setIsAnswered(false);
+              setSelectedAnswer(null);
+              setIsFinished(false);
+              setIsPlaying(true);
+            }
+          }
+        } else {
+          // Collect all words
+          const allWords: WordDetail[] = [];
+          if (matched.words && matched.words.length > 0) {
+            matched.words.forEach((w: any) => {
+              const parsed = parseWord(w.term, w.def);
+              allWords.push({
+                word: parsed.word,
+                reading: parsed.reading || parsed.word,
+                meaning: parsed.meaning,
+              });
             });
-          });
-        }
-        
-        if (allWords.length > 0) {
-          const shuffledWords = [...allWords].sort(() => Math.random() - 0.5);
-          const limit = questionCount === "all" ? shuffledWords.length : (typeof questionCount === 'number' ? questionCount : 10);
-          const finalWords = shuffledWords.slice(0, limit);
+          }
           
-          const quizQuestions: Question[] = finalWords.map((word) => {
-            const correctAns = word.meaning;
-            const otherMeanings = allWords.filter((w) => w.meaning !== correctAns).map((w) => w.meaning);
-            const uniqueWrong = Array.from(new Set(otherMeanings));
-            const shuffledWrong = uniqueWrong.sort(() => Math.random() - 0.5);
-            const fallbackOptions = ["Ăn", "Uống", "Trường học", "Nhà"];
-            const finalWrongOptions = shuffledWrong.length >= 3 
-              ? shuffledWrong.slice(0, 3) 
-              : [...shuffledWrong, ...fallbackOptions].slice(0, 3);
-            const options = [correctAns, ...finalWrongOptions].sort(() => Math.random() - 0.5);
-            return { questionWord: word, options, correctAnswer: correctAns };
-          });
-          
-          setQuizWords(finalWords);
-          setQuestions(quizQuestions);
-          setCurrentIdx(0);
-          setScore(0);
-          setIsAnswered(false);
-          setSelectedAnswer(null);
-          setIsFinished(false);
-          setIsPlaying(true);
+          if (allWords.length > 0) {
+            const shuffledWords = [...allWords].sort(() => Math.random() - 0.5);
+            const limit = questionCount === "all" ? shuffledWords.length : (typeof questionCount === "number" ? questionCount : 10);
+            const finalWords = shuffledWords.slice(0, limit);
+            
+            const quizQuestions: Question[] = finalWords.map((word) => {
+              const correctAns = word.meaning;
+              const otherMeanings = allWords.filter((w) => w.meaning !== correctAns).map((w) => w.meaning);
+              const uniqueWrong = Array.from(new Set(otherMeanings));
+              const shuffledWrong = uniqueWrong.sort(() => Math.random() - 0.5);
+              const fallbackOptions = ["Ăn", "Uống", "Trường học", "Nhà"];
+              const finalWrongOptions = shuffledWrong.length >= 3 
+                ? shuffledWrong.slice(0, 3) 
+                : [...shuffledWrong, ...fallbackOptions].slice(0, 3);
+              const options = [correctAns, ...finalWrongOptions].sort(() => Math.random() - 0.5);
+              return { questionWord: word, options, correctAnswer: correctAns };
+            });
+            
+            setQuizWords(finalWords);
+            setQuestions(quizQuestions);
+            setCurrentIdx(0);
+            setScore(0);
+            setIsAnswered(false);
+            setSelectedAnswer(null);
+            setIsFinished(false);
+            setIsPlaying(true);
+          }
         }
       }
     }
-  }, [vocabLists, selectedListIds, params.topicId, params.listId]);
+  }, [vocabLists, selectedListIds, params.topicId, params.listId, params.mode, allGrammarPoints]);
 
   const handleToggleList = (id: string) => {
     setSelectedListIds((prev) =>
@@ -150,8 +291,22 @@ export default function PracticeQuizScreen() {
     const selectedDecks = vocabLists.filter((list) =>
       selectedListIds.includes(list._id)
     );
-    const allWords: WordDetail[] = [];
 
+    if (quizMode === "grammar") {
+      const quizQuestions = generateGrammarQuestions(selectedDecks);
+      if (quizQuestions && quizQuestions.length > 0) {
+        setQuestions(quizQuestions);
+        setCurrentIdx(0);
+        setScore(0);
+        setIsAnswered(false);
+        setSelectedAnswer(null);
+        setIsFinished(false);
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    const allWords: WordDetail[] = [];
     selectedDecks.forEach((deck) => {
       if (deck.words && deck.words.length > 0) {
         deck.words.forEach((w: any) => {
@@ -179,8 +334,6 @@ export default function PracticeQuizScreen() {
     // Prepare questions with 4 multiple choice options
     const quizQuestions: Question[] = finalWords.map((word) => {
       const correctAns = word.meaning;
-      // Get wrong choices from other words in the same selected pool
-      // or other lists globally
       const otherMeanings = allWords
         .filter((w) => w.meaning !== correctAns)
         .map((w) => w.meaning);
@@ -188,7 +341,6 @@ export default function PracticeQuizScreen() {
       const uniqueWrong = Array.from(new Set(otherMeanings));
       const shuffledWrong = uniqueWrong.sort(() => Math.random() - 0.5);
       
-      // Fallbacks if not enough words exist
       const fallbackOptions = ["Ăn", "Uống", "Trường học", "Nhà"];
       const finalWrongOptions = shuffledWrong.length >= 3 
         ? shuffledWrong.slice(0, 3) 
