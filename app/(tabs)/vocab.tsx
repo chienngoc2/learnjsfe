@@ -15,6 +15,22 @@ import { useTheme } from "@/src/context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
+interface StudyItem {
+  id: string;
+  title: string;
+  desc: string;
+  icon: string;
+  color: string;
+  lightColor: string;
+  route: string;
+  params?: any;
+}
+
+interface StudySection {
+  title: string;
+  items: StudyItem[];
+}
+
 export default function StudyMenuScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
@@ -29,88 +45,126 @@ export default function StudyMenuScreen() {
     })();
   }, []);
 
-  const studyOptions = [
+  const sections: StudySection[] = [
     {
-      id: "flashcard",
-      title: "Flashcard Từ vựng",
-      desc: "Ôn tập N5 với thẻ ghi nhớ thông minh & thống kê tiến độ",
-      icon: "view-carousel",
-      color: colors.blue,
-      lightColor: colors.blueLight,
-      route: "/study/flashcard",
-      category: "TỪ VỰNG",
+      title: "Tra cứu & Học tập",
+      items: [
+        {
+          id: "flashcard",
+          title: "Flashcard Từ vựng",
+          desc: "Ôn tập N5 với thẻ ghi nhớ thông minh & tiến trình tự động",
+          icon: "view-carousel",
+          color: colors.blue,
+          lightColor: colors.blueLight,
+          route: "/study/flashcard",
+        },
+        {
+          id: "show_kanji",
+          title: "Bài học Kanji",
+          desc: "Duyệt từng Kanji theo cấp độ, múa nét vẽ, sửa & xóa bài",
+          icon: "menu-book",
+          color: colors.emerald,
+          lightColor: colors.emeraldLight,
+          route: "/study/show-kanji",
+        },
+        {
+          id: "kanji_search",
+          title: "Tra cứu Kanji",
+          desc: "Xem âm Hán Việt, ví dụ mẫu & mô phỏng nét vẽ động",
+          icon: "search",
+          color: colors.amber,
+          lightColor: colors.amberLight,
+          route: "/study/kanji-search",
+        },
+      ],
     },
     {
-      id: "add_vocab",
-      title: "Thêm Từ vựng",
-      desc: "Bổ sung kho từ vựng cá nhân trực tiếp lên hệ thống đám mây",
-      icon: "post-add",
-      color: colors.emerald,
-      lightColor: colors.emeraldLight,
-      route: "/study/add-vocab",
-      category: "TÙY BIẾN",
+      title: "Luyện tập & Trò chơi",
+      items: [
+        {
+          id: "quiz_vocab",
+          title: "Trắc nghiệm Từ vựng",
+          desc: "Kiểm tra phản xạ nghĩa từ vựng Nhật - Việt dưới áp lực thời gian",
+          icon: "quiz",
+          color: colors.indigo,
+          lightColor: colors.indigoLight,
+          route: "/luyen-tap/quiz",
+          params: { mode: "vocab" },
+        },
+        {
+          id: "quiz_grammar",
+          title: "Trắc nghiệm Ngữ pháp",
+          desc: "Làm đề trắc nghiệm cấu trúc, công thức và dịch nghĩa câu",
+          icon: "assignment",
+          color: colors.purple,
+          lightColor: colors.purpleLight,
+          route: "/luyen-tap/quiz",
+          params: { mode: "grammar" },
+        },
+        {
+          id: "match_vocab",
+          title: "Game Ghép Từ vựng",
+          desc: "Phá giải trận pháp ghép cặp từ vựng Nhật - Việt để tăng tu vi",
+          icon: "layers",
+          color: colors.blue,
+          lightColor: colors.blueLight,
+          route: "/luyen-tap/vocab-match",
+        },
+        {
+          id: "match_grammar",
+          title: "Game Ghép Câu Ngữ pháp",
+          desc: "Ghép các cặp câu ví dụ Nhật - Việt nhằm thấu hiểu sâu ngữ pháp",
+          icon: "extension",
+          color: colors.amber,
+          lightColor: colors.amberLight,
+          route: "/luyen-tap/grammar",
+        },
+      ],
     },
     {
-      id: "add_grammar",
-      title: "Thêm Ngữ pháp",
-      desc: "Ghi chú cấu trúc mới theo phong cách tu tiên",
-      icon: "edit-note",
-      color: colors.amber,
-      lightColor: colors.amberLight,
-      route: "/study/add-grammar",
-      category: "TÙY BIẾN",
-    },
-    {
-      id: "practice_grammar",
-      title: "Luyện Ngữ pháp",
-      desc: "Làm bài tập trắc nghiệm chọn đáp án & Đánh giá năng lực",
-      icon: "psychology",
-      color: colors.purple,
-      lightColor: colors.purpleLight,
-      route: "/luyen-tap/grammar",
-      category: "NGỮ PHÁP",
-    },
-    {
-      id: "vocab_match",
-      title: "Game Ghép Từ",
-      desc: "Ghép cặp từ vựng Nhật - Việt để nhận điểm tu vi",
-      icon: "layers",
-      color: colors.indigo,
-      lightColor: colors.indigoLight,
-      route: "/luyen-tap/vocab-match",
-      category: "GAME",
-    },
-    {
-      id: "kanji_search",
-      title: "Tra cứu Kanji",
-      desc: "Xem âm Hán Việt, ví dụ mẫu & múa nét vẽ động trực quan",
-      icon: "font-download",
-      color: colors.amber,
-      lightColor: colors.amberLight,
-      route: "/study/kanji-search",
-      category: "KANJI",
-    },
-    {
-      id: "add_kanji",
-      title: "Thêm Kanji",
-      desc: "Bổ sung Kanji mới vào kho dữ liệu cá nhân & nhập hàng loạt JSON",
-      icon: "add-box",
-      color: colors.indigo,
-      lightColor: colors.indigoLight,
-      route: "/study/add-kanji",
-      category: "TÙY BIẾN",
-    },
-    {
-      id: "show_kanji",
-      title: "Học Kanji",
-      desc: "Duyệt từng Kanji theo cấp độ, xem nét vẽ, sửa & xóa linh hoạt",
-      icon: "menu-book",
-      color: colors.emerald,
-      lightColor: colors.emeraldLight,
-      route: "/study/show-kanji",
-      category: "KANJI",
+      title: "Quản lý dữ liệu",
+      items: [
+        {
+          id: "add_vocab",
+          title: "Thêm Từ vựng mới",
+          desc: "Bổ sung kho từ vựng cá nhân trực tiếp lên máy chủ đám mây",
+          icon: "post-add",
+          color: colors.emerald,
+          lightColor: colors.emeraldLight,
+          route: "/study/add-vocab",
+        },
+        {
+          id: "add_grammar",
+          title: "Thêm Ngữ pháp mới",
+          desc: "Ghi chú cấu trúc câu, ý nghĩa và ví dụ tự biên soạn",
+          icon: "edit-note",
+          color: colors.amber,
+          lightColor: colors.amberLight,
+          route: "/study/add-grammar",
+        },
+        {
+          id: "add_kanji",
+          title: "Thêm Kanji mới",
+          desc: "Bổ sung Kanji lẻ hoặc nhập hàng loạt từ danh sách JSON",
+          icon: "add-box",
+          color: colors.indigo,
+          lightColor: colors.indigoLight,
+          route: "/study/add-kanji",
+        },
+      ],
     },
   ];
+
+  const handlePressItem = (item: StudyItem) => {
+    if (item.params) {
+      router.push({
+        pathname: item.route as any,
+        params: item.params,
+      });
+    } else {
+      router.push(item.route as any);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -151,62 +205,70 @@ export default function StudyMenuScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {studyOptions.map((item, index) => (
-          <Animated.View
-            key={item.id}
-            entering={FadeInDown.delay(index * 60).duration(400).springify()}
-          >
-            <TouchableOpacity
-              style={[
-                styles.listCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
-              ]}
-              onPress={() => router.push(item.route as any)}
-              activeOpacity={0.75}
-            >
-              {/* Vạch màu bên trái */}
-              <View style={[styles.accentLine, { backgroundColor: item.color }]} />
+        {sections.map((section, secIdx) => (
+          <View key={section.title} style={styles.sectionContainer}>
+            <Text style={[styles.sectionTitleHeader, { color: colors.indigo }]}>
+              {section.title.toUpperCase()}
+            </Text>
+            
+            <View style={styles.sectionItemsWrap}>
+              {section.items.map((item, itemIdx) => {
+                const staggerDelay = (secIdx * 3 + itemIdx) * 50;
+                return (
+                  <Animated.View
+                    key={item.id}
+                    entering={FadeInDown.delay(staggerDelay).duration(400).springify()}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.listCard,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                      onPress={() => handlePressItem(item)}
+                      activeOpacity={0.75}
+                    >
+                      {/* Left color bar */}
+                      <View style={[styles.accentLine, { backgroundColor: item.color }]} />
 
-              <View style={styles.cardContent}>
-                {/* Left Side: Icon */}
-                <View
-                  style={[
-                    styles.iconBox,
-                    { backgroundColor: item.lightColor },
-                  ]}
-                >
-                  <MaterialIcons name={item.icon as any} size={24} color={item.color} />
-                </View>
+                      <View style={styles.cardContent}>
+                        {/* Icon */}
+                        <View
+                          style={[
+                            styles.iconBox,
+                            { backgroundColor: item.lightColor },
+                          ]}
+                        >
+                          <MaterialIcons name={item.icon as any} size={24} color={item.color} />
+                        </View>
 
-                {/* Middle: Text details */}
-                <View style={styles.textDetails}>
-                  <View style={styles.categoryRow}>
-                    <Text style={[styles.categoryText, { color: item.color }]}>
-                      {item.category}
-                    </Text>
-                  </View>
-                  <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    {item.title}
-                  </Text>
-                  <Text style={[styles.cardDesc, { color: colors.textMuted }]}>
-                    {item.desc}
-                  </Text>
-                </View>
+                        {/* Text */}
+                        <View style={styles.textDetails}>
+                          <Text style={[styles.cardTitle, { color: colors.text }]}>
+                            {item.title}
+                          </Text>
+                          <Text style={[styles.cardDesc, { color: colors.textMuted }]}>
+                            {item.desc}
+                          </Text>
+                        </View>
 
-                {/* Right Side: Chevron */}
-                <View style={styles.chevronBox}>
-                  <MaterialIcons
-                    name="chevron-right"
-                    size={22}
-                    color={colors.textMuted}
-                  />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
+                        {/* Chevron */}
+                        <View style={styles.chevronBox}>
+                          <MaterialIcons
+                            name="chevron-right"
+                            size={22}
+                            color={colors.textMuted}
+                          />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  </Animated.View>
+                );
+              })}
+            </View>
+          </View>
         ))}
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -249,7 +311,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    gap: 12,
+    gap: 20,
+  },
+  sectionContainer: {
+    gap: 10,
+  },
+  sectionTitleHeader: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    paddingLeft: 4,
+  },
+  sectionItemsWrap: {
+    gap: 10,
   },
   listCard: {
     borderRadius: 20,
@@ -282,8 +356,8 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
   },
   iconBox: {
-    width: 48,
-    height: 48,
+    width: 46,
+    height: 46,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
@@ -292,14 +366,6 @@ const styles = StyleSheet.create({
   textDetails: {
     flex: 1,
     paddingRight: 8,
-  },
-  categoryRow: {
-    marginBottom: 4,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.5,
   },
   cardTitle: {
     fontSize: 15,

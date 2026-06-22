@@ -633,17 +633,17 @@ const styles = StyleSheet.create({
   },
   cardItem: {
     width: (width - 32 - 10) / 2, // 2 columns layout
-    height: 100,
-    borderRadius: 18,
+    height: Platform.OS === 'web' ? 90 : 74,
+    borderRadius: 16,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    padding: 10,
+    padding: 6,
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
   },
   cardItemText: {
     fontWeight: "800",

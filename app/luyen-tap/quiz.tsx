@@ -34,6 +34,15 @@ interface Question {
   correctAnswer: string;
 }
 
+const getQuestionFontSize = (text: string) => {
+  if (!text) return 36;
+  const len = text.length;
+  if (len > 50) return 18;
+  if (len > 30) return 22;
+  if (len > 15) return 28;
+  return 36;
+};
+
 export default function PracticeQuizScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
@@ -658,7 +667,7 @@ export default function PracticeQuizScreen() {
               <Text style={[styles.questionReading, { color: colors.textMuted }]}>
                 {currentQuestion.questionWord.reading}
               </Text>
-              <Text style={[styles.questionWordText, { color: colors.indigo }]}>
+              <Text style={[styles.questionWordText, { color: colors.indigo, fontSize: getQuestionFontSize(currentQuestion.questionWord.word) }]}>
                 {currentQuestion.questionWord.word}
               </Text>
             </View>
@@ -923,18 +932,18 @@ const styles = StyleSheet.create({
 
   // Quiz active phase
   questionCard: {
-    borderRadius: 28,
+    borderRadius: 24,
     borderWidth: 1.5,
-    padding: 30,
+    padding: Platform.OS === 'web' ? 24 : 18,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 4,
-    minHeight: 180,
-    marginBottom: 30,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+    minHeight: Platform.OS === 'web' ? 160 : 130,
+    marginBottom: Platform.OS === 'web' ? 24 : 16,
   },
   questionReading: {
     fontSize: 16,
