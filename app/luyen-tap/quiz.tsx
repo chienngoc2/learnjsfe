@@ -9,6 +9,7 @@ import {
   Pressable,
   Platform,
   Dimensions,
+  TouchableOpacity,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -463,6 +464,7 @@ export default function PracticeQuizScreen() {
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                   Chưa có bài học nào. Sếp cần tạo bài trước nha!
                 </Text>
+              ) : (
                 <View style={styles.listGrid}>
                   {vocabLists.slice(0, visibleCount).map((list) => {
                     const isSelected = selectedListIds.includes(list._id);
