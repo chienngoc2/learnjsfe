@@ -10,15 +10,21 @@ import {
   ActivityIndicator,
   TextInput,
   Platform,
+  Dimensions,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons, Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Speech from "expo-speech";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useCultivationStore } from "../../store/useCultivationStore";
 
 // IMPORT CÁC COMPONENT UI DÙNG CHUNG CỦA SẾP
 import Button from "../../components/ui/Button";
 import Header from "../../components/ui/Header";
+
+const { width } = Dimensions.get("window");
 
 interface GrammarPoint {
   _id: string;
@@ -27,6 +33,14 @@ interface GrammarPoint {
   meaning: string;
   examples: string[];
   belongingTopic?: string;
+}
+
+interface MatchCard {
+  id: string;
+  type: "jp" | "vn";
+  text: string;
+  pairId: number;
+  matched: boolean;
 }
 
 // 🚀 CẬP NHẬT: Đã gỡ bỏ scramble và mảng từ xáo trộn
@@ -97,7 +111,8 @@ function FuriganaText({
 export default function PracticeGrammarScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ title?: string; topicTitle?: string }>();
+  const params = useLocalSearchParams<{ title?: string; topicTitle?: string; mode?: string }>();
+  const { addTuVi, addXP } = useCultivationStore();
 
   const [allGrammarPoints, setAllGrammarPoints] = useState<GrammarPoint[]>([]);
   const [selectedGrammar, setSelectedGrammar] = useState<GrammarPoint | null>(
@@ -105,6 +120,19 @@ export default function PracticeGrammarScreen() {
   );
   const [loadingList, setLoadingList] = useState(true);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
+
+  // Chế độ luyện tập: choose (chọn chế độ), ai_translation (6 câu AI dịch/gõ), match (game ghép câu)
+  const [practiceMode, setPracticeMode] = useState<"choose" | "ai_translation" | "match">("choose");
+
+  // States cho Game Ghép Câu
+  const [cardsJp, setCardsJp] = useState<MatchCard[]>([]);
+  const [cardsVn, setCardsVn] = useState<MatchCard[]>([]);
+  const [selectedCard, setSelectedCard] = useState<MatchCard | null>(null);
+  const [errorIds, setErrorIds] = useState<string[]>([]);
+  const [score, setScore] = useState(0);
+  const [moves, setMoves] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
+  const [totalPairs, setTotalPairs] = useState(0);
 
   // 🚀 TỐI ƯU HÓA STATE: Chỉ còn lưu Câu hỏi, Câu trả lời người dùng và Bảng điểm (xóa sạch mảng xếp chữ)
   const [currentQuizzes, setCurrentQuizzes] = useState<QuizQuestion[]>([]);
@@ -118,8 +146,30 @@ export default function PracticeGrammarScreen() {
     new Array(6).fill(false),
   );
 
-  const startPractice = async (grammar: GrammarPoint) => {
+  const parseExample = (exampleStr: string) => {
+    if (!exampleStr) return { jp: "", vn: "" };
+    const colonIndex = exampleStr.indexOf(":");
+    if (colonIndex === -1) {
+      return { jp: exampleStr.trim(), vn: "" };
+    }
+    const jp = exampleStr.substring(0, colonIndex).trim();
+    const vn = exampleStr.substring(colonIndex + 1).trim();
+    return { jp, vn };
+  };
+
+  const speak = (text: string) => {
+    const cleanText = text.replace(/\[.*?\]/g, "");
+    Speech.speak(cleanText, { language: "ja-JP", rate: 0.85 });
+  };
+
+  const startPractice = (grammar: GrammarPoint) => {
     setSelectedGrammar(grammar);
+    setPracticeMode("choose");
+  };
+
+  const startAiPractice = async (grammar: GrammarPoint) => {
+    setSelectedGrammar(grammar);
+    setPracticeMode("ai_translation");
     setLoadingQuiz(true);
 
     setUserAnswers(new Array(6).fill(""));
@@ -163,6 +213,113 @@ export default function PracticeGrammarScreen() {
     }
   };
 
+  const startMatchPractice = (grammar: GrammarPoint) => {
+    setSelectedGrammar(grammar);
+    setPracticeMode("match");
+    setIsFinished(false);
+    setScore(0);
+    setMoves(0);
+    setSelectedCard(null);
+    setErrorIds([]);
+
+    const parsedPairs = (grammar.examples || [])
+      .map((ex, idx) => {
+        const { jp, vn } = parseExample(ex);
+        return { jp, vn, pairId: idx };
+      })
+      .filter((p) => p.jp !== "" && p.vn !== "");
+
+    if (parsedPairs.length === 0) {
+      alert("Ngữ pháp này chưa có câu ví dụ để ghép sếp ơi!");
+      setPracticeMode("choose");
+      return;
+    }
+
+    // Pick max 5 random pairs
+    const selectedPairs = parsedPairs.sort(() => Math.random() - 0.5).slice(0, 5);
+    setTotalPairs(selectedPairs.length);
+
+    const jpCards: MatchCard[] = selectedPairs.map((pair) => ({
+      id: `jp-${pair.pairId}`,
+      type: "jp",
+      text: pair.jp,
+      pairId: pair.pairId,
+      matched: false,
+    }));
+
+    const vnCards: MatchCard[] = selectedPairs.map((pair) => ({
+      id: `vn-${pair.pairId}`,
+      type: "vn",
+      text: pair.vn,
+      pairId: pair.pairId,
+      matched: false,
+    }));
+
+    setCardsJp(jpCards.sort(() => Math.random() - 0.5));
+    setCardsVn(vnCards.sort(() => Math.random() - 0.5));
+  };
+
+  const handleCardClick = (card: MatchCard) => {
+    if (card.matched || errorIds.length > 0) return;
+
+    if (selectedCard?.id === card.id) {
+      setSelectedCard(null);
+      return;
+    }
+
+    if (!selectedCard) {
+      setSelectedCard(card);
+      return;
+    }
+
+    if (selectedCard.type === card.type) {
+      setSelectedCard(card);
+      return;
+    }
+
+    const c1 = selectedCard;
+    const c2 = card;
+    setMoves((prev) => prev + 1);
+
+    if (c1.pairId === c2.pairId) {
+      // SUCCESS MATCH!
+      setCardsJp((prev) =>
+        prev.map((c) => (c.id === c1.id || c.id === c2.id) ? { ...c, matched: true } : c)
+      );
+      setCardsVn((prev) =>
+        prev.map((c) => (c.id === c1.id || c.id === c2.id) ? { ...c, matched: true } : c)
+      );
+      setSelectedCard(null);
+
+      const jpText = c1.type === "jp" ? c1.text : c2.text;
+      speak(jpText);
+
+      setScore((s) => {
+        const next = s + 1;
+        if (next >= totalPairs) {
+          // Finished Game
+          const rewardTuViAmount = next * 5;
+          const rewardXPAmount = next * 10;
+          try {
+            addTuVi(rewardTuViAmount);
+            addXP(rewardXPAmount);
+          } catch (e) {
+            console.log("Error adding rewards:", e);
+          }
+          setIsFinished(true);
+        }
+        return next;
+      });
+    } else {
+      // MISMATCH ERROR!
+      setErrorIds([c1.id, c2.id]);
+      setTimeout(() => {
+        setErrorIds([]);
+        setSelectedCard(null);
+      }, 800);
+    }
+  };
+
   useEffect(() => {
     setLoadingList(true);
     api
@@ -177,14 +334,20 @@ export default function PracticeGrammarScreen() {
               (params.topicTitle && item.belongingTopic?.toLowerCase().includes(params.topicTitle.toLowerCase()))
             );
             if (matched) {
-              startPractice(matched);
+              if (params.mode === "match") {
+                startMatchPractice(matched);
+              } else if (params.mode === "ai_translation") {
+                startAiPractice(matched);
+              } else {
+                startPractice(matched);
+              }
             }
           }
         }
       })
       .catch((err) => console.error("❌ Lỗi gọi API:", err))
       .finally(() => setLoadingList(false));
-  }, [params.title, params.topicTitle]);
+  }, [params.title, params.topicTitle, params.mode]);
 
 
   const submitIndividualAnswer = async (quizIdx: number) => {
@@ -255,7 +418,13 @@ export default function PracticeGrammarScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <Header
         title={
-          selectedGrammar ? "Thử Thách 6 Cấu Trúc ⚔️" : "Đại Thư Viện Ngữ Pháp"
+          !selectedGrammar
+            ? "Đại Thư Viện Ngữ Pháp"
+            : practiceMode === "choose"
+            ? "Lựa chọn Luyện tập"
+            : practiceMode === "match"
+            ? "Game Ghép Câu Ngữ Pháp"
+            : "Thử Thách 6 Cấu Trúc ⚔️"
         }
       />
 
@@ -340,15 +509,15 @@ export default function PracticeGrammarScreen() {
                 >
                   <MaterialIcons name="bolt" size={16} color="#FFF" />
                   <Text style={styles.btnActionPracticeText}>
-                    Luyện 6 câu Gõ/Dịch 🚀
+                    Bắt đầu Luyện tập 🚀
                   </Text>
                 </TouchableOpacity>
               </View>
             ))
           )}
         </ScrollView>
-      ) : (
-        /* 🛑 TRẠNG THÁI 2: PHÒNG GIẢI ĐỐ ĐÃ GỠ BỎ SCRAMBLE TỐI GIẢN */
+      ) : practiceMode === "choose" ? (
+        /* 🛑 TRẠNG THÁI 2: LỰA CHỌN CHẾ ĐỘ LUYỆN TẬP */
         <ScrollView
           contentContainerStyle={styles.scrollBody}
           showsVerticalScrollIndicator={false}
@@ -373,7 +542,368 @@ export default function PracticeGrammarScreen() {
                 marginLeft: 4,
               }}
             >
-              Thoát phòng thi
+              Quay lại danh sách
+            </Text>
+          </TouchableOpacity>
+
+          {/* Grammar Info Card */}
+          <View
+            style={[
+              styles.grammarMenuCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                marginBottom: 24,
+              },
+            ]}
+          >
+            <Text style={[styles.menuTitle, { color: colors.text, fontSize: 22 }]}>
+              {selectedGrammar.title}
+            </Text>
+            <View
+              style={[
+                styles.formulaContainer,
+                { backgroundColor: isDark ? "#2C1A10" : "#FFF7ED", marginTop: 10 },
+              ]}
+            >
+              <MaterialIcons
+                name="lightbulb"
+                size={20}
+                color={colors.amber}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={[styles.menuFormula, { color: colors.amber, fontSize: 16 }]}>
+                Cấu trúc: {selectedGrammar.formula || "Chưa có công thức"}
+              </Text>
+            </View>
+            <Text style={[styles.menuMeaning, { color: colors.textMuted, fontSize: 15, marginTop: 10 }]}>
+              Ý nghĩa: {selectedGrammar.meaning}
+            </Text>
+          </View>
+
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text, marginBottom: 16, letterSpacing: -0.5 }}>
+            CHỌN CHẾ ĐỘ LUYỆN TẬP:
+          </Text>
+
+          {/* AI Quiz Mode Option Card */}
+          <TouchableOpacity
+            style={[
+              styles.choiceCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => startAiPractice(selectedGrammar)}
+          >
+            <LinearGradient
+              colors={isDark ? ["#2C1A10", "#1E293B"] : ["#FFF7ED", "#FFFFFF"]}
+              style={styles.choiceCardGradient}
+            >
+              <View style={styles.choiceHeaderRow}>
+                <View style={[styles.choiceIconBg, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
+                  <MaterialIcons name="bolt" size={28} color={colors.amber} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.choiceTitle, { color: colors.text }]}>
+                    Luyện dịch AI ⚔️
+                  </Text>
+                  <Text style={[styles.choiceSub, { color: colors.textMuted }]}>
+                    Dịch/Gõ 6 câu Việt-Nhật & Nhật-Việt
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.choiceDesc, { color: colors.textMuted }]}>
+                Thử thách dịch thuật 6 câu được tạo ngẫu nhiên, chấm điểm và nhận xét chi tiết bằng AI của hệ thống.
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Match Game Mode Option Card */}
+          <TouchableOpacity
+            style={[
+              styles.choiceCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                marginTop: 16,
+              },
+            ]}
+            onPress={() => startMatchPractice(selectedGrammar)}
+          >
+            <LinearGradient
+              colors={isDark ? ["#1E1B4B", "#1E293B"] : ["#EEF2FF", "#FFFFFF"]}
+              style={styles.choiceCardGradient}
+            >
+              <View style={styles.choiceHeaderRow}>
+                <View style={[styles.choiceIconBg, { backgroundColor: "rgba(99, 102, 241, 0.15)" }]}>
+                  <MaterialIcons name="videogame-asset" size={28} color={colors.indigo} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.choiceTitle, { color: colors.text }]}>
+                    Game Ghép Câu 🎮
+                  </Text>
+                  <Text style={[styles.choiceSub, { color: colors.textMuted }]}>
+                    Nối câu tiếng Nhật với bản dịch tiếng Việt
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.choiceDesc, { color: colors.textMuted }]}>
+                Phá trận đồ bằng cách nối câu ví dụ của cấu trúc ngữ pháp này với nghĩa tiếng Việt tương ứng.
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+      ) : practiceMode === "match" ? (
+        /* 🛑 TRẠNG THÁI 3: GAME GHÉP CÂU SONG SONG */
+        <ScrollView
+          contentContainerStyle={styles.scrollBody}
+          showsVerticalScrollIndicator={false}
+        >
+          <TouchableOpacity
+            style={[
+              styles.btnBackList,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            onPress={() => setPracticeMode("choose")}
+          >
+            <MaterialIcons
+              name="keyboard-arrow-left"
+              size={24}
+              color={colors.text}
+            />
+            <Text
+              style={{
+                color: colors.text,
+                fontWeight: "800",
+                fontSize: 16,
+                marginLeft: 4,
+              }}
+            >
+              Quay lại lựa chọn
+            </Text>
+          </TouchableOpacity>
+
+          {!isFinished ? (
+            <View style={{ width: "100%" }}>
+              {/* Score Bento Box */}
+              <View
+                style={[
+                  styles.resultBentoBox,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    marginBottom: 20,
+                  },
+                ]}
+              >
+                <View style={styles.resultBentoItem}>
+                  <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>ĐÃ GHÉP</Text>
+                  <Text style={[styles.bentoBVal, { color: colors.amber }]}>
+                    {score} <Text style={{ fontSize: 16, color: colors.textMuted }}>/</Text> {totalPairs}
+                  </Text>
+                </View>
+
+                <View style={[styles.resultBentoDivider, { backgroundColor: colors.border }]} />
+
+                <View style={styles.resultBentoItem}>
+                  <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>LƯỢT ĐI (MOVES)</Text>
+                  <Text style={[styles.bentoBVal, { color: colors.indigo }]}>{moves}</Text>
+                </View>
+              </View>
+
+              {/* Side-by-side Columns Row */}
+              <View style={styles.matchGameColumnsRow}>
+                {/* Left Column: Japanese Cards */}
+                <View style={styles.matchGameColumn}>
+                  <Text style={[styles.columnHeader, { color: colors.amber }]}>TIẾNG NHẬT</Text>
+                  {cardsJp.map((c) => {
+                    const isSelected = selectedCard?.id === c.id;
+                    const isError = errorIds.includes(c.id);
+
+                    let cardBg = colors.surface;
+                    let cardBorder = colors.border;
+                    let cardText = colors.text;
+
+                    if (c.matched) {
+                      return <View key={c.id} style={[styles.matchColCard, { opacity: 0 }]} />;
+                    }
+
+                    if (isSelected) {
+                      cardBg = isDark ? "#2C1A10" : "#FFF7ED";
+                      cardBorder = colors.amber;
+                      cardText = colors.amber;
+                    } else if (isError) {
+                      cardBg = "rgba(239, 68, 68, 0.15)";
+                      cardBorder = "#ef4444";
+                      cardText = "#ef4444";
+                    }
+
+                    return (
+                      <TouchableOpacity
+                        key={c.id}
+                        onPress={() => handleCardClick(c)}
+                        style={[
+                          styles.matchColCard,
+                          {
+                            backgroundColor: cardBg,
+                            borderColor: cardBorder,
+                          },
+                        ]}
+                      >
+                        {c.text.includes("[") && c.text.includes("]") ? (
+                          <FuriganaText
+                            text={c.text}
+                            baseSize={14}
+                            color={cardText}
+                            furiganaSize={10}
+                          />
+                        ) : (
+                          <Text style={[styles.matchCardText, { color: cardText }]}>
+                            {c.text}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Right Column: Vietnamese Cards */}
+                <View style={styles.matchGameColumn}>
+                  <Text style={[styles.columnHeader, { color: colors.indigo }]}>BẢN DỊCH VIỆT</Text>
+                  {cardsVn.map((c) => {
+                    const isSelected = selectedCard?.id === c.id;
+                    const isError = errorIds.includes(c.id);
+
+                    let cardBg = colors.surface;
+                    let cardBorder = colors.border;
+                    let cardText = colors.text;
+
+                    if (c.matched) {
+                      return <View key={c.id} style={[styles.matchColCard, { opacity: 0 }]} />;
+                    }
+
+                    if (isSelected) {
+                      cardBg = colors.indigoLight;
+                      cardBorder = colors.indigo;
+                      cardText = colors.indigo;
+                    } else if (isError) {
+                      cardBg = "rgba(239, 68, 68, 0.15)";
+                      cardBorder = "#ef4444";
+                      cardText = "#ef4444";
+                    }
+
+                    return (
+                      <TouchableOpacity
+                        key={c.id}
+                        onPress={() => handleCardClick(c)}
+                        style={[
+                          styles.matchColCard,
+                          {
+                            backgroundColor: cardBg,
+                            borderColor: cardBorder,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.matchCardText, { color: cardText, fontSize: 13 }]}>
+                          {c.text}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          ) : (
+            /* Results phase */
+            <View style={[styles.centerBox, { paddingHorizontal: 24, paddingVertical: 40 }]}>
+              <View style={[styles.emblemIconCircle, { backgroundColor: colors.indigoLight }]}>
+                <Ionicons name="sparkles-outline" size={50} color={colors.indigo} />
+              </View>
+
+              <Text style={[styles.resultTitle, { color: colors.text }]}>GHÉP CÂU HOÀN THÀNH</Text>
+              <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
+                Chúc mừng sếp đã ghép chuẩn toàn bộ ví dụ cấu trúc ngữ pháp!
+              </Text>
+
+              <View style={[styles.resultBentoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={styles.resultBentoItem}>
+                  <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>SỐ LƯỢT GHÉP</Text>
+                  <Text style={[styles.bentoBVal, { color: colors.indigo }]}>{moves}</Text>
+                </View>
+
+                <View style={[styles.resultBentoDivider, { backgroundColor: colors.border }]} />
+
+                <View style={styles.resultBentoItem}>
+                  <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>CẶP CÂU VÍ DỤ</Text>
+                  <Text style={[styles.bentoBVal, { color: colors.indigo }]}>{totalPairs}</Text>
+                </View>
+              </View>
+
+              <View style={[styles.rewardCard, { backgroundColor: colors.surface, borderColor: colors.indigo }]}>
+                <Ionicons name="flash" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
+                <Text style={[styles.rewardCardText, { color: colors.text }]}>
+                  Thu hoạch linh khí: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{totalPairs * 5}</Text> Tu Vi pháp lực!
+                </Text>
+              </View>
+
+              <View style={styles.resultActions}>
+                <TouchableOpacity
+                  onPress={() => startMatchPractice(selectedGrammar)}
+                  style={[
+                    styles.btnResultAction,
+                    {
+                      backgroundColor: colors.indigo,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.btnResultText, { color: "#FFF" }]}>THỬ THÁCH LẠI</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setPracticeMode("choose")}
+                  style={[
+                    styles.btnResultActionSecondary,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      marginTop: 12,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.btnResultTextSecondary, { color: colors.text }]}>CHỌN CHẾ ĐỘ KHÁC</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      ) : (
+        /* 🛑 TRẠNG THÁI 4: PHÒNG GIẢI ĐỐ ĐÃ GỠ BỎ SCRAMBLE TỐI GIẢN */
+        <ScrollView
+          contentContainerStyle={styles.scrollBody}
+          showsVerticalScrollIndicator={false}
+        >
+          <TouchableOpacity
+            style={[
+              styles.btnBackList,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            onPress={() => setPracticeMode("choose")}
+          >
+            <MaterialIcons
+              name="keyboard-arrow-left"
+              size={24}
+              color={colors.text}
+            />
+            <Text
+              style={{
+                color: colors.text,
+                fontWeight: "800",
+                fontSize: 16,
+                marginLeft: 4,
+              }}
+            >
+              Quay lại lựa chọn
             </Text>
           </TouchableOpacity>
 
@@ -601,7 +1131,7 @@ export default function PracticeGrammarScreen() {
                 <Button
                   title="Tiếp tục làm set câu hỏi mới 🚀"
                   type="amber"
-                  onPress={() => startPractice(selectedGrammar!)}
+                  onPress={() => startAiPractice(selectedGrammar!)}
                 />
               </View>
             </View>
@@ -772,4 +1302,175 @@ const styles = StyleSheet.create({
   explanationText: { fontSize: 15, lineHeight: 22, fontWeight: "600" },
 
   continueButtonContainer: { marginTop: 16, marginBottom: 30, width: "100%" },
+
+  // Chế độ lựa chọn & Game Ghép câu mới
+  choiceCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  choiceCardGradient: {
+    padding: 20,
+  },
+  choiceHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  choiceIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  choiceTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  choiceSub: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  choiceDesc: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+
+  // Game Ghép câu
+  matchGameColumnsRow: {
+    flexDirection: "row",
+    gap: 12,
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 10,
+  },
+  matchGameColumn: {
+    flex: 1,
+    gap: 12,
+  },
+  columnHeader: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  matchColCard: {
+    width: "100%",
+    minHeight: 90,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  matchCardText: {
+    fontWeight: "800",
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  // Màn hình kết quả game
+  emblemIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    alignSelf: "center",
+  },
+  resultTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 1,
+    textAlign: "center",
+  },
+  resultSubtitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 6,
+    textAlign: "center",
+    marginBottom: 30,
+  },
+  resultBentoBox: {
+    width: "100%",
+    borderRadius: 24,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    paddingVertical: 20,
+  },
+  resultBentoItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resultBentoDivider: {
+    width: 1.5,
+    height: "100%",
+  },
+  bentoBLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  bentoBVal: {
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  rewardCard: {
+    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  rewardCardText: {
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+  resultActions: {
+    width: "100%",
+    gap: 12,
+    marginTop: 10,
+  },
+  btnResultAction: {
+    width: "100%",
+    paddingVertical: 16,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnResultText: {
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  btnResultActionSecondary: {
+    width: "100%",
+    paddingVertical: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnResultTextSecondary: {
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
 });

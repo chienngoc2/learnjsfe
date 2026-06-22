@@ -262,7 +262,7 @@ function GrammarCardItem({
                 ]} 
                 onPress={() => router.push({
                   pathname: "/luyen-tap/grammar",
-                  params: { topicTitle: item.belongingTopic || title }
+                  params: { topicTitle: item.belongingTopic || title, mode: "match" }
                 } as any)}
               >
                 <Feather name="layers" size={14} color={colors.indigo} />
@@ -276,7 +276,7 @@ function GrammarCardItem({
                 ]} 
                 onPress={() => router.push({
                   pathname: "/luyen-tap/grammar",
-                  params: { title: item.title }
+                  params: { title: item.title, mode: "ai_translation" }
                 } as any)}
               >
                 <Feather name="zap" size={14} color={colors.amber} />

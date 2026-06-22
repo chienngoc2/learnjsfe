@@ -245,7 +245,7 @@ export default function ChatScreen() {
             if (tab === "match") {
               // Trên mobile, Game Center tương ứng với các màn hình luyện tập trong thư mục luyen-tap
               if (game === "grammar_match") {
-                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
+                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "match" } } as any);
               } else if (game === "vocab_match" || game === "match" || game === "memory") {
                 router.push({ pathname: "/luyen-tap/vocab-match", params: { topicId: listId } } as any);
               } else if (game === "tower") {
@@ -269,7 +269,7 @@ export default function ChatScreen() {
               }
             } else if (tab === "quiz") {
               if (mode === "grammar") {
-                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
+                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "ai_translation" } } as any);
               } else {
                 router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
               }
