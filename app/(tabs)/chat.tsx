@@ -284,6 +284,15 @@ export default function ChatScreen() {
               } else {
                 router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
               }
+            } else if (tab === "add-grammar") {
+              // Trang thêm ngữ pháp
+              router.push("/study/add-grammar" as any);
+            } else if (tab === "grammar-viewer") {
+              // Trang xem thư viện ngữ pháp
+              router.push("/study/grammar-viewer" as any);
+            } else if (tab === "add-vocab") {
+              // Trang thêm từ vựng
+              router.push("/study/add-vocab" as any);
             } else if (tab === "vocab") {
               // Màn hình học tập (vocab) trên mobile
               router.push("/vocab" as any);
@@ -302,6 +311,8 @@ export default function ChatScreen() {
               } else {
                 router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
               }
+            } else if (tab === "write") {
+              router.push("/study/add-kanji" as any);
             } else if (tab === "overview") {
               router.push("/" as any);
             } else if (tab === "statistics" || tab === "profile" || tab === "achievements") {
