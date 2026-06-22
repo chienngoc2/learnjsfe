@@ -10,11 +10,12 @@ import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  ScrollView,
 } from "react-native";
 import { Audio } from "expo-av";
 import { Stack, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons, Feather } from "@expo/vector-icons";
 import api from "../../services/api";
 import Animated, {
   useSharedValue,
@@ -50,6 +51,8 @@ export default function ChatScreen() {
   const [voiceChatStatus, setVoiceChatStatus] = useState<
     "idle" | "recording" | "transcribing" | "thinking" | "speaking"
   >("idle");
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
+  const stopAudioRequestRef = useRef(false);
 
   // Reanimated Shared Values for Ripples
   const pulse1 = useSharedValue(1);
@@ -130,17 +133,41 @@ export default function ChatScreen() {
     };
   }, []);
 
+  const stopBotSpeaking = async () => {
+    stopAudioRequestRef.current = true;
+    setIsPlayingVoice(false);
+    if (voiceChatMode) setVoiceChatStatus("idle");
+    try {
+      if (currentSoundRef.current) {
+        await currentSoundRef.current.stopAsync();
+        await currentSoundRef.current.unloadAsync();
+      }
+    } catch (e) {
+      console.log("Error stopping bot speaking:", e);
+    }
+    currentSoundRef.current = null;
+  };
+
   const playAudioSegments = async (audioSegments: string[]) => {
+    stopAudioRequestRef.current = false;
+    setIsPlayingVoice(true);
     for (const base64Data of audioSegments) {
+      if (stopAudioRequestRef.current) break;
       try {
         const { sound } = await Audio.Sound.createAsync(
           { uri: base64Data },
           { shouldPlay: true }
         );
         currentSoundRef.current = sound;
+        
+        if (stopAudioRequestRef.current) {
+          await sound.unloadAsync();
+          break;
+        }
+
         await new Promise((resolve) =>
           sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish) resolve(true);
+            if (status.didJustFinish || stopAudioRequestRef.current) resolve(true);
           })
         );
         await sound.unloadAsync();
@@ -149,6 +176,8 @@ export default function ChatScreen() {
         console.error(error);
       }
     }
+    setIsPlayingVoice(false);
+    if (voiceChatMode) setVoiceChatStatus("idle");
   };
 
   const startRecording = async () => {
@@ -323,9 +352,7 @@ export default function ChatScreen() {
 
   const toggleVoiceMode = () => {
     // If speaking, stop playback
-    if (currentSoundRef.current) {
-      currentSoundRef.current.stopAsync();
-    }
+    stopBotSpeaking();
     setVoiceChatMode(!voiceChatMode);
     setVoiceChatStatus("idle");
   };
@@ -357,6 +384,12 @@ export default function ChatScreen() {
           Linh lực tiêu hao: <Text style={{ fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Rep: {tokensUsed.completion})
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {isPlayingVoice && (
+            <TouchableOpacity onPress={stopBotSpeaking} style={[styles.stopVoiceBtn, { backgroundColor: isDark ? "#451A1A" : "#FEE2E2" }]} activeOpacity={0.7}>
+              <Ionicons name="volume-mute" size={14} color="#EF4444" style={{ marginRight: 4 }} />
+              <Text style={{ color: "#EF4444", fontSize: 11, fontWeight: "800" }}>Dừng nói</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={toggleVoiceMode} style={styles.voiceToggleBtn} activeOpacity={0.7}>
             <MaterialIcons
               name={voiceChatMode ? "keyboard" : "keyboard-voice"}
@@ -393,6 +426,76 @@ export default function ChatScreen() {
             />
           </View>
 
+          {/* 🚀 QUICK NAVIGATION SHORTCUT BUTTONS */}
+          <View style={[styles.navShortcutsContainer, { borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }]}>
+            <Text style={[styles.navShortcutsTitle, { color: colors.textMuted }]}>Pháp Trận Dịch Chuyển (Chuyển trang nhanh):</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navShortcutsScroll}>
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/luyen-tap/grammar")}
+              >
+                <Ionicons name="journal-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Ghép Ngữ Pháp 📚</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/luyen-tap/vocab-match")}
+              >
+                <Ionicons name="grid-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Ghép Từ Vựng 🎮</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/luyen-tap/quiz")}
+              >
+                <Ionicons name="help-circle-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Trắc Nghiệm ⚡</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/luyen-tap/typing")}
+              >
+                <Ionicons name="create-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Luyện Gõ Chữ ✍️</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/luyen-tap/conjugation")}
+              >
+                <Ionicons name="git-branch-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Chia Động Từ 🔄</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/study/flashcard")}
+              >
+                <Ionicons name="albums-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Học Flashcard 🎴</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/profile")}
+              >
+                <Ionicons name="person-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Cá Nhân 👤</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
+                onPress={() => router.push("/")}
+              >
+                <Ionicons name="home-outline" size={13} color={colors.indigo} />
+                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Trang Chủ 🏠</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+
           <ChatInput
             onSendText={handleChat}
             onStartRecord={startRecording}
@@ -418,9 +521,11 @@ export default function ChatScreen() {
                   startRecording();
                 } else if (voiceChatStatus === "recording") {
                   stopRecording();
+                } else if (voiceChatStatus === "speaking") {
+                  stopBotSpeaking();
                 }
               }}
-              disabled={voiceChatStatus !== "idle" && voiceChatStatus !== "recording"}
+              disabled={voiceChatStatus !== "idle" && voiceChatStatus !== "recording" && voiceChatStatus !== "speaking"}
               activeOpacity={0.85}
             >
               <Animated.View
@@ -637,5 +742,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 20,
     borderWidth: 1,
+  },
+  stopVoiceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EF4444",
+  },
+  navShortcutsContainer: {
+    paddingVertical: 10,
+  },
+  navShortcutsTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    paddingHorizontal: 16,
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  navShortcutsScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  shortcutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 4,
+  },
+  shortcutBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
