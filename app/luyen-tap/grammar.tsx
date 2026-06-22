@@ -130,6 +130,8 @@ export default function PracticeGrammarScreen() {
   const [topics, setTopics] = useState<TopicList[]>([]);
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Active game states
   const [isPlaying, setIsPlaying] = useState(false);
@@ -174,7 +176,10 @@ export default function PracticeGrammarScreen() {
         }
       })
       .catch((err) => console.error("Lỗi lấy danh sách chủ đề:", err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setVisibleCount(PAGE_SIZE);
+      });
   }, [params.topicId, params.listId, params.topicTitle, params.title]);
 
   // Handle auto-start game if redirected from other screens
@@ -383,7 +388,7 @@ export default function PracticeGrammarScreen() {
                   </Text>
                 ) : (
                   <View style={styles.listGrid}>
-                    {topics.map((topic) => {
+                    {topics.slice(0, visibleCount).map((topic) => {
                       const isSelected = selectedTopicIds.includes(topic._id);
                       return (
                         <TouchableOpacity
@@ -423,6 +428,22 @@ export default function PracticeGrammarScreen() {
                         </TouchableOpacity>
                       );
                     })}
+
+                    {visibleCount < topics.length && (
+                      <TouchableOpacity
+                        style={[
+                          styles.loadMoreBtn,
+                          { backgroundColor: colors.surface, borderColor: colors.border },
+                        ]}
+                        onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[styles.loadMoreText, { color: colors.indigo }]}>
+                          Xem thêm ({topics.length - visibleCount} chủ đề còn lại)
+                        </Text>
+                        <Feather name="chevron-down" size={20} color={colors.indigo} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>
@@ -900,5 +921,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     letterSpacing: 0.5,
+  },
+  loadMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 10,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

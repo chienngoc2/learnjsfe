@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import {
   StyleSheet,
@@ -7,16 +6,18 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 export default function StudyMenuScreen() {
   const router = useRouter();
-  const { colors, isDark, toggleTheme } = useTheme(); // Đón nhận bộ màu động
+  const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -28,97 +29,96 @@ export default function StudyMenuScreen() {
     })();
   }, []);
 
-  // Danh sách các chức năng học tập được tối ưu màu sắc thích ứng sáng/tối
   const studyOptions = [
     {
       id: "flashcard",
       title: "Flashcard Từ vựng",
-      desc: "Ôn tập N5 với thẻ ghi nhớ thông minh",
+      desc: "Ôn tập N5 với thẻ ghi nhớ thông minh & thống kê tiến độ",
       icon: "view-carousel",
-      color: isDark ? "#60A5FA" : "#007AFF", // Xanh dương dịu hơn ở Dark Mode
+      color: colors.blue,
+      lightColor: colors.blueLight,
       route: "/study/flashcard",
+      category: "TỪ VỰNG",
     },
     {
       id: "add_vocab",
       title: "Thêm Từ vựng",
-      desc: "Bổ sung kho từ vựng cá nhân lên hệ thống",
+      desc: "Bổ sung kho từ vựng cá nhân trực tiếp lên hệ thống đám mây",
       icon: "post-add",
-      color: isDark ? "#34D399" : "#10B981", // Xanh lá thích ứng
+      color: colors.emerald,
+      lightColor: colors.emeraldLight,
       route: "/study/add-vocab",
+      category: "TÙY BIẾN",
     },
     {
       id: "add_grammar",
       title: "Thêm Ngữ pháp",
-      desc: "Ghi chú cấu trúc mới theo chuẩn hổ phách",
+      desc: "Ghi chú cấu trúc mới theo phong cách tu tiên",
       icon: "edit-note",
-      color: colors.amber, // Ăn theo màu cam cốt lõi
+      color: colors.amber,
+      lightColor: colors.amberLight,
       route: "/study/add-grammar",
+      category: "TÙY BIẾN",
     },
     {
       id: "practice_grammar",
       title: "Luyện Ngữ pháp",
-      desc: "Làm bài tập trắc nghiệm & Đánh giá năng lực",
+      desc: "Làm bài tập trắc nghiệm chọn đáp án & Đánh giá năng lực",
       icon: "psychology",
-      color: isDark ? "#C084FC" : "#A855F7", // Tím mộng mơ
+      color: colors.purple,
+      lightColor: colors.purpleLight,
       route: "/luyen-tap/grammar",
-    },
-    {
-      id: "grammar_match",
-      title: "Game Ghép Câu",
-      desc: "Ghép ví dụ ngữ pháp Nhật - Việt để tăng tu vi",
-      icon: "extension",
-      color: isDark ? "#F472B6" : "#EC4899", // Hồng tươi tắn
-      route: "/luyen-tap/grammar",
+      category: "NGỮ PHÁP",
     },
     {
       id: "vocab_match",
       title: "Game Ghép Từ",
-      desc: "Ghép cặp từ vựng Nhật - Việt để tăng tu vi",
+      desc: "Ghép cặp từ vựng Nhật - Việt để nhận điểm tu vi",
       icon: "layers",
-      color: isDark ? "#38BDF8" : "#0284C7", // Xanh da trời
+      color: colors.indigo,
+      lightColor: colors.indigoLight,
       route: "/luyen-tap/vocab-match",
+      category: "GAME",
     },
-    // 🚀 TÍNH NĂNG MỚI: TRA CỨU KANJI HOẠT HỌA NÉT VẼ
     {
       id: "kanji_search",
       title: "Tra cứu Kanji",
-      desc: "Xem âm Hán Việt, ví dụ mẫu & múa nét vẽ động",
+      desc: "Xem âm Hán Việt, ví dụ mẫu & múa nét vẽ động trực quan",
       icon: "font-download",
-      color: isDark ? "#FBBF24" : "#F59E0B",
+      color: colors.amber,
+      lightColor: colors.amberLight,
       route: "/study/kanji-search",
+      category: "KANJI",
     },
-    // 🆕 THÊM KANJI VÀO KHO
     {
       id: "add_kanji",
       title: "Thêm Kanji",
-      desc: "Bổ sung Kanji vào kho dữ liệu cá nhân & nhập hàng loạt JSON",
+      desc: "Bổ sung Kanji mới vào kho dữ liệu cá nhân & nhập hàng loạt JSON",
       icon: "add-box",
-      color: isDark ? "#F472B6" : "#EC4899", // Hồng tươi tắn
+      color: colors.indigo,
+      lightColor: colors.indigoLight,
       route: "/study/add-kanji",
+      category: "TÙY BIẾN",
     },
-    // 📖 HỌC & DUYỆT KHO KANJI
     {
       id: "show_kanji",
       title: "Học Kanji",
-      desc: "Duyệt từng Kanji theo cấp độ, xem nét vẽ, sửa & xóa",
+      desc: "Duyệt từng Kanji theo cấp độ, xem nét vẽ, sửa & xóa linh hoạt",
       icon: "menu-book",
-      color: isDark ? "#34D399" : "#059669", // Xanh ngọc
+      color: colors.emerald,
+      lightColor: colors.emeraldLight,
       route: "/study/show-kanji",
+      category: "KANJI",
     },
   ];
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top > 0 ? insets.top + 10 : (Platform.OS === 'android' ? 60 : 30) }
-      ]}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* HEADER SINH ĐỘNG TÍCH HỢP ĐỔI THEME TẠI CHỖ */}
-      <View style={styles.header}>
+      {/* HEADER */}
+      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 16 : 48 }]}>
         <View style={styles.headerRow}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.text }]}>
@@ -129,7 +129,7 @@ export default function StudyMenuScreen() {
             </Text>
           </View>
 
-          {/* Nút đổi theme góc phải siêu ngầu */}
+          {/* Toggle Theme */}
           <TouchableOpacity
             onPress={toggleTheme}
             style={[
@@ -140,68 +140,77 @@ export default function StudyMenuScreen() {
           >
             <MaterialIcons
               name={isDark ? "wb-sunny" : "nights-stay"}
-              size={22}
+              size={20}
               color={isDark ? colors.amber : colors.textMuted}
             />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* LƯỚI GRID HIỂN THỊ THẺ COMPONENT */}
-      <View style={styles.gridContainer}>
-        {studyOptions.map((item) => (
-          <TouchableOpacity
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {studyOptions.map((item, index) => (
+          <Animated.View
             key={item.id}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                borderLeftColor: item.color, // Thanh màu Accent vạch dọc bên trái thẻ
-              },
-            ]}
-            onPress={() => router.push(item.route as any)}
-            activeOpacity={0.8}
+            entering={FadeInDown.delay(index * 60).duration(400).springify()}
           >
-            {/* Vòng tròn Icon đổ màu opacity nhạt theo item */}
-            <View
+            <TouchableOpacity
               style={[
-                styles.iconContainer,
-                { backgroundColor: item.color + "15" },
+                styles.listCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                },
               ]}
+              onPress={() => router.push(item.route as any)}
+              activeOpacity={0.75}
             >
-              <MaterialIcons
-                name={item.icon as any}
-                size={30}
-                color={item.color}
-              />
-            </View>
+              {/* Vạch màu bên trái */}
+              <View style={[styles.accentLine, { backgroundColor: item.color }]} />
 
-            {/* Mũi tên nhỏ chỉ hướng sang trọng ở góc phải */}
-            <View style={styles.arrowBox}>
-              <MaterialIcons
-                name="arrow-forward-ios"
-                size={12}
-                color={colors.textMuted}
-              />
-            </View>
+              <View style={styles.cardContent}>
+                {/* Left Side: Icon */}
+                <View
+                  style={[
+                    styles.iconBox,
+                    { backgroundColor: item.lightColor },
+                  ]}
+                >
+                  <MaterialIcons name={item.icon as any} size={24} color={item.color} />
+                </View>
 
-            <Text
-              style={[styles.cardTitle, { color: colors.text }]}
-              numberOfLines={1}
-            >
-              {item.title}
-            </Text>
-            <Text
-              style={[styles.cardDesc, { color: colors.textMuted }]}
-              numberOfLines={2}
-            >
-              {item.desc}
-            </Text>
-          </TouchableOpacity>
+                {/* Middle: Text details */}
+                <View style={styles.textDetails}>
+                  <View style={styles.categoryRow}>
+                    <Text style={[styles.categoryText, { color: item.color }]}>
+                      {item.category}
+                    </Text>
+                  </View>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>
+                    {item.title}
+                  </Text>
+                  <Text style={[styles.cardDesc, { color: colors.textMuted }]}>
+                    {item.desc}
+                  </Text>
+                </View>
+
+                {/* Right Side: Chevron */}
+                <View style={styles.chevronBox}>
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={22}
+                    color={colors.textMuted}
+                  />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
         ))}
-      </View>
-    </ScrollView>
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -209,12 +218,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    padding: 16,
-    paddingTop: Platform.OS === "android" ? 60 : 30,
-  },
   header: {
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(15,23,42,0.03)",
   },
   headerRow: {
     flexDirection: "row",
@@ -222,81 +230,91 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: "900",
+    fontSize: 24,
+    fontWeight: "800",
     letterSpacing: -0.5,
   },
   headerSub: {
-    fontSize: 14,
+    fontSize: 13,
     marginTop: 4,
     fontWeight: "500",
   },
   btnToggle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1.5,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  gridContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  card: {
-    width: "48.5%", // Tối ưu khoảng hở giữa 2 cột cân đối hơn
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
     borderWidth: 1,
-    borderLeftWidth: 5, // Biến cạnh trái thành vạch màu thanh lịch
+  },
+  scrollContent: {
+    padding: 16,
+    gap: 12,
+  },
+  listCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
     position: "relative",
     ...Platform.select({
       ios: {
         shadowColor: "#0F172A",
         shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.04,
+        shadowOpacity: 0.03,
         shadowRadius: 12,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
-  iconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+  accentLine: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 5,
+  },
+  cardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    paddingLeft: 20,
+  },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginRight: 16,
   },
-  arrowBox: {
-    position: "absolute",
-    top: 20,
-    right: 16,
-    opacity: 0.6,
+  textDetails: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  categoryRow: {
+    marginBottom: 4,
+  },
+  categoryText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   cardTitle: {
     fontSize: 15,
-    fontWeight: "800",
-    marginBottom: 6,
+    fontWeight: "700",
     letterSpacing: -0.2,
+    marginBottom: 4,
   },
   cardDesc: {
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "500",
   },
+  chevronBox: {
+    justifyContent: "center",
+    alignItems: "center",
+    opacity: 0.8,
+  },
 });
-

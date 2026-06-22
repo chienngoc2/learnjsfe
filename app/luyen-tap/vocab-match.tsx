@@ -42,6 +42,8 @@ export default function VocabMatchScreen() {
   const [vocabLists, setVocabLists] = useState<any[]>([]);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
   const [loadingLists, setLoadingLists] = useState(true);
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Active match phase state
   const [cards, setCards] = useState<MatchCard[]>([]);
@@ -74,6 +76,7 @@ export default function VocabMatchScreen() {
           }
         }
         setLoadingLists(false);
+        setVisibleCount(PAGE_SIZE);
       })
       .catch((err) => {
         console.error("Lỗi lấy danh sách:", err);
@@ -270,9 +273,8 @@ export default function VocabMatchScreen() {
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                   Chưa có bài học nào. Sếp cần tạo bài trước nha!
                 </Text>
-              ) : (
                 <View style={styles.listGrid}>
-                  {vocabLists.map((list) => {
+                  {vocabLists.slice(0, visibleCount).map((list) => {
                     const isSelected = selectedListIds.includes(list._id);
                     return (
                       <Pressable
@@ -313,6 +315,22 @@ export default function VocabMatchScreen() {
                       </Pressable>
                     );
                   })}
+
+                  {visibleCount < vocabLists.length && (
+                    <TouchableOpacity
+                      style={[
+                        styles.loadMoreBtn,
+                        { backgroundColor: colors.surface, borderColor: colors.border },
+                      ]}
+                      onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.loadMoreText, { color: colors.indigo }]}>
+                        Xem thêm ({vocabLists.length - visibleCount} bài học còn lại)
+                      </Text>
+                      <Feather name="chevron-down" size={20} color={colors.indigo} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </View>
@@ -720,5 +738,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     letterSpacing: 0.5,
+  },
+  loadMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 10,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

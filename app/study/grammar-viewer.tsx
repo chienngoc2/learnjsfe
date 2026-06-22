@@ -340,6 +340,8 @@ export default function GrammarViewerScreen() {
   
   const [grammarData, setGrammarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -375,6 +377,7 @@ export default function GrammarViewerScreen() {
       const res = await api.get(`/api/vocab/list/${topicId}`);
       if (res.data.success && res.data.data) {
         setGrammarData(res.data.data.grammarPoints || []);
+        setVisibleCount(PAGE_SIZE);
       }
     } catch (error) {
       console.log("Lỗi tải data:", error);
@@ -566,7 +569,7 @@ export default function GrammarViewerScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {grammarData.map((item, index) => (
+            {grammarData.slice(0, visibleCount).map((item, index) => (
               <GrammarCardItem
                 key={item._id || index}
                 item={item}
@@ -575,6 +578,22 @@ export default function GrammarViewerScreen() {
                 onDelete={() => requestDelete(item._id)}
               />
             ))}
+
+            {visibleCount < grammarData.length && (
+              <TouchableOpacity
+                style={[
+                  styles.loadMoreBtn,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.loadMoreText, { color: colors.indigo }]}>
+                  Xem thêm ({grammarData.length - visibleCount} cấu trúc còn lại)
+                </Text>
+                <Feather name="chevron-down" size={20} color={colors.indigo} />
+              </TouchableOpacity>
+            )}
           </ScrollView>
         )}
       </LinearGradient>
@@ -877,5 +896,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     marginLeft: 6,
+  },
+  loadMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 16,
+    marginBottom: 24,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

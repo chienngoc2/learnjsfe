@@ -48,6 +48,23 @@ const JAP_IMAGES = [
   "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200", // Pagoda
 ];
 
+function SkeletonCard({ colors }: { colors: any }) {
+  return (
+    <View style={[styles.deckCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: 0.6, marginHorizontal: 20 }]}>
+      <View style={styles.cardHeaderArea}>
+        <View style={[styles.deckThumbnail, { backgroundColor: colors.border }]} />
+        <View style={styles.deckContent}>
+          <View style={{ height: 16, width: "60%", backgroundColor: colors.border, borderRadius: 4, marginBottom: 8 }} />
+          <View style={{ height: 12, width: "40%", backgroundColor: colors.border, borderRadius: 4, marginBottom: 8 }} />
+          <View style={{ height: 5, backgroundColor: colors.border, borderRadius: 2.5 }} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const PAGE_SIZE = 10;
+
 export default function ShowKanjiScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
@@ -56,6 +73,7 @@ export default function ShowKanjiScreen() {
   const [unnamedCount, setUnnamedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // TOAST
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -73,6 +91,7 @@ export default function ShowKanjiScreen() {
   const fetchGroups = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
+    setVisibleCount(PAGE_SIZE);
     try {
       const res = await api.get("/api/kanji/groups");
       if (res.data.success) {
@@ -150,12 +169,12 @@ export default function ShowKanjiScreen() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <Header title="📖 Học Kanji" />
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" color={colors.indigo} />
-          <Text style={[styles.loadingText, { color: colors.textMuted }]}>
-            Đang tải danh sách bài học...
-          </Text>
-        </View>
+        <ScrollView style={{ flex: 1, paddingTop: 20 }} showsVerticalScrollIndicator={false}>
+          <SkeletonCard colors={colors} />
+          <SkeletonCard colors={colors} />
+          <SkeletonCard colors={colors} />
+          <SkeletonCard colors={colors} />
+        </ScrollView>
       </View>
     );
   }
@@ -227,7 +246,7 @@ export default function ShowKanjiScreen() {
           </View>
         ) : (
           <>
-            {groups.map((group, idx) => {
+            {groups.slice(0, visibleCount).map((group, idx) => {
               const thumbnail = JAP_IMAGES[idx % JAP_IMAGES.length];
               const progressPercentage = Math.min(100, Math.round((6 / (group.count || 6)) * 100)) || 50; // Mock progress based on counts
 
@@ -343,6 +362,23 @@ export default function ShowKanjiScreen() {
                 </TouchableOpacity>
               );
             })}
+
+            {/* XEM THÊM BUTTON */}
+            {visibleCount < groups.length && (
+              <TouchableOpacity
+                style={[
+                  styles.loadMoreBtn,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.loadMoreText, { color: colors.indigo }]}>
+                  Xem thêm ({groups.length - visibleCount} bài học còn lại)
+                </Text>
+                <MaterialIcons name="keyboard-arrow-down" size={20} color={colors.indigo} />
+              </TouchableOpacity>
+            )}
 
             {/* BÀI HỌC CHƯA XẾP NHÓM */}
             {unnamedCount > 0 && (
@@ -608,5 +644,29 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+  },
+  loadMoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.02,
+        shadowRadius: 4,
+      },
+      android: { elevation: 1 },
+    }),
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

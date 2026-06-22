@@ -1,38 +1,63 @@
 // src/constants/colors.ts
+// Design System — Modern Indigo / Clean Blue (Concept Mockup)
 
 export const themes = {
   light: {
-    background: "#f5edd6",      // Nền chính giấy Parchment cổ xưa
-    surface: "#fffdf8",         // Nền thẻ trang sách sạch
-    text: "#2b1d0f",            // Chữ nâu mực cổ
-    textMuted: "#6e5c4a",       // Chữ nâu nhạt
-    border: "#dcd2b8",          // Viền nhạt màu giấy
-    
-    // Màu nhấn Burnished Gold & Crimson
-    indigo: "#b0822e",          // Vàng kim cổ xưa (Primary)
-    indigoLight: "#f9f4e8",
-    amber: "#991b1b",           // Đỏ son niêm phong (Secondary)
-    amberLight: "#fdebeb",
-    purple: "#7C5CFF",          // Tím linh thảo
-    blue: "#4DA8FF",            // Xanh thủy triều
-    error: "#b91c1c",
+    background: "#F0F2F8",            // Nền chính — xanh bạc nhạt
+    surface: "#FFFFFF",                // Nền card — trắng tinh
+    surfaceAlt: "#F7F9FC",            // Nền card phụ nhạt hơn
+    text: "#0F172A",                   // Chữ chính — xanh đen đậm
+    textMuted: "#64748B",              // Chữ phụ — xanh xám
+    border: "rgba(15,23,42,0.08)",    // Viền rất nhẹ
+
+    // Accent: Indigo (single accent, saturation < 80%)
+    indigo: "#4F46E5",                 // Indigo chính
+    indigoLight: "#EEF2FF",            // Indigo tint rất nhạt
+    indigoMid: "#818CF8",              // Indigo mid (gradient)
+
+    // Secondary accents
+    amber: "#F59E0B",                  // Vàng cam (streak / fire)
+    amberLight: "#FEF3C7",
+    purple: "#8B5CF6",                 // Tím (grammar)
+    purpleLight: "#F5F3FF",
+    blue: "#3B82F6",                   // Xanh dương (vocab)
+    blueLight: "#EFF6FF",
+    emerald: "#10B981",                // Xanh lá (success)
+    emeraldLight: "#D1FAE5",
+
+    error: "#EF4444",
     errorLight: "#FEF2F2",
+
+    shadowColor: "#4F46E5",
+    shadowNeutral: "#0F172A",
   },
   dark: {
-    background: "#050814",      // Nền chính Xianxia (Dark Blue-Black)
-    surface: "#0F172A",         // Nền thẻ Slate dark
-    text: "#FFFFFF",            // Chữ trắng tinh anh
-    textMuted: "#94A3B8",       // Chữ xám mờ
-    border: "#1E293B",          // Viền mờ
-    
-    // Màu nhấn Kyoto Gold & Accent Purple/Blue
-    indigo: "#F5C76B",          // Vàng kim Kyoto chính tông (Primary Gold)
-    indigoLight: "#1E1E2F",     // Nền mờ hoặc nền tím mờ
-    amber: "#FFE8A3",           // Vàng kim nhạt (Secondary Gold)
-    amberLight: "#161D30",
-    purple: "#7C5CFF",          // Tím linh thảo
-    blue: "#4DA8FF",            // Xanh thủy triều
-    error: "#EF4444",
+    background: "#080C18",             // Nền OLED — navy đen sâu
+    surface: "#111827",                // Nền card — navy tối
+    surfaceAlt: "#1A2235",             // Nền card phụ
+    text: "#F1F5F9",                   // Chữ chính — trắng kem
+    textMuted: "#64748B",              // Chữ phụ — xám trung
+    border: "rgba(241,245,249,0.08)", // Viền rất nhẹ
+
+    // Accent: Indigo (sáng hơn cho dark mode readability)
+    indigo: "#818CF8",                 // Indigo sáng
+    indigoLight: "#1E1B4B",            // Indigo tint tối
+    indigoMid: "#4F46E5",              // Indigo mid
+
+    // Secondary accents
+    amber: "#FBBF24",
+    amberLight: "#1C1508",
+    purple: "#A78BFA",
+    purpleLight: "#1E1535",
+    blue: "#60A5FA",
+    blueLight: "#0C1A2E",
+    emerald: "#34D399",
+    emeraldLight: "#052E16",
+
+    error: "#F87171",
     errorLight: "#450A0A",
-  }
+
+    shadowColor: "#818CF8",
+    shadowNeutral: "#000000",
+  },
 };
