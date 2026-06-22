@@ -261,7 +261,7 @@ function GrammarCardItem({
                   { backgroundColor: colors.indigoLight, borderColor: colors.indigo }
                 ]} 
                 onPress={() => router.push({
-                  pathname: "/study/practice-grammar",
+                  pathname: "/luyen-tap/grammar",
                   params: { topicTitle: item.belongingTopic || title }
                 } as any)}
               >
@@ -275,7 +275,7 @@ function GrammarCardItem({
                   { backgroundColor: isDark ? "rgba(245, 158, 11, 0.12)" : "#FEF3C7", borderColor: colors.amber }
                 ]} 
                 onPress={() => router.push({
-                  pathname: "/study/practice-grammar",
+                  pathname: "/luyen-tap/grammar",
                   params: { title: item.title }
                 } as any)}
               >
@@ -290,7 +290,7 @@ function GrammarCardItem({
                 { backgroundColor: isDark ? "rgba(16, 185, 129, 0.12)" : "#ECFDF5", borderColor: "#10B981" }
               ]} 
               onPress={() => router.push({
-                pathname: "/study/practice-quiz",
+                pathname: "/luyen-tap/quiz",
                 params: { topicId: topicId }
               } as any)}
             >

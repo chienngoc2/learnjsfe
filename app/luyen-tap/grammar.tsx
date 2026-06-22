@@ -1,4 +1,4 @@
-// File: app/study/practice-grammar.tsx
+// File: app/luyen-tap/grammar.tsx
 
 import React, { useState, useEffect } from "react";
 import {

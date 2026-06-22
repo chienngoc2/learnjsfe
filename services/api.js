@@ -12,15 +12,22 @@ const api = axios.create({
   },
 });
 
-// Attach JWT token from AsyncStorage to every outgoing request
+// Attach JWT token from AsyncStorage to every outgoing request and apply dynamic apiBase url override
 api.interceptors.request.use(async (config) => {
   try {
     const token = await AsyncStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    const savedApiBase = await AsyncStorage.getItem("apiBase");
+    if (savedApiBase) {
+      config.baseURL = savedApiBase;
+    } else {
+      config.baseURL = BASE_URL;
+    }
   } catch (error) {
-    console.error("Lỗi lấy token từ AsyncStorage:", error);
+    console.error("Lỗi lấy token/cấu hình từ AsyncStorage:", error);
   }
   return config;
 }, (error) => {

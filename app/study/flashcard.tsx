@@ -237,7 +237,7 @@ export default function TopicListScreen() {
                   ]}
                   onPress={() =>
                     router.push({
-                      pathname: "/study/practice-typing",
+                      pathname: "/luyen-tap/typing",
                       params: { topicId: item._id, title: item.title },
                     })
                   }

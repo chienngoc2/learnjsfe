@@ -24,7 +24,7 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen
-            name="study/practice-typing"
+            name="luyen-tap/typing"
             options={{
               headerShown: false, // Nút back cho iOS
             }}
@@ -36,19 +36,25 @@ export default function RootLayout() {
             }}
           />
           <Stack.Screen
-            name="study/practice-quiz"
+            name="luyen-tap/quiz"
             options={{
               headerShown: false,
             }}
           />
           <Stack.Screen
-            name="study/practice-conjugation"
+            name="luyen-tap/conjugation"
             options={{
               headerShown: false,
             }}
           />
           <Stack.Screen
-            name="study/practice-grammar"
+            name="luyen-tap/grammar"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="luyen-tap/vocab-match"
             options={{
               headerShown: false,
             }}

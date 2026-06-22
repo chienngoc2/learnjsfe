@@ -60,7 +60,7 @@ export default function StudyMenuScreen() {
       desc: "Làm bài tập trắc nghiệm & Đánh giá năng lực",
       icon: "psychology",
       color: isDark ? "#C084FC" : "#A855F7", // Tím mộng mơ
-      route: "/study/practice-grammar",
+      route: "/luyen-tap/grammar",
     },
     {
       id: "grammar_match",
@@ -68,7 +68,15 @@ export default function StudyMenuScreen() {
       desc: "Ghép ví dụ ngữ pháp Nhật - Việt để tăng tu vi",
       icon: "extension",
       color: isDark ? "#F472B6" : "#EC4899", // Hồng tươi tắn
-      route: "/study/practice-grammar",
+      route: "/luyen-tap/grammar",
+    },
+    {
+      id: "vocab_match",
+      title: "Game Ghép Từ",
+      desc: "Ghép cặp từ vựng Nhật - Việt để tăng tu vi",
+      icon: "layers",
+      color: isDark ? "#38BDF8" : "#0284C7", // Xanh da trời
+      route: "/luyen-tap/vocab-match",
     },
     // 🚀 TÍNH NĂNG MỚI: TRA CỨU KANJI HOẠT HỌA NÉT VẼ
     {
@@ -77,7 +85,7 @@ export default function StudyMenuScreen() {
       desc: "Xem âm Hán Việt, ví dụ mẫu & múa nét vẽ động",
       icon: "font-download",
       color: isDark ? "#FBBF24" : "#F59E0B",
-      route: "/study/KanjiSearchScreen",
+      route: "/study/kanji-search",
     },
     // 🆕 THÊM KANJI VÀO KHO
     {

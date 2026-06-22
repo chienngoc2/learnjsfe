@@ -243,22 +243,24 @@ export default function ChatScreen() {
           const { tab, game, mode, listId, topicTitle } = response.data.navigation;
           setTimeout(() => {
             if (tab === "match") {
-              // Trên mobile, Game Center tương ứng với các màn hình luyện tập trong thư mục study
+              // Trên mobile, Game Center tương ứng với các màn hình luyện tập trong thư mục luyen-tap
               if (game === "grammar_match") {
-                router.push({ pathname: "/study/practice-grammar", params: { topicTitle } } as any);
+                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
+              } else if (game === "vocab_match" || game === "match" || game === "memory") {
+                router.push({ pathname: "/luyen-tap/vocab-match", params: { topicId: listId } } as any);
               } else if (game === "tower") {
-                router.push({ pathname: "/study/practice-quiz", params: { topicId: listId } } as any);
+                router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
               } else if (game === "missing") {
-                router.push({ pathname: "/study/practice-typing", params: { topicId: listId } } as any);
+                router.push({ pathname: "/luyen-tap/typing", params: { topicId: listId } } as any);
               } else {
-                router.push({ pathname: "/study/practice-conjugation", params: { topicId: listId } } as any);
+                router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
               }
             } else if (tab === "vocab") {
               // Màn hình học tập (vocab) trên mobile
               router.push("/vocab" as any);
             } else if (tab === "grammar") {
-              // Ngữ pháp trên mobile nằm trong practice-grammar (danh sách menu)
-              router.push({ pathname: "/study/practice-grammar", params: { topicTitle } } as any);
+              // Ngữ pháp trên mobile nằm trong luyen-tap/grammar (danh sách menu)
+              router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
             } else if (tab === "flashcards" || tab === "study") {
               if (listId) {
                 router.push({ pathname: "/study/card-viewer", params: { topicId: listId } } as any);
@@ -267,9 +269,9 @@ export default function ChatScreen() {
               }
             } else if (tab === "quiz") {
               if (mode === "grammar") {
-                router.push({ pathname: "/study/practice-grammar", params: { topicTitle } } as any);
+                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
               } else {
-                router.push({ pathname: "/study/practice-quiz", params: { topicId: listId } } as any);
+                router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
               }
             } else if (tab === "overview") {
               router.push("/" as any);
