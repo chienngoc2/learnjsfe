@@ -30,6 +30,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { LinearGradient } from "expo-linear-gradient";
+import { useIsFocused } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 
@@ -62,7 +63,19 @@ export default function DashboardScreen() {
     completeQuestDirectly,
   } = useCultivationStore();
 
-  const [username, setUsername] = useState("Sếp");
+  const [username, setUsername] = useState("Học viên");
+  const isFocused = useIsFocused();
+  const [avatarUser, setAvatarUser] = useState("");
+
+  useEffect(() => {
+    if (isFocused) {
+      AsyncStorage.getItem("avatar_user").then((au) => {
+        if (au) setAvatarUser(au);
+        else setAvatarUser("");
+      });
+    }
+  }, [isFocused]);
+
   const [vocabCount, setVocabCount] = useState(0);
   const [kanjiCount, setKanjiCount] = useState(0);
   const [grammarCount, setGrammarCount] = useState(0);
@@ -157,6 +170,21 @@ export default function DashboardScreen() {
     router.replace("/login" as any);
   };
 
+  const mapTitle = (title: string) => {
+    if (title === 'Đệ Tử Ngoại Môn') return 'Học viên Sơ cấp';
+    if (title === 'Tu Tiên Giả') return 'Học viên Trung cấp';
+    if (title === 'Kim Đan Chân Nhân') return 'Học viên Cao cấp';
+    return title || 'Học viên';
+  };
+
+  const getJpLevelStr = (lv: number) => {
+    if (lv >= 41) return "Cao cấp N1";
+    if (lv >= 31) return "Trung-Cao cấp N2";
+    if (lv >= 21) return "Trung cấp N3";
+    if (lv >= 11) return "Sơ-Trung cấp N4";
+    return "Sơ cấp N5";
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
@@ -188,13 +216,13 @@ export default function DashboardScreen() {
           <View style={styles.headerLeft}>
             <View style={[styles.avatarWrap, { borderColor: accentColor + "40" }]}>
               <Image
-                source={{ uri: "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username }}
+                source={{ uri: avatarUser || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username }}
                 style={styles.avatar}
               />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[styles.greetText, { color: colors.textMuted }]}>
-                Xin chào, {currentTitle ? `【${currentTitle}】` : ""}
+                Xin chào, {currentTitle ? `【${mapTitle(currentTitle)}】` : ""}
               </Text>
               <Text style={[styles.greetName, { color: colors.text }]}>
                 {username} 👋
@@ -239,7 +267,7 @@ export default function DashboardScreen() {
               <Text style={styles.progressLabel}>Tiến độ hôm nay</Text>
               <Text style={styles.progressPercent}>{tuViPercent}%</Text>
               <Text style={styles.progressSub}>
-                Mục tiêu: {tuVi} / {maxTuVi} Linh Khí
+                Mục tiêu: {tuVi} / {maxTuVi} XP
               </Text>
 
               <View style={styles.progressBarBg}>
@@ -247,7 +275,7 @@ export default function DashboardScreen() {
               </View>
 
               <Text style={styles.progressStage}>
-                {stage} · Cấp {level}
+                {getJpLevelStr(level)} · Cấp {level}
               </Text>
             </View>
 
@@ -415,7 +443,7 @@ export default function DashboardScreen() {
 
               <View style={[styles.questRewardBadge, { backgroundColor: quest.completed ? colors.emeraldLight : colors.indigoLight }]}>
                 <Text style={[styles.questRewardText, { color: quest.completed ? colors.emerald : accentColor }]}>
-                  +{quest.rewardTuVi}
+                  +{quest.rewardTuVi} XP
                 </Text>
               </View>
             </TouchableOpacity>

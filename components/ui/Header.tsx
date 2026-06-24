@@ -32,7 +32,7 @@ export default function Header({ title, rightAction }: HeaderProps) {
         <MaterialIcons
           name="arrow-back-ios"
           size={20}
-          color={colors.amber}
+          color={colors.indigo}
           style={{ marginLeft: 6 }}
         />
       </Pressable>

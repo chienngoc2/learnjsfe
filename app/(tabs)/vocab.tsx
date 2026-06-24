@@ -104,7 +104,7 @@ export default function StudyMenuScreen() {
         {
           id: "match_vocab",
           title: "Game Ghép Từ vựng",
-          desc: "Phá giải trận pháp ghép cặp từ vựng Nhật - Việt để tăng tu vi",
+          desc: "Ghép cặp từ vựng Nhật - Việt để tích lũy kinh nghiệm học tập",
           icon: "layers",
           color: colors.blue,
           lightColor: colors.blueLight,
@@ -179,7 +179,7 @@ export default function StudyMenuScreen() {
               Khu vực Học tập 👋
             </Text>
             <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-              Chọn kỹ năng sếp muốn cày hôm nay
+              Chọn kỹ năng bạn muốn học hôm nay
             </Text>
           </View>
 

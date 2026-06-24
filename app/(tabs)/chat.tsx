@@ -24,7 +24,9 @@ import Animated, {
   withTiming,
   withSequence,
   interpolate,
+  FadeInDown,
 } from "react-native-reanimated";
+import { useIsFocused } from "@react-navigation/native";
 
 // IMPORT COMPONENT UI & STORE
 import ChatBubble from "@/components/ui/vocal/chat/ChatBubble";
@@ -37,6 +39,28 @@ export default function ChatScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
+  const isFocused = useIsFocused();
+  const [username, setUsername] = useState("Học viên");
+  const [avatarUser, setAvatarUser] = useState("");
+  const [avatarBot, setAvatarBot] = useState("");
+
+  useEffect(() => {
+    if (isFocused) {
+      (async () => {
+        const userStr = await AsyncStorage.getItem("user");
+        if (userStr) {
+          try {
+            const userObj = JSON.parse(userStr);
+            if (userObj?.username) setUsername(userObj.username);
+          } catch (e) {}
+        }
+        const au = await AsyncStorage.getItem("avatar_user");
+        const ab = await AsyncStorage.getItem("avatar_bot");
+        if (au) setAvatarUser(au);
+        if (ab) setAvatarBot(ab);
+      })();
+    }
+  }, [isFocused]);
   const [loading, setLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -258,6 +282,7 @@ export default function ChatScreen() {
           id: (Date.now() + 1).toString(),
           text: response.data.reply,
           role: "bot",
+          navigation: response.data.navigation, // Lưu lại metadata điều hướng để hiện nút bấm ngữ cảnh
         };
         setMessages((prev) => [...prev, botMsg]);
 
@@ -267,12 +292,18 @@ export default function ChatScreen() {
           addTokens(prompt, completion);
         }
 
-        // --- XỬ LÝ ĐIỀU HƯỚNG TỰ ĐỘNG BẰNG AI TRÊN MOBILE ---
+        // --- XỬ LÝ ĐIỀU HƯỚNG TỰ ĐỘNG SAU KHI NÓI XONG ---
+        let audioPromise = Promise.resolve();
+        if (response.data.audioSegments && response.data.audioSegments.length > 0) {
+          if (voiceChatMode) setVoiceChatStatus("speaking");
+          audioPromise = playAudioSegments(response.data.audioSegments);
+        }
+
         if (response.data.navigation) {
-          const { tab, game, mode, listId, topicTitle } = response.data.navigation;
-          setTimeout(() => {
+          const nav = response.data.navigation;
+          const executeNavigation = () => {
+            const { tab, game, mode, listId, topicTitle } = nav;
             if (tab === "match") {
-              // Trên mobile, Game Center tương ứng với các màn hình luyện tập trong thư mục luyen-tap
               if (game === "grammar_match") {
                 router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "match" } } as any);
               } else if (game === "vocab_match" || game === "match" || game === "memory") {
@@ -285,19 +316,14 @@ export default function ChatScreen() {
                 router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
               }
             } else if (tab === "add-grammar") {
-              // Trang thêm ngữ pháp
               router.push("/study/add-grammar" as any);
             } else if (tab === "grammar-viewer") {
-              // Trang xem thư viện ngữ pháp
               router.push("/study/grammar-viewer" as any);
             } else if (tab === "add-vocab") {
-              // Trang thêm từ vựng
               router.push("/study/add-vocab" as any);
             } else if (tab === "vocab") {
-              // Màn hình học tập (vocab) trên mobile
               router.push("/vocab" as any);
             } else if (tab === "grammar") {
-              // Ngữ pháp trên mobile nằm trong luyen-tap/grammar (danh sách menu)
               router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
             } else if (tab === "flashcards" || tab === "study") {
               if (listId) {
@@ -320,12 +346,13 @@ export default function ChatScreen() {
             } else {
               router.push(`/${tab}` as any);
             }
-          }, 1500); // Trễ 1.5s để học viên đọc xong phản hồi của AI
-        }
+          };
 
-        if (response.data.audioSegments) {
-          if (voiceChatMode) setVoiceChatStatus("speaking");
-          await playAudioSegments(response.data.audioSegments);
+          // Chờ âm thanh chạy xong, sau đó trễ một chút mới chuyển trang
+          await audioPromise;
+          setTimeout(executeNavigation, response.data.audioSegments?.length > 0 ? 1000 : 2000);
+        } else {
+          await audioPromise;
         }
       }
     } catch (err) {
@@ -371,20 +398,20 @@ export default function ChatScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title="Truyền Tin Điện" />
+      <Header title="Trò chuyện AI" />
 
-      {/* SENSEI AVATAR HEADER CARD */}
+      {/* SHIBA AI SENSEI AVATAR HEADER CARD */}
       <View style={[styles.masterCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Image
-          source={require("../../assets/images/ai_master.png")}
+          source={{ uri: avatarBot || "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=300" }}
           style={[styles.masterAvatar, { borderColor: colors.indigo }]}
         />
         <View style={styles.masterInfo}>
-          <Text style={[styles.masterName, { color: colors.text }]}>Khương Tử Nha (AI Sensei)</Text>
-          <Text style={[styles.masterTitle, { color: colors.indigo }]}>【 Hóa Thần Cảnh Linh Anh 】</Text>
+          <Text style={[styles.masterName, { color: colors.text }]}>Shiba (AI Sensei)</Text>
+          <Text style={[styles.masterTitle, { color: colors.indigo }]}>【 Trợ lý tiếng Nhật 】</Text>
           <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: colors.blue }]} />
-            <Text style={[styles.statusText, { color: colors.textMuted }]}>Tĩnh tọa truyền pháp</Text>
+            <View style={[styles.statusDot, { backgroundColor: "#10B981" }]} />
+            <Text style={[styles.statusText, { color: colors.textMuted }]}>Đang hoạt động</Text>
           </View>
         </View>
       </View>
@@ -392,7 +419,7 @@ export default function ChatScreen() {
       {/* CONTROL BAR */}
       <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Text style={[styles.tokenText, { color: colors.textMuted }]}>
-          Linh lực tiêu hao: <Text style={{ fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Rep: {tokensUsed.completion})
+          Token tiêu thụ: <Text style={{ fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Rep: {tokensUsed.completion})
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           {isPlayingVoice && (
@@ -426,85 +453,109 @@ export default function ChatScreen() {
               ref={flatListRef}
               data={messages}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <ChatBubble message={item.text} role={item.role === "user" ? "user" : "bot"} />
-              )}
+              renderItem={({ item }) => {
+                const isBot = item.role === "bot";
+                const nav = item.navigation;
+
+                const getNavLabel = (navData: any) => {
+                  const { tab, game, mode } = navData;
+                  if (tab === "match") {
+                    if (game === "grammar_match") return "Ghép Ngữ Pháp 📚";
+                    if (game === "vocab_match" || game === "match" || game === "memory") return "Ghép Từ Vựng 🎮";
+                    if (game === "tower") return "Trắc Nghiệm ⚡";
+                    if (game === "missing") return "Luyện Gõ Chữ ✍️";
+                    return "Chia Động Từ 🔄";
+                  }
+                  if (tab === "add-grammar") return "Thêm Ngữ Pháp ➕";
+                  if (tab === "grammar-viewer") return "Xem Ngữ Pháp 📖";
+                  if (tab === "add-vocab") return "Thêm Từ Vựng ➕";
+                  if (tab === "vocab") return "Học Từ Vựng 🎴";
+                  if (tab === "grammar") return "Học Ngữ Pháp 📚";
+                  if (tab === "flashcards" || tab === "study") return "Xem thẻ Flashcard 🎴";
+                  if (tab === "quiz") {
+                    if (mode === "grammar") return "Luyện dịch Ngữ pháp ✍️";
+                    return "Trắc Nghiệm ⚡";
+                  }
+                  if (tab === "write") return "Tập viết Kanji ✍️";
+                  if (tab === "overview") return "Về Trang Chủ 🏠";
+                  if (tab === "statistics" || tab === "profile" || tab === "achievements") return "Xem Cá Nhân 👤";
+                  return "Đi đến trang ➔";
+                };
+
+                const handleNavPress = (navData: any) => {
+                  const { tab, game, mode, listId, topicTitle } = navData;
+                  if (tab === "match") {
+                    if (game === "grammar_match") {
+                      router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "match" } } as any);
+                    } else if (game === "vocab_match" || game === "match" || game === "memory") {
+                      router.push({ pathname: "/luyen-tap/vocab-match", params: { topicId: listId } } as any);
+                    } else if (game === "tower") {
+                      router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
+                    } else if (game === "missing") {
+                      router.push({ pathname: "/luyen-tap/typing", params: { topicId: listId } } as any);
+                    } else {
+                      router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
+                    }
+                  } else if (tab === "add-grammar") {
+                    router.push("/study/add-grammar" as any);
+                  } else if (tab === "grammar-viewer") {
+                    router.push("/study/grammar-viewer" as any);
+                  } else if (tab === "add-vocab") {
+                    router.push("/study/add-vocab" as any);
+                  } else if (tab === "vocab") {
+                    router.push("/vocab" as any);
+                  } else if (tab === "grammar") {
+                    router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
+                  } else if (tab === "flashcards" || tab === "study") {
+                    if (listId) {
+                      router.push({ pathname: "/study/card-viewer", params: { topicId: listId } } as any);
+                    } else {
+                      router.push("/study/flashcard" as any);
+                    }
+                  } else if (tab === "quiz") {
+                    if (mode === "grammar") {
+                      router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "ai_translation" } } as any);
+                    } else {
+                      router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
+                    }
+                  } else if (tab === "write") {
+                    router.push("/study/add-kanji" as any);
+                  } else if (tab === "overview") {
+                    router.push("/" as any);
+                  } else if (tab === "statistics" || tab === "profile" || tab === "achievements") {
+                    router.push("/profile" as any);
+                  } else {
+                    router.push(`/${tab}` as any);
+                  }
+                };
+
+                return (
+                  <View style={{ marginBottom: 12 }}>
+                    <ChatBubble message={item.text} role={item.role === "user" ? "user" : "bot"} />
+                    {isBot && nav && (
+                      <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.contextNavContainer}>
+                        <TouchableOpacity
+                          style={[styles.contextNavBtn, { backgroundColor: colors.indigoLight, borderColor: colors.indigo }]}
+                          onPress={() => handleNavPress(nav)}
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="navigate-circle-outline" size={16} color={colors.indigo} />
+                          <Text style={[styles.contextNavText, { color: colors.indigo }]}>
+                            {getNavLabel(nav)}
+                          </Text>
+                          <MaterialIcons name="chevron-right" size={14} color={colors.indigo} />
+                        </TouchableOpacity>
+                      </Animated.View>
+                    )}
+                  </View>
+                );
+              }}
               style={{ flex: 1 }}
               contentContainerStyle={{ padding: 15, paddingBottom: 30 }}
               onContentSizeChange={() =>
                 flatListRef.current?.scrollToEnd({ animated: true })
               }
             />
-          </View>
-
-          {/* 🚀 QUICK NAVIGATION SHORTCUT BUTTONS */}
-          <View style={[styles.navShortcutsContainer, { borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }]}>
-            <Text style={[styles.navShortcutsTitle, { color: colors.textMuted }]}>Pháp Trận Dịch Chuyển (Chuyển trang nhanh):</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navShortcutsScroll}>
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/luyen-tap/grammar")}
-              >
-                <Ionicons name="journal-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Ghép Ngữ Pháp 📚</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/luyen-tap/vocab-match")}
-              >
-                <Ionicons name="grid-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Ghép Từ Vựng 🎮</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/luyen-tap/quiz")}
-              >
-                <Ionicons name="help-circle-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Trắc Nghiệm ⚡</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/luyen-tap/typing")}
-              >
-                <Ionicons name="create-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Luyện Gõ Chữ ✍️</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/luyen-tap/conjugation")}
-              >
-                <Ionicons name="git-branch-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Chia Động Từ 🔄</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/study/flashcard")}
-              >
-                <Ionicons name="albums-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Học Flashcard 🎴</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/profile")}
-              >
-                <Ionicons name="person-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Cá Nhân 👤</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.shortcutBtn, { borderColor: colors.indigo, backgroundColor: colors.indigoLight }]}
-                onPress={() => router.push("/")}
-              >
-                <Ionicons name="home-outline" size={13} color={colors.indigo} />
-                <Text style={[styles.shortcutBtnText, { color: colors.indigo }]}>Trang Chủ 🏠</Text>
-              </TouchableOpacity>
-            </ScrollView>
           </View>
 
           <ChatInput
@@ -598,7 +649,7 @@ export default function ChatScreen() {
           )}
 
           <TouchableOpacity onPress={toggleVoiceMode} style={[styles.exitVoiceBtn, { borderColor: colors.border }]} activeOpacity={0.7}>
-            <Text style={{ color: colors.textMuted, fontWeight: "600", fontSize: 13 }}>Quay lại giao diện truyền tin</Text>
+            <Text style={{ color: colors.textMuted, fontWeight: "600", fontSize: 13 }}>Quay lại giao diện chat</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -686,6 +737,25 @@ const styles = StyleSheet.create({
     // Adds a subtle background look for a scroll parchment atmosphere
     backgroundColor: "transparent",
   },
+  contextNavContainer: {
+    alignSelf: "flex-start",
+    marginLeft: 15,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  contextNavBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+  },
+  contextNavText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   voiceOverlay: {
     flex: 1,
     alignItems: "center",
@@ -762,35 +832,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#EF4444",
-  },
-  navShortcutsContainer: {
-    paddingVertical: 10,
-  },
-  navShortcutsTitle: {
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    paddingHorizontal: 16,
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  navShortcutsScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  shortcutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 4,
-  },
-  shortcutBtnText: {
-    fontSize: 12,
-    fontWeight: "700",
   },
 });

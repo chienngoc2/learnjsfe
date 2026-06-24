@@ -6,62 +6,32 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <Stack>
-          {/* 0. Màn hình đăng nhập */}
-          <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "fade_from_bottom", // Hiệu ứng chuyển trang mượt mà từ dưới lên
+          }}
+        >
+          {/* Đăng nhập */}
+          <Stack.Screen name="login" />
 
-          {/* 1. Màn hình chứa 3 cái Tabs (Trang chủ, Chat, Học tập) */}
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          {/* Bottom Tabs */}
+          <Stack.Screen name="(tabs)" />
 
-          {/* 2. Màn hình chọn bài học (Flashcard) */}
-          <Stack.Screen name="study/flashcard" options={{ headerShown: false }} />
+          {/* Học tập & Thẻ Flashcard */}
+          <Stack.Screen name="study/flashcard" />
+          <Stack.Screen name="study/card-viewer" />
+          <Stack.Screen name="study/add-vocab" />
+          <Stack.Screen name="study/custom-images" />
 
-          {/* 3. Màn hình chi tiết lật thẻ (Card Viewer) - ĐỂ Ở ĐÂY MỚI CHUẨN */}
-          <Stack.Screen
-            name="study/card-viewer"
-            options={{
-              headerShown: false, // Nút back cho iOS
-            }}
-          />
-          <Stack.Screen
-            name="luyen-tap/typing"
-            options={{
-              headerShown: false, // Nút back cho iOS
-            }}
-          />
-          <Stack.Screen
-            name="study/add-vocab"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="luyen-tap/quiz"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="luyen-tap/conjugation"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="luyen-tap/grammar"
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="luyen-tap/vocab-match"
-            options={{
-              headerShown: false,
-            }}
-          />
+          {/* Luyện tập & Mini Games */}
+          <Stack.Screen name="luyen-tap/typing" />
+          <Stack.Screen name="luyen-tap/quiz" />
+          <Stack.Screen name="luyen-tap/conjugation" />
+          <Stack.Screen name="luyen-tap/grammar" />
+          <Stack.Screen name="luyen-tap/vocab-match" />
         </Stack>
       </ThemeProvider>
     </SafeAreaProvider>
   );
 }
-

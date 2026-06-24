@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   Switch,
+  Image,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -16,6 +17,7 @@ import { useRouter, Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCultivationStore } from "../../store/useCultivationStore";
+import { useIsFocused } from "@react-navigation/native";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -37,31 +39,55 @@ export default function ProfileScreen() {
   const maxTuVi = level * 100 + 500;
   const tuViPercentage = Math.min(100, Math.round((tuVi / maxTuVi) * 100));
 
-  const [username, setUsername] = useState("Tu Sĩ Nhật Ngữ");
+  const [username, setUsername] = useState("Học viên");
   const [apiUrl, setApiUrl] = useState("http://localhost:5000");
+  const isFocused = useIsFocused();
+  const [avatarUser, setAvatarUser] = useState("");
+
+  const mapTitle = (title: string) => {
+    if (title === 'Đệ Tử Ngoại Môn') return 'Học viên Sơ cấp';
+    if (title === 'Tu Tiên Giả') return 'Học viên Trung cấp';
+    if (title === 'Kim Đan Chân Nhân') return 'Học viên Cao cấp';
+    return title || 'Học viên';
+  };
+
+  const getJpLevelStr = (lv: number) => {
+    if (lv >= 41) return "Cao cấp N1";
+    if (lv >= 31) return "Trung-Cao cấp N2";
+    if (lv >= 21) return "Trung cấp N3";
+    if (lv >= 11) return "Sơ-Trung cấp N4";
+    return "Sơ cấp N5";
+  };
 
   useEffect(() => {
-    (async () => {
-      // Load user info
-      const userStr = await AsyncStorage.getItem("user");
-      if (userStr) {
-        try {
-          const userObj = JSON.parse(userStr);
-          if (userObj && userObj.username) {
-            setUsername(userObj.username);
+    if (isFocused) {
+      (async () => {
+        // Load user info
+        const userStr = await AsyncStorage.getItem("user");
+        if (userStr) {
+          try {
+            const userObj = JSON.parse(userStr);
+            if (userObj && userObj.username) {
+              setUsername(userObj.username);
+            }
+          } catch (e) {
+            console.error("Lỗi parse user info:", e);
           }
-        } catch (e) {
-          console.error("Lỗi parse user info:", e);
         }
-      }
 
-      // Load dynamic apiBase configuration
-      const savedApiBase = await AsyncStorage.getItem("apiBase");
-      if (savedApiBase) {
-        setApiUrl(savedApiBase);
-      }
-    })();
-  }, []);
+        // Load avatars
+        const au = await AsyncStorage.getItem("avatar_user");
+        if (au) setAvatarUser(au);
+        else setAvatarUser("");
+
+        // Load dynamic apiBase configuration
+        const savedApiBase = await AsyncStorage.getItem("apiBase");
+        if (savedApiBase) {
+          setApiUrl(savedApiBase);
+        }
+      })();
+    }
+  }, [isFocused]);
 
   const handleSaveApi = async () => {
     if (!apiUrl.trim()) {
@@ -74,12 +100,12 @@ export default function ProfileScreen() {
 
   const handleLogout = () => {
     Alert.alert(
-      "Đóng Cửa Tu Luyện",
-      "Sếp có chắc chắn muốn xuất quan (đăng xuất) không?",
+      "Đăng Xuất",
+      "Bạn có chắc chắn muốn đăng xuất không?",
       [
         { text: "Hủy", style: "cancel" },
         {
-          text: "Xuất Quan",
+          text: "Đăng Xuất",
           style: "destructive",
           onPress: async () => {
             await AsyncStorage.removeItem("token");
@@ -94,16 +120,16 @@ export default function ProfileScreen() {
   const handleResetData = () => {
     Alert.alert(
       "CẢNH BÁO NGUY HIỂM",
-      "Hành động này sẽ xóa sạch linh khí tích lũy (clear storage) và thiết lập lại hệ thống. Tiếp tục?",
+      "Hành động này sẽ xóa sạch kinh nghiệm tích lũy (clear storage) và thiết lập lại hệ thống. Tiếp tục?",
       [
         { text: "Hủy", style: "cancel" },
         {
-          text: "Hóa Cát Bụi",
+          text: "Đặt lại",
           style: "destructive",
           onPress: async () => {
             await AsyncStorage.clear();
             clearTokens();
-            Alert.alert("Đã reset", "Linh lực đã về không. Vui lòng khởi động lại app.");
+            Alert.alert("Đã reset", "Tiến trình học tập đã được đặt lại thành công.");
             router.replace("/login");
           },
         },
@@ -123,32 +149,33 @@ export default function ProfileScreen() {
 
       {/* Profile Header Card */}
       <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={[styles.avatarCircle, { backgroundColor: colors.indigo + "15", borderColor: colors.indigo }]}>
-          <Text style={[styles.avatarText, { color: colors.indigo }]}>
-            {username.substring(0, 2).toUpperCase()}
-          </Text>
+        <View style={[styles.avatarCircle, { borderColor: colors.indigo, padding: 2 }]}>
+          <Image
+            source={{ uri: avatarUser || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username }}
+            style={{ width: "100%", height: "100%", borderRadius: 28 }}
+          />
         </View>
 
         <View style={styles.profileTextContainer}>
           <Text style={[styles.usernameText, { color: colors.text }]}>{username}</Text>
           <Text style={[styles.titleTag, { backgroundColor: colors.indigo + "20", color: colors.indigo }]}>
-            {currentTitle || "Tu Tiên Giả"}
+            {mapTitle(currentTitle)}
           </Text>
-          <Text style={[styles.stageText, { color: colors.textMuted }]}>{stage}</Text>
+          <Text style={[styles.stageText, { color: colors.textMuted }]}>{getJpLevelStr(level)}</Text>
         </View>
       </View>
 
       {/* Cultivation Status Card */}
       <View style={[styles.statsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>ĐẠO HẠNH TIẾN TRÌNH</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>TIẾN ĐỘ HỌC TẬP</Text>
         
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Tu Vi Cấp Độ</Text>
+          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Cấp Độ Hiện Tại</Text>
           <Text style={[styles.statValue, { color: colors.text }]}>Lv.{level}</Text>
         </View>
 
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Linh Khí Tích Lũy</Text>
+          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Kinh Nghiệm Tích Lũy (XP)</Text>
           <Text style={[styles.statValue, { color: colors.indigo }]}>{tuVi} / {maxTuVi}</Text>
         </View>
 
@@ -167,7 +194,7 @@ export default function ProfileScreen() {
         <View style={styles.divider} />
 
         <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Thời Gian Tu Luyện (Streak)</Text>
+          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Chuỗi học liên tục (Streak)</Text>
           <View style={styles.streakBadge}>
             <MaterialIcons name="local-fire-department" size={16} color={colors.amber} />
             <Text style={[styles.streakText, { color: colors.amber }]}>{streak} ngày liên tiếp</Text>
@@ -177,13 +204,13 @@ export default function ProfileScreen() {
 
       {/* System Settings Card */}
       <View style={[styles.cardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>CẤU HÌNH PHÁP TRẬN</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>CÀI ĐẶT HỆ THỐNG</Text>
 
         {/* Toggle Dark Mode */}
         <View style={styles.settingItem}>
           <View style={styles.settingLabelContainer}>
             <MaterialIcons name={isDark ? "brightness-2" : "brightness-5"} size={22} color={colors.textMuted} />
-            <Text style={[styles.settingText, { color: colors.text }]}>U Minh Cảnh (Dark Mode)</Text>
+            <Text style={[styles.settingText, { color: colors.text }]}>Giao diện tối (Dark Mode)</Text>
           </View>
           <Switch
             value={isDark}
@@ -197,7 +224,7 @@ export default function ProfileScreen() {
         <View style={styles.settingItem}>
           <View style={styles.settingLabelContainer}>
             <MaterialIcons name={soundEnabled ? "volume-up" : "volume-off"} size={22} color={colors.textMuted} />
-            <Text style={[styles.settingText, { color: colors.text }]}>Âm Thanh Linh Khí</Text>
+            <Text style={[styles.settingText, { color: colors.text }]}>Âm thanh thông báo</Text>
           </View>
           <Switch
             value={soundEnabled}
@@ -207,11 +234,24 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/* Custom Avatars Settings */}
+        <TouchableOpacity
+          style={styles.settingItem}
+          onPress={() => router.push("/study/custom-images" as any)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.settingLabelContainer}>
+            <MaterialIcons name="image" size={22} color={colors.textMuted} />
+            <Text style={[styles.settingText, { color: colors.text }]}>Ảnh đại diện (Học viên / AI)</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
+
         <View style={styles.divider} />
 
         {/* Dynamic API Configuration */}
         <View style={styles.apiConfigGroup}>
-          <Text style={[styles.apiLabel, { color: colors.textMuted }]}>ĐỊA CHỈ LINH MẠCH (API BACKEND)</Text>
+          <Text style={[styles.apiLabel, { color: colors.textMuted }]}>ĐỊA CHỈ API SERVER (BACKEND)</Text>
           <View style={styles.apiInputContainer}>
             <TextInput
               style={[
@@ -241,7 +281,7 @@ export default function ProfileScreen() {
 
       {/* AI Token Usage Card */}
       <View style={[styles.cardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>TIÊU HAO LINH LỰC AI (TOKENS)</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>TIÊU THỤ AI TOKENS</Text>
         <View style={styles.tokenRow}>
           <Text style={[styles.tokenLabel, { color: colors.textMuted }]}>Prompt Tokens</Text>
           <Text style={[styles.tokenValue, { color: colors.text }]}>{tokensUsed?.prompt || 0}</Text>
@@ -251,7 +291,7 @@ export default function ProfileScreen() {
           <Text style={[styles.tokenValue, { color: colors.text }]}>{tokensUsed?.completion || 0}</Text>
         </View>
         <View style={styles.tokenRow}>
-          <Text style={[styles.tokenLabel, { color: colors.textMuted }]}>Tổng Tiêu Hao</Text>
+          <Text style={[styles.tokenLabel, { color: colors.textMuted }]}>Tokens đã dùng</Text>
           <Text style={[styles.tokenValue, { color: colors.indigo, fontWeight: "900" }]}>
             {tokensUsed?.total || 0}
           </Text>
@@ -266,7 +306,7 @@ export default function ProfileScreen() {
           activeOpacity={0.7}
         >
           <MaterialIcons name="exit-to-app" size={20} color={colors.error} />
-          <Text style={[styles.btnLogoutText, { color: colors.error }]}>XUẤT QUAN (ĐĂNG XUẤT)</Text>
+          <Text style={[styles.btnLogoutText, { color: colors.error }]}>ĐĂNG XUẤT</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -274,7 +314,7 @@ export default function ProfileScreen() {
           onPress={handleResetData}
           activeOpacity={0.7}
         >
-          <Text style={styles.btnResetText}>RESET TOÀN BỘ LINH PHÁP</Text>
+          <Text style={styles.btnResetText}>ĐẶT LẠI DỮ LIỆU TIẾN TRÌNH</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

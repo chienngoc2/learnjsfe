@@ -3,22 +3,24 @@ import { Tabs } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/src/context/ThemeContext';
 
 export default function TabLayout() {
-  // Fix cứng 'light' để tránh lỗi file Colors và focus vào code logic trước sếp nhé
-  const colorScheme = 'light'; 
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
-        // Màu xanh thương hiệu của AI Sensei
-        tabBarActiveTintColor: '#007AFF', 
-        tabBarInactiveTintColor: '#8E8E93',
-        headerShown: true, // Hiện tiêu đề màn hình
+        tabBarActiveTintColor: colors.indigo, 
+        tabBarInactiveTintColor: colors.textMuted,
+        headerShown: false, // Hủy header mặc định để dùng Custom Header đồng bộ
         tabBarStyle: {
           height: Platform.OS === 'ios' ? 60 + insets.bottom : 60,
           paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 10) : 10,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
         },
       }}>
       
