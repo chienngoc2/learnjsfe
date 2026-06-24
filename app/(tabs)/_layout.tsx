@@ -25,7 +25,7 @@ function CenterFabButton({ onPress }: { onPress: () => void }) {
           },
         ]}
       >
-        <MaterialIcons name="add" size={30} color={isDark ? '#CFAC62' : '#8B6914'} />
+        <MaterialIcons name="add" size={24} color={isDark ? '#CFAC62' : '#8B6914'} />
       </View>
     </TouchableOpacity>
   );
@@ -101,22 +101,22 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -20,
+    paddingBottom: 4,
   },
   fabBtn: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.5,
-        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.45,
+        shadowRadius: 8,
       },
-      android: { elevation: 10 },
+      android: { elevation: 8 },
     }),
   },
 });

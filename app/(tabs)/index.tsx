@@ -316,11 +316,12 @@ export default function DashboardScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Thống kê tổng quan</Text>
           </View>
 
+          {/* 4-stat compact horizontal row */}
           <View style={styles.bentoGrid}>
             {/* Vocab */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.bentoIcon, { backgroundColor: isDark ? "#1C1208" : "#FDF7E7" }]}>
-                <MaterialIcons name="style" size={20} color={colors.amber} />
+                <MaterialIcons name="style" size={16} color={colors.amber} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{vocabCount}</Text>
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Từ vựng</Text>
@@ -330,7 +331,7 @@ export default function DashboardScreen() {
             {/* Kanji */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.bentoIcon, { backgroundColor: colors.amberLight }]}>
-                <MaterialIcons name="font-download" size={20} color={colors.amber} />
+                <MaterialIcons name="font-download" size={16} color={colors.amber} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{kanjiCount}</Text>
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Kanji</Text>
@@ -340,7 +341,7 @@ export default function DashboardScreen() {
             {/* Grammar */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.bentoIcon, { backgroundColor: isDark ? "#1C1208" : "#FDF7E7" }]}>
-                <MaterialIcons name="menu-book" size={20} color={colors.indigo} />
+                <MaterialIcons name="menu-book" size={16} color={colors.indigo} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{grammarCount}</Text>
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Ngữ pháp</Text>
@@ -350,7 +351,7 @@ export default function DashboardScreen() {
             {/* Streak */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.bentoIcon, { backgroundColor: isDark ? "#1C1508" : "#FEF3C7" }]}>
-                <MaterialIcons name="local-fire-department" size={20} color={colors.amber} />
+                <MaterialIcons name="local-fire-department" size={16} color={colors.amber} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{cultivationStreak}</Text>
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Streak</Text>
@@ -543,21 +544,27 @@ const styles = StyleSheet.create({
   seeAllBtn: { flexDirection: "row", alignItems: "center" },
   seeAllText: { fontSize: 13, fontWeight: "700" },
 
-  // BENTO GRID
-  bentoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  // BENTO GRID — 4 compact cards in a single horizontal row
+  bentoGrid: {
+    flexDirection: "row",
+    gap: 8,
+  },
   bentoCard: {
-    width: (width - 42) / 2 - 5,
-    borderRadius: 20, padding: 14,
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     borderWidth: 1,
+    alignItems: "center",
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10 },
-      android: { elevation: 2 },
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6 },
+      android: { elevation: 1 },
     }),
   },
-  bentoIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 10 },
-  bentoNum: { fontSize: 28, fontWeight: "900", letterSpacing: -1 },
-  bentoLabel: { fontSize: 11, fontWeight: "600", marginTop: 2 },
-  bentoTrend: { fontSize: 11, fontWeight: "700", marginTop: 4 },
+  bentoIcon: { width: 28, height: 28, borderRadius: 8, justifyContent: "center", alignItems: "center", marginBottom: 6 },
+  bentoNum: { fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  bentoLabel: { fontSize: 9, fontWeight: "600", marginTop: 1, textAlign: "center" },
+  bentoTrend: { fontSize: 9, fontWeight: "700", marginTop: 2, textAlign: "center" },
 
   // DECK CARDS (horizontal scroll)
   deckCard: {
