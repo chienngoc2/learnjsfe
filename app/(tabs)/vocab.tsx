@@ -172,17 +172,8 @@ export default function StudyMenuScreen() {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       {/* HEADER */}
-      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 16 : 48 }]}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Khu vực Học tập 👋
-            </Text>
-            <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-              Chọn kỹ năng bạn muốn học hôm nay
-            </Text>
-          </View>
-
+      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top + 10 : 20, paddingBottom: 8 }]}>
+        <View style={[styles.headerRow, { justifyContent: "flex-end" }]}>
           {/* Toggle Theme */}
           <TouchableOpacity
             onPress={toggleTheme}

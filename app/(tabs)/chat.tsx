@@ -28,6 +28,7 @@ import Animated, {
   FadeInDown,
 } from "react-native-reanimated";
 import { useIsFocused } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // IMPORT COMPONENT UI & STORE
 import ChatBubble from "@/components/ui/vocal/chat/ChatBubble";
@@ -38,6 +39,7 @@ import { useCultivationStore } from "../../store/useCultivationStore";
 
 export default function ChatScreen() {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
   const isFocused = useIsFocused();
@@ -476,28 +478,11 @@ export default function ChatScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title="Trò chuyện AI" />
-
-      {/* SHIBA AI SENSEI AVATAR HEADER CARD */}
-      <View style={[styles.masterCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Image
-          source={{ uri: avatarBot || "https://i.pinimg.com/1200x/c0/b4/1c/c0b41c041088fcfb97d76bfd703c47ac.jpg" }}
-          style={[styles.masterAvatar, { borderColor: colors.indigo }]}
-        />
-        <View style={styles.masterInfo}>
-          <Text style={[styles.masterName, { color: colors.text }]}>Shiba (AI Sensei)</Text>
-          <Text style={[styles.masterTitle, { color: colors.indigo }]}>【 Trợ lý tiếng Nhật 】</Text>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: "#10B981" }]} />
-            <Text style={[styles.statusText, { color: colors.textMuted }]}>Đang hoạt động</Text>
-          </View>
-        </View>
-      </View>
 
       {/* CONTROL BAR */}
-      <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border, marginTop: 0 }]}>
         <Text style={[styles.tokenText, { color: colors.textMuted }]}>
           Token tiêu thụ: <Text style={{ fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Rep: {tokensUsed.completion})
         </Text>
@@ -615,7 +600,11 @@ export default function ChatScreen() {
 
                 return (
                   <View style={{ marginBottom: 12 }}>
-                    <ChatBubble message={item.text} role={item.role === "user" ? "user" : "bot"} />
+                    <ChatBubble
+                      message={item.text}
+                      role={item.role === "user" ? "user" : "bot"}
+                      avatar={avatarBot || "https://i.pinimg.com/1200x/c0/b4/1c/c0b41c041088fcfb97d76bfd703c47ac.jpg"}
+                    />
                     {isBot && nav && (
                       <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.contextNavContainer}>
                         <TouchableOpacity

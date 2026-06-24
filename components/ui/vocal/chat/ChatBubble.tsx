@@ -1,13 +1,14 @@
 import { useTheme } from "@/src/context/ThemeContext";
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, Text, Animated } from "react-native";
+import { StyleSheet, View, Text, Animated, Image } from "react-native";
 
 interface ChatBubbleProps {
   message: string;
   role: "user" | "bot";
+  avatar?: string;
 }
 
-export default function ChatBubble({ message, role }: ChatBubbleProps) {
+export default function ChatBubble({ message, role, avatar }: ChatBubbleProps) {
   const { colors, isDark } = useTheme();
   const isUser = role === "user";
 
@@ -42,6 +43,10 @@ export default function ChatBubble({ message, role }: ChatBubbleProps) {
         },
       ]}
     >
+      {!isUser && avatar && (
+        <Image source={{ uri: avatar }} style={styles.botAvatar} />
+      )}
+
       <View
         style={[
           styles.bubble,
@@ -79,6 +84,13 @@ const styles = StyleSheet.create({
   },
   botAlign: {
     justifyContent: "flex-start",
+  },
+  botAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+    alignSelf: "flex-end",
   },
   bubble: {
     maxWidth: "80%",
