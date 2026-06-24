@@ -214,16 +214,13 @@ export default function ChatScreen() {
   const startRecording = async () => {
     if (isRecording || recordingRef.current || isPreparingRecording.current) return;
     isPreparingRecording.current = true;
+    setLoading(true);
     try {
-      setIsRecording(true);
-      if (voiceChatModeRef.current) setVoiceChatStatusSync("recording");
-
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("Quyền Microphone", "Cần cấp quyền microphone để ghi âm.");
-        setIsRecording(false);
-        if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
         isPreparingRecording.current = false;
+        setLoading(false);
         return;
       }
 
@@ -238,14 +235,17 @@ export default function ChatScreen() {
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = newRecording;
-      isPreparingRecording.current = false;
+      setIsRecording(true);
+      if (voiceChatModeRef.current) setVoiceChatStatusSync("recording");
     } catch (err) {
       console.error("Lỗi bắt đầu ghi âm:", err);
       recordingRef.current = null;
       setIsRecording(false);
-      isPreparingRecording.current = false;
       if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
       Alert.alert("Lỗi Microphone", "Không thể bắt đầu ghi âm.");
+    } finally {
+      isPreparingRecording.current = false;
+      setLoading(false);
     }
   };
 
