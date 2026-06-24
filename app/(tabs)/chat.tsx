@@ -290,7 +290,23 @@ export default function ChatScreen() {
       try {
         const response = await fetch(uri);
         const blob = await response.blob();
-        formData.append("audio", blob, "voice.webm");
+        
+        // Log the actual MIME type for verification
+        const rawMime = blob.type || "";
+        console.log("=== 🎙️ [WEB AUDIO] BLOB MIME TYPE ===", rawMime);
+        
+        let ext = "webm";
+        if (rawMime.includes("mp4") || rawMime.includes("m4a") || rawMime.includes("aac")) {
+          ext = "m4a";
+        } else if (rawMime.includes("wav")) {
+          ext = "wav";
+        } else if (rawMime.includes("mpeg") || rawMime.includes("mp3")) {
+          ext = "mp3";
+        } else if (rawMime.includes("ogg")) {
+          ext = "ogg";
+        }
+        
+        formData.append("audio", blob, `voice.${ext}`);
       } catch (err) {
         console.error("Lỗi chuyển đổi âm thanh trên Web:", err);
         // Fallback
