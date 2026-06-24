@@ -19,13 +19,13 @@ function CenterFabButton({ onPress }: { onPress: () => void }) {
         style={[
           styles.fabBtn,
           {
-            backgroundColor: '#000000',
-            borderColor: isDark ? '#CFAC62' : '#8B6914',
+            backgroundColor: isDark ? '#1C160E' : '#FFFFFF',
+            borderColor: isDark ? 'rgba(207, 172, 98, 0.35)' : 'rgba(139, 105, 20, 0.25)',
             shadowColor: isDark ? '#CFAC62' : '#8B6914',
           },
         ]}
       >
-        <MaterialIcons name="add" size={20} color={isDark ? '#CFAC62' : '#8B6914'} />
+        <MaterialIcons name="add" size={18} color={isDark ? '#CFAC62' : '#8B6914'} />
       </View>
     </TouchableOpacity>
   );
@@ -36,7 +36,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const tabBarHeight = Platform.OS === 'ios' ? 60 + insets.bottom : 60;
+  const tabBarHeight = Platform.OS === 'ios' ? 52 + insets.bottom : 52;
 
   return (
     <Tabs
@@ -46,10 +46,24 @@ export default function TabLayout() {
         headerShown: false,
         tabBarStyle: {
           height: tabBarHeight,
-          paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 10) : 10,
-          backgroundColor: isDark ? '#0E0C0A' : '#FAF7F2',
-          borderTopColor: isDark ? '#CFAC6230' : '#B8860B20',
-          borderTopWidth: 1,
+          backgroundColor: isDark ? 'rgba(14, 12, 10, 0.94)' : 'rgba(250, 247, 242, 0.94)',
+          borderTopColor: isDark ? 'rgba(207, 172, 98, 0.12)' : 'rgba(139, 105, 20, 0.08)',
+          borderTopWidth: 0.5,
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          elevation: 5,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: isDark ? 0.12 : 0.04,
+          shadowRadius: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 9.5,
+          fontWeight: '600',
+          marginBottom: Platform.OS === 'ios' ? 0 : 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 4,
         },
       }}
     >
@@ -58,7 +72,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Trang chủ',
-          tabBarIcon: ({ color }) => <MaterialIcons name="dashboard" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="dashboard" size={20} color={color} />,
         }}
       />
 
@@ -67,7 +81,7 @@ export default function TabLayout() {
         name="chat"
         options={{
           title: 'Emma',
-          tabBarIcon: ({ color }) => <MaterialIcons name="chat" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="chat" size={20} color={color} />,
         }}
       />
 
@@ -89,7 +103,7 @@ export default function TabLayout() {
         name="vocab"
         options={{
           title: 'Học tập',
-          tabBarIcon: ({ color }) => <MaterialIcons name="style" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="style" size={20} color={color} />,
         }}
       />
 
@@ -98,7 +112,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Cá nhân',
-          tabBarIcon: ({ color }) => <MaterialIcons name="person" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="person" size={20} color={color} />,
         }}
       />
     </Tabs>
@@ -110,22 +124,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -48,       
   },
   fabBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.35,
-        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
       },
-      android: { elevation: 6 },
+      android: { elevation: 4 },
     }),
   },
 });
