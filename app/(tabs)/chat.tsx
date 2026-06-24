@@ -8,15 +8,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Image,
   ImageBackground,
-  ScrollView,
   Alert,
 } from "react-native";
 import { Audio } from "expo-av";
 import { Stack, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialIcons, Ionicons, Feather } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import api from "../../services/api";
 import Animated, {
   useSharedValue,
@@ -30,7 +28,6 @@ import Animated, {
 import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// IMPORT COMPONENT UI & STORE
 import ChatBubble from "@/components/ui/vocal/chat/ChatBubble";
 import ChatInput from "@/components/ui/vocal/chat/ChatInput";
 
@@ -43,74 +40,63 @@ export default function ChatScreen() {
   const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
   const isFocused = useIsFocused();
-  const [username, setUsername] = useState("Học viên");
-  const [avatarUser, setAvatarUser] = useState("");
   const [avatarBot, setAvatarBot] = useState("");
 
   useEffect(() => {
     if (isFocused) {
       (async () => {
-        const userStr = await AsyncStorage.getItem("user");
-        if (userStr) {
-          try {
-            const userObj = JSON.parse(userStr);
-            if (userObj?.username) setUsername(userObj.username);
-          } catch (e) {}
-        }
-        const au = await AsyncStorage.getItem("avatar_user");
         const ab = await AsyncStorage.getItem("avatar_bot");
-        if (au) setAvatarUser(au);
         if (ab) setAvatarBot(ab);
       })();
     }
   }, [isFocused]);
+
   const [loading, setLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const isPreparingRecording = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
-  // Zustand Store
-  const { tokensUsed, addTokens, clearTokens } = useCultivationStore();
+  const { addTokens, clearTokens } = useCultivationStore();
 
-  // Voice Chat States
+  // Voice mode — use ref to avoid stale closures inside async functions
   const [voiceChatMode, setVoiceChatMode] = useState(false);
+  const voiceChatModeRef = useRef(false);
   const [voiceChatStatus, setVoiceChatStatus] = useState<
     "idle" | "recording" | "transcribing" | "thinking" | "speaking"
   >("idle");
+  const voiceChatStatusRef = useRef<"idle" | "recording" | "transcribing" | "thinking" | "speaking">("idle");
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const stopAudioRequestRef = useRef(false);
 
-  // Reanimated Shared Values for Ripples
+  // Keep refs in sync
+  const setVoiceChatModeSync = (val: boolean) => {
+    voiceChatModeRef.current = val;
+    setVoiceChatMode(val);
+  };
+  const setVoiceChatStatusSync = (val: typeof voiceChatStatus) => {
+    voiceChatStatusRef.current = val;
+    setVoiceChatStatus(val);
+  };
+
+  // Ripple animations
   const pulse1 = useSharedValue(1);
   const pulse2 = useSharedValue(1);
   const orbScale = useSharedValue(1);
 
-  // Trigger continuous ripples when in Voice Chat mode
   useEffect(() => {
     if (voiceChatMode) {
-      pulse1.value = withRepeat(
-        withTiming(2, { duration: 1600 }),
-        -1,
-        false
-      );
-      // Offset second pulse
+      pulse1.value = withRepeat(withTiming(2, { duration: 1600 }), -1, false);
       setTimeout(() => {
-        pulse2.value = withRepeat(
-          withTiming(2, { duration: 1600 }),
-          -1,
-          false
-        );
+        pulse2.value = withRepeat(withTiming(2, { duration: 1600 }), -1, false);
       }, 800);
     } else {
-      pulse1.value = 1;
-      pulse2.value = 1;
+      pulse1.value = withTiming(1, { duration: 300 });
+      pulse2.value = withTiming(1, { duration: 300 });
     }
   }, [voiceChatMode]);
 
-  // Animate orb size when recording or speaking
   useEffect(() => {
     if (voiceChatStatus === "recording") {
       orbScale.value = withRepeat(
@@ -118,8 +104,7 @@ export default function ChatScreen() {
           withTiming(1.15, { duration: 600 }),
           withTiming(1.0, { duration: 600 })
         ),
-        -1,
-        true
+        -1, true
       );
     } else if (voiceChatStatus === "speaking") {
       orbScale.value = withRepeat(
@@ -127,37 +112,25 @@ export default function ChatScreen() {
           withTiming(1.1, { duration: 450 }),
           withTiming(0.95, { duration: 450 })
         ),
-        -1,
-        true
+        -1, true
       );
     } else {
       orbScale.value = withTiming(1.0, { duration: 300 });
     }
   }, [voiceChatStatus]);
 
-  const clearHistory = () => {
-    setMessages([]);
-    clearTokens();
-  };
-
+  // Setup audio permissions on mount
   useEffect(() => {
     (async () => {
       const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        router.replace("/login" as any);
-        return;
-      }
+      if (!token) { router.replace("/login" as any); return; }
 
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Quyền truy cập Microphone",
-          "Ứng dụng cần quyền sử dụng microphone để ghi âm giọng nói khi trò chuyện với AI. Vui lòng cấp quyền trong cài đặt thiết bị."
-        );
+        Alert.alert("Quyền Microphone", "Cần cấp quyền microphone để ghi âm giọng nói.");
       }
-
       await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false, // Default to false for main speaker playback
+        allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         playThroughEarpieceAndroid: false,
@@ -165,82 +138,82 @@ export default function ChatScreen() {
     })();
 
     return () => {
-      if (currentSoundRef.current) {
-        currentSoundRef.current.unloadAsync();
-      }
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync().catch((e) => {
-          console.log("Error unloading recording on unmount:", e);
-        });
-      }
+      currentSoundRef.current?.unloadAsync();
+      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
     };
   }, []);
 
+  // ─── STOP BOT SPEAKING ───────────────────────────────────────
   const stopBotSpeaking = async () => {
     stopAudioRequestRef.current = true;
     setIsPlayingVoice(false);
-    if (voiceChatMode) setVoiceChatStatus("idle");
+    setVoiceChatStatusSync("idle");
     try {
       if (currentSoundRef.current) {
         await currentSoundRef.current.stopAsync();
         await currentSoundRef.current.unloadAsync();
       }
     } catch (e) {
-      console.log("Error stopping bot speaking:", e);
+      // ignore
     }
     currentSoundRef.current = null;
   };
 
+  // ─── PLAY AUDIO SEGMENTS ─────────────────────────────────────
   const playAudioSegments = async (audioSegments: string[]) => {
     stopAudioRequestRef.current = false;
     setIsPlayingVoice(true);
+    if (voiceChatModeRef.current) setVoiceChatStatusSync("speaking");
+
     for (const base64Data of audioSegments) {
       if (stopAudioRequestRef.current) break;
       try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          playThroughEarpieceAndroid: false,
+        });
         const { sound } = await Audio.Sound.createAsync(
           { uri: base64Data },
           { shouldPlay: true }
         );
         currentSoundRef.current = sound;
-        
+
         if (stopAudioRequestRef.current) {
           await sound.unloadAsync();
           break;
         }
 
-        await new Promise((resolve) =>
+        await new Promise<void>((resolve) =>
           sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish || stopAudioRequestRef.current) resolve(true);
+            if (status.didJustFinish || stopAudioRequestRef.current) resolve();
           })
         );
         await sound.unloadAsync();
         currentSoundRef.current = null;
       } catch (error) {
-        console.error(error);
+        console.error("Audio playback error:", error);
       }
     }
+
     setIsPlayingVoice(false);
-    if (voiceChatMode) setVoiceChatStatus("idle");
+    if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
   };
 
+  // ─── RECORDING ───────────────────────────────────────────────
   const startRecording = async () => {
-    if (isRecording || recordingRef.current || isPreparingRecording.current) {
-      console.warn("Recording is already in progress or preparing.");
-      return;
-    }
+    if (isRecording || recordingRef.current || isPreparingRecording.current) return;
     isPreparingRecording.current = true;
     try {
       setIsRecording(true);
-      if (voiceChatMode) setVoiceChatStatus("recording");
+      if (voiceChatModeRef.current) setVoiceChatStatusSync("recording");
 
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Quyền truy cập Microphone",
-          "Ứng dụng cần quyền sử dụng microphone để ghi âm giọng nói. Vui lòng cấp quyền trong cài đặt thiết bị."
-        );
+        Alert.alert("Quyền Microphone", "Cần cấp quyền microphone để ghi âm.");
         setIsRecording(false);
-        if (voiceChatMode) setVoiceChatStatus("idle");
+        if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
         isPreparingRecording.current = false;
         return;
       }
@@ -252,131 +225,77 @@ export default function ChatScreen() {
         playThroughEarpieceAndroid: false,
       });
 
-
-
       const { recording: newRecording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = newRecording;
-      setRecording(newRecording);
       isPreparingRecording.current = false;
     } catch (err) {
       console.error("Lỗi bắt đầu ghi âm:", err);
       recordingRef.current = null;
-      setRecording(null);
       setIsRecording(false);
       isPreparingRecording.current = false;
-      if (voiceChatMode) setVoiceChatStatus("idle");
-      Alert.alert(
-        "Lỗi Microphone",
-        "Không thể bắt đầu ghi âm. Hãy kiểm tra cài đặt quyền micro trong điện thoại."
-      );
+      if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
+      Alert.alert("Lỗi Microphone", "Không thể bắt đầu ghi âm.");
     }
   };
 
   const stopRecording = async () => {
     const currentRec = recordingRef.current;
     if (!currentRec) {
-      console.warn("No active recording to stop.");
       setIsRecording(false);
       return;
     }
-
     try {
       setIsRecording(false);
       await currentRec.stopAndUnloadAsync();
       const uri = currentRec.getURI();
-
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         playThroughEarpieceAndroid: false,
       });
-
-      if (uri) {
-        sendAudio(uri);
-      }
+      if (uri) sendAudio(uri);
     } catch (err) {
       console.error("Lỗi dừng ghi âm:", err);
-      if (voiceChatMode) setVoiceChatStatus("idle");
-      Alert.alert("Lỗi Ghi Âm", "Không thể dừng và lưu đoạn ghi âm.");
+      if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
     } finally {
       recordingRef.current = null;
-      setRecording(null);
     }
   };
 
+  // ─── SEND AUDIO ──────────────────────────────────────────────
   const sendAudio = async (uri: string) => {
     setLoading(true);
-    if (voiceChatMode) setVoiceChatStatus("transcribing");
-    const formData = new FormData();
-    
-    if (Platform.OS === "web") {
-      try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        
-        // Log the actual MIME type for verification
-        const rawMime = blob.type || "";
-        console.log("=== 🎙️ [WEB AUDIO] BLOB MIME TYPE ===", rawMime);
-        console.log("=== 🎙️ [WEB AUDIO] BLOB SIZE ===", blob.size, "bytes");
+    if (voiceChatModeRef.current) setVoiceChatStatusSync("transcribing");
 
-        if (blob.size < 200) {
-          console.warn("Audio file is too small or empty, skipping upload.");
-          setLoading(false);
-          if (voiceChatMode) setVoiceChatStatus("idle");
-          return;
-        }
-        
-        let ext = "webm";
-        if (rawMime.includes("mp4") || rawMime.includes("m4a") || rawMime.includes("aac")) {
-          ext = "m4a";
-        } else if (rawMime.includes("wav")) {
-          ext = "wav";
-        } else if (rawMime.includes("mpeg") || rawMime.includes("mp3")) {
-          ext = "mp3";
-        } else if (rawMime.includes("ogg")) {
-          ext = "ogg";
-        }
-        
-        formData.append("audio", blob, `voice.${ext}`);
-      } catch (err) {
-        console.error("Lỗi chuyển đổi âm thanh trên Web:", err);
-        // Fallback
-        // @ts-ignore
-        formData.append("audio", { uri, name: "voice.webm", type: "audio/webm" });
-      }
-    } else {
-      // Native iOS / Android
-      // @ts-ignore
-      formData.append("audio", { uri, name: "voice.m4a", type: "audio/m4a" });
-    }
+    const formData = new FormData();
+    // @ts-ignore
+    formData.append("audio", { uri, name: "voice.m4a", type: "audio/m4a" });
 
     try {
       const response = await api.post("/api/chat/transcribe", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const recognizedText = response.data.text || "";
-      if (voiceChatMode) setVoiceChatStatus("thinking");
+      if (voiceChatModeRef.current) setVoiceChatStatusSync("thinking");
       await handleChat(recognizedText);
     } catch (err) {
-      alert("Kết nối máy chủ thất bại.");
-      if (voiceChatMode) setVoiceChatStatus("idle");
+      Alert.alert("Lỗi", "Kết nối máy chủ thất bại.");
+      if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
     } finally {
       setLoading(false);
     }
   };
 
+  // ─── HANDLE CHAT ─────────────────────────────────────────────
   const handleChat = async (text: string) => {
     if (!text.trim()) return;
 
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString(), text, role: "user" },
-    ]);
+    setMessages((prev) => [...prev, { id: Date.now().toString(), text, role: "user" }]);
     setLoading(true);
-    if (voiceChatMode) setVoiceChatStatus("thinking");
+    if (voiceChatModeRef.current) setVoiceChatStatusSync("thinking");
 
     try {
       const historyPayload = [
@@ -387,128 +306,117 @@ export default function ChatScreen() {
         { role: "user", content: text },
       ];
 
-      const response = await api.post("/api/chat/chat", {
-        messages: historyPayload,
-      });
+      const response = await api.post("/api/chat/chat", { messages: historyPayload });
 
       if (response.data.success) {
-        const botMsg = {
-          id: (Date.now() + 1).toString(),
-          text: response.data.reply,
-          role: "bot",
-          navigation: response.data.navigation, // Lưu lại metadata điều hướng để hiện nút bấm ngữ cảnh
-        };
-        setMessages((prev) => [...prev, botMsg]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            text: response.data.reply,
+            role: "bot",
+            navigation: response.data.navigation,
+          },
+        ]);
 
         if (response.data.usage) {
-          const prompt = response.data.usage.prompt_tokens || 0;
-          const completion = response.data.usage.completion_tokens || 0;
-          addTokens(prompt, completion);
+          addTokens(
+            response.data.usage.prompt_tokens || 0,
+            response.data.usage.completion_tokens || 0
+          );
         }
 
-        // --- XỬ LÝ ĐIỀU HƯỚNG TỰ ĐỘNG SAU KHI NÓI XONG ---
-        let audioPromise = Promise.resolve();
-        if (response.data.audioSegments && response.data.audioSegments.length > 0) {
-          if (voiceChatMode) setVoiceChatStatus("speaking");
+        // Play audio if returned
+        let audioPromise = Promise.resolve<void>(undefined);
+        if (response.data.audioSegments?.length > 0) {
           audioPromise = playAudioSegments(response.data.audioSegments);
         }
 
+        // Navigation after audio
         if (response.data.navigation) {
           const nav = response.data.navigation;
-          const executeNavigation = () => {
-            const { tab, game, mode, listId, topicTitle } = nav;
-            if (tab === "match") {
-              if (game === "grammar_match") {
-                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "match" } } as any);
-              } else if (game === "vocab_match" || game === "match" || game === "memory") {
-                router.push({ pathname: "/luyen-tap/vocab-match", params: { topicId: listId } } as any);
-              } else if (game === "tower") {
-                router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
-              } else if (game === "missing") {
-                router.push({ pathname: "/luyen-tap/typing", params: { topicId: listId } } as any);
-              } else {
-                router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
-              }
-            } else if (tab === "add-grammar") {
-              router.push("/study/add-grammar" as any);
-            } else if (tab === "grammar-viewer") {
-              router.push("/study/grammar-viewer" as any);
-            } else if (tab === "add-vocab") {
-              router.push("/study/add-vocab" as any);
-            } else if (tab === "vocab") {
-              router.push("/vocab" as any);
-            } else if (tab === "grammar") {
-              router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
-            } else if (tab === "flashcards" || tab === "study") {
-              if (listId) {
-                router.push({ pathname: "/study/card-viewer", params: { topicId: listId } } as any);
-              } else {
-                router.push("/study/flashcard" as any);
-              }
-            } else if (tab === "quiz") {
-              if (mode === "grammar") {
-                router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "ai_translation" } } as any);
-              } else {
-                router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
-              }
-            } else if (tab === "write") {
-              router.push("/study/add-kanji" as any);
-            } else if (tab === "overview") {
-              router.push("/" as any);
-            } else if (tab === "statistics" || tab === "profile" || tab === "achievements") {
-              router.push("/profile" as any);
-            } else {
-              router.push(`/${tab}` as any);
-            }
-          };
-
-          // Chờ âm thanh chạy xong, sau đó trễ một chút mới chuyển trang
           await audioPromise;
-          setTimeout(executeNavigation, response.data.audioSegments?.length > 0 ? 1000 : 2000);
+          setTimeout(() => executeNavigation(nav), response.data.audioSegments?.length > 0 ? 800 : 0);
         } else {
           await audioPromise;
         }
       }
     } catch (err) {
-      console.error("Lỗi gọi API Chat:", err);
+      console.error("Lỗi API Chat:", err);
     } finally {
       setLoading(false);
-      if (voiceChatMode) setVoiceChatStatus("idle");
+      if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
     }
   };
 
-  // Reanimated Styles for Ripples
-  const rippleStyle1 = useAnimatedStyle(() => {
-    const scale = pulse1.value;
-    const opacity = interpolate(scale, [1, 2], [0.5, 0]);
-    return {
-      transform: [{ scale }],
-      opacity,
-    };
-  });
-
-  const rippleStyle2 = useAnimatedStyle(() => {
-    const scale = pulse2.value;
-    const opacity = interpolate(scale, [1, 2], [0.5, 0]);
-    return {
-      transform: [{ scale }],
-      opacity,
-    };
-  });
-
-  const orbStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: orbScale.value }],
-    };
-  });
-
-  const toggleVoiceMode = () => {
-    // If speaking, stop playback
-    stopBotSpeaking();
-    setVoiceChatMode(!voiceChatMode);
-    setVoiceChatStatus("idle");
+  // ─── NAVIGATION HELPER ───────────────────────────────────────
+  const executeNavigation = (nav: any) => {
+    const { tab, game, mode, listId, topicTitle } = nav;
+    if (tab === "match") {
+      if (game === "grammar_match") router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "match" } } as any);
+      else if (game === "vocab_match" || game === "match" || game === "memory") router.push({ pathname: "/luyen-tap/vocab-match", params: { topicId: listId } } as any);
+      else if (game === "tower") router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
+      else if (game === "missing") router.push({ pathname: "/luyen-tap/typing", params: { topicId: listId } } as any);
+      else router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
+    } else if (tab === "add-grammar") router.push("/study/add-grammar" as any);
+    else if (tab === "grammar-viewer") router.push("/study/grammar-viewer" as any);
+    else if (tab === "add-vocab") router.push("/study/add-vocab" as any);
+    else if (tab === "vocab") router.push("/vocab" as any);
+    else if (tab === "grammar") router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
+    else if (tab === "flashcards" || tab === "study") {
+      if (listId) router.push({ pathname: "/study/card-viewer", params: { topicId: listId } } as any);
+      else router.push("/study/flashcard" as any);
+    } else if (tab === "quiz") {
+      if (mode === "grammar") router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "ai_translation" } } as any);
+      else router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
+    } else if (tab === "write") router.push("/study/add-kanji" as any);
+    else if (tab === "overview") router.push("/" as any);
+    else if (tab === "statistics" || tab === "profile" || tab === "achievements") router.push("/profile" as any);
+    else router.push(`/${tab}` as any);
   };
 
+  const getNavLabel = (nav: any) => {
+    const { tab, game, mode } = nav;
+    if (tab === "match") {
+      if (game === "grammar_match") return "Ghép Ngữ Pháp 📚";
+      if (game === "vocab_match" || game === "match" || game === "memory") return "Ghép Từ Vựng 🎮";
+      if (game === "tower") return "Trắc Nghiệm ⚡";
+      if (game === "missing") return "Luyện Gõ Chữ ✍️";
+      return "Chia Động Từ 🔄";
+    }
+    if (tab === "add-grammar") return "Thêm Ngữ Pháp ➕";
+    if (tab === "grammar-viewer") return "Xem Ngữ Pháp 📖";
+    if (tab === "add-vocab") return "Thêm Từ Vựng ➕";
+    if (tab === "vocab") return "Học Từ Vựng 🎴";
+    if (tab === "grammar") return "Học Ngữ Pháp 📚";
+    if (tab === "flashcards" || tab === "study") return "Xem Flashcard 🎴";
+    if (tab === "quiz") return mode === "grammar" ? "Luyện dịch Ngữ pháp ✍️" : "Trắc Nghiệm ⚡";
+    if (tab === "write") return "Tập viết Kanji ✍️";
+    if (tab === "overview") return "Về Trang Chủ 🏠";
+    if (tab === "statistics" || tab === "profile" || tab === "achievements") return "Xem Cá Nhân 👤";
+    return "Đi đến trang ➔";
+  };
+
+  // ─── ANIMATED STYLES ─────────────────────────────────────────
+  const rippleStyle1 = useAnimatedStyle(() => {
+    const scale = pulse1.value;
+    return { transform: [{ scale }], opacity: interpolate(scale, [1, 2], [0.5, 0]) };
+  });
+  const rippleStyle2 = useAnimatedStyle(() => {
+    const scale = pulse2.value;
+    return { transform: [{ scale }], opacity: interpolate(scale, [1, 2], [0.5, 0]) };
+  });
+  const orbStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: orbScale.value }],
+  }));
+
+  const toggleVoiceMode = () => {
+    stopBotSpeaking();
+    setVoiceChatModeSync(!voiceChatModeRef.current);
+    setVoiceChatStatusSync("idle");
+  };
+
+  // ─── RENDER ──────────────────────────────────────────────────
   return (
     <ImageBackground
       source={{ uri: "https://i.pinimg.com/736x/e1/83/e4/e183e45edeb5c15066999b80f6a37296.jpg" }}
@@ -517,181 +425,97 @@ export default function ChatScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* HEADER BAR - compact, dark gold */}
-      <View style={[
-        styles.controlBar,
-        { backgroundColor: "rgba(0, 0, 0, 0.80)", borderBottomColor: "#8C5C38", borderBottomWidth: 1 }
-      ]}>
-        <TouchableOpacity onPress={toggleVoiceMode} style={styles.voiceToggleBtn} activeOpacity={0.7}>
-          <MaterialIcons
-            name={voiceChatMode ? "keyboard" : "keyboard-voice"}
-            size={20}
-            color={colors.indigo}
-          />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={clearHistory} style={styles.clearBtn} activeOpacity={0.7}>
-          <MaterialIcons name="delete-sweep" size={20} color={colors.error} />
-        </TouchableOpacity>
-      </View>
-
+      {/* ── STANDARD CHAT VIEW ── */}
       {!voiceChatMode ? (
-        /* STANDARD CHAT VIEW */
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const isBot = item.role === "bot";
-                const nav = item.navigation;
-
-                const getNavLabel = (navData: any) => {
-                  const { tab, game, mode } = navData;
-                  if (tab === "match") {
-                    if (game === "grammar_match") return "Ghép Ngữ Pháp 📚";
-                    if (game === "vocab_match" || game === "match" || game === "memory") return "Ghép Từ Vựng 🎮";
-                    if (game === "tower") return "Trắc Nghiệm ⚡";
-                    if (game === "missing") return "Luyện Gõ Chữ ✍️";
-                    return "Chia Động Từ 🔄";
-                  }
-                  if (tab === "add-grammar") return "Thêm Ngữ Pháp ➕";
-                  if (tab === "grammar-viewer") return "Xem Ngữ Pháp 📖";
-                  if (tab === "add-vocab") return "Thêm Từ Vựng ➕";
-                  if (tab === "vocab") return "Học Từ Vựng 🎴";
-                  if (tab === "grammar") return "Học Ngữ Pháp 📚";
-                  if (tab === "flashcards" || tab === "study") return "Xem thẻ Flashcard 🎴";
-                  if (tab === "quiz") {
-                    if (mode === "grammar") return "Luyện dịch Ngữ pháp ✍️";
-                    return "Trắc Nghiệm ⚡";
-                  }
-                  if (tab === "write") return "Tập viết Kanji ✍️";
-                  if (tab === "overview") return "Về Trang Chủ 🏠";
-                  if (tab === "statistics" || tab === "profile" || tab === "achievements") return "Xem Cá Nhân 👤";
-                  return "Đi đến trang ➔";
-                };
-
-                const handleNavPress = (navData: any) => {
-                  const { tab, game, mode, listId, topicTitle } = navData;
-                  if (tab === "match") {
-                    if (game === "grammar_match") {
-                      router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "match" } } as any);
-                    } else if (game === "vocab_match" || game === "match" || game === "memory") {
-                      router.push({ pathname: "/luyen-tap/vocab-match", params: { topicId: listId } } as any);
-                    } else if (game === "tower") {
-                      router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
-                    } else if (game === "missing") {
-                      router.push({ pathname: "/luyen-tap/typing", params: { topicId: listId } } as any);
-                    } else {
-                      router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
-                    }
-                  } else if (tab === "add-grammar") {
-                    router.push("/study/add-grammar" as any);
-                  } else if (tab === "grammar-viewer") {
-                    router.push("/study/grammar-viewer" as any);
-                  } else if (tab === "add-vocab") {
-                    router.push("/study/add-vocab" as any);
-                  } else if (tab === "vocab") {
-                    router.push("/vocab" as any);
-                  } else if (tab === "grammar") {
-                    router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle } } as any);
-                  } else if (tab === "flashcards" || tab === "study") {
-                    if (listId) {
-                      router.push({ pathname: "/study/card-viewer", params: { topicId: listId } } as any);
-                    } else {
-                      router.push("/study/flashcard" as any);
-                    }
-                  } else if (tab === "quiz") {
-                    if (mode === "grammar") {
-                      router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "ai_translation" } } as any);
-                    } else {
-                      router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
-                    }
-                  } else if (tab === "write") {
-                    router.push("/study/add-kanji" as any);
-                  } else if (tab === "overview") {
-                    router.push("/" as any);
-                  } else if (tab === "statistics" || tab === "profile" || tab === "achievements") {
-                    router.push("/profile" as any);
-                  } else {
-                    router.push(`/${tab}` as any);
-                  }
-                };
-
-                return (
-                  <View style={{ marginBottom: 12 }}>
-                    <ChatBubble
-                      message={item.text}
-                      role={item.role === "user" ? "user" : "bot"}
-                      avatar={avatarBot || "https://i.pinimg.com/736x/80/90/c0/8090c0ecdcf5b7f59781fde477f956ad.jpg"}
-                    />
-                    {isBot && nav && (
-                      <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.contextNavContainer}>
-                        <TouchableOpacity
-                          style={[
-                            styles.contextNavBtn,
-                            {
-                              backgroundColor: "rgba(253, 251, 247, 0.95)",
-                              borderColor: colors.indigo,
-                            },
-                          ]}
-                          onPress={() => handleNavPress(nav)}
-                          activeOpacity={0.75}
-                        >
-                          <Ionicons name="navigate-circle-outline" size={16} color={colors.indigo} />
-                          <Text style={[styles.contextNavText, { color: colors.indigo }]}>
-                            {getNavLabel(nav)}
-                          </Text>
-                          <MaterialIcons name="chevron-right" size={14} color={colors.indigo} />
-                        </TouchableOpacity>
-                      </Animated.View>
-                    )}
-                  </View>
-                );
-              }}
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: 15, paddingBottom: 30 }}
-              onContentSizeChange={() =>
-                flatListRef.current?.scrollToEnd({ animated: true })
-              }
-            />
-
-          <ChatInput
-            onSendText={handleChat}
-            onStartRecord={startRecording}
-            onStopRecord={stopRecording}
-            isRecording={isRecording}
-            isLoading={loading}
-            isPlayingVoice={isPlayingVoice}
-            onStopSpeaking={stopBotSpeaking}
+          {/* Message List */}
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              const isBot = item.role === "bot";
+              const nav = item.navigation;
+              return (
+                <View style={{ marginBottom: 12 }}>
+                  <ChatBubble
+                    message={item.text}
+                    role={item.role === "user" ? "user" : "bot"}
+                    avatar={avatarBot || "https://i.pinimg.com/736x/80/90/c0/8090c0ecdcf5b7f59781fde477f956ad.jpg"}
+                  />
+                  {isBot && nav && (
+                    <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.contextNavContainer}>
+                      <TouchableOpacity
+                        style={[styles.contextNavBtn, { backgroundColor: "rgba(253,251,247,0.95)", borderColor: colors.indigo }]}
+                        onPress={() => executeNavigation(nav)}
+                        activeOpacity={0.75}
+                      >
+                        <Ionicons name="navigate-circle-outline" size={16} color={colors.indigo} />
+                        <Text style={[styles.contextNavText, { color: colors.indigo }]}>{getNavLabel(nav)}</Text>
+                        <MaterialIcons name="chevron-right" size={14} color={colors.indigo} />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  )}
+                </View>
+              );
+            }}
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 15, paddingBottom: 30 }}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
+
+          {/* Chat Input with voice toggle + clear icons inside */}
+          <View style={[styles.inputArea, { backgroundColor: "rgba(0,0,0,0.85)", borderTopColor: "#8C5C38" }]}>
+            {/* Top actions row: voice toggle + trash */}
+            <View style={styles.inputTopRow}>
+              <TouchableOpacity onPress={toggleVoiceMode} style={styles.iconPill} activeOpacity={0.7}>
+                <MaterialIcons name="keyboard-voice" size={16} color={colors.indigo} />
+                <Text style={[styles.iconPillLabel, { color: colors.indigo }]}>Voice</Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity onPress={() => { setMessages([]); clearTokens(); }} style={styles.iconPill} activeOpacity={0.7}>
+                <MaterialIcons name="delete-sweep" size={16} color={colors.error} />
+              </TouchableOpacity>
+            </View>
+
+            <ChatInput
+              onSendText={handleChat}
+              onStartRecord={startRecording}
+              onStopRecord={stopRecording}
+              isRecording={isRecording}
+              isLoading={loading}
+              isPlayingVoice={isPlayingVoice}
+              onStopSpeaking={stopBotSpeaking}
+            />
+          </View>
         </KeyboardAvoidingView>
       ) : (
-        /* PREMIUM VOICE CHAT MODE OVERLAY (KIM ĐAN CORE STYLE) */
-        <View style={[styles.voiceOverlay, { backgroundColor: colors.background }]}>
-          <Text style={[styles.voiceTitle, { color: colors.indigo }]}>Sensei Voice Portal</Text>
-          
+        /* ── VOICE CHAT OVERLAY ── */
+        <View style={[styles.voiceOverlay, { backgroundColor: isDark ? "rgba(5,4,3,0.97)" : "rgba(250,247,242,0.97)" }]}>
+          {/* Close button top-right */}
+          <TouchableOpacity onPress={toggleVoiceMode} style={[styles.voiceCloseBtn, { borderColor: colors.border }]} activeOpacity={0.7}>
+            <MaterialIcons name="keyboard" size={20} color={colors.textMuted} />
+            <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: "600", marginLeft: 4 }}>Chat</Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.voiceTitle, { color: colors.indigo }]}>Emma Voice</Text>
+
+          {/* Orb */}
           <View style={styles.voiceCoreContainer}>
-            {/* Ripples */}
             <Animated.View style={[styles.rippleRing, rippleStyle1, { borderColor: colors.indigo }]} />
             <Animated.View style={[styles.rippleRing, rippleStyle2, { borderColor: colors.indigo }]} />
 
-            {/* Main Interactive Orb (Glowing Kim Đan) */}
             <TouchableOpacity
               onPress={() => {
-                if (voiceChatStatus === "idle") {
-                  startRecording();
-                } else if (voiceChatStatus === "recording") {
-                  stopRecording();
-                } else if (voiceChatStatus === "speaking") {
-                  stopBotSpeaking();
-                }
+                if (voiceChatStatus === "idle") startRecording();
+                else if (voiceChatStatus === "recording") stopRecording();
+                else if (voiceChatStatus === "speaking") stopBotSpeaking();
               }}
-              disabled={voiceChatStatus !== "idle" && voiceChatStatus !== "recording" && voiceChatStatus !== "speaking"}
+              disabled={voiceChatStatus === "transcribing" || voiceChatStatus === "thinking"}
               activeOpacity={0.85}
             >
               <Animated.View
@@ -700,13 +524,9 @@ export default function ChatScreen() {
                   orbStyle,
                   {
                     backgroundColor:
-                      voiceChatStatus === "recording"
-                        ? colors.error
-                        : voiceChatStatus === "speaking"
-                        ? colors.indigo
-                        : isDark
-                        ? "#121824"
-                        : "#FEF3C7",
+                      voiceChatStatus === "recording" ? "#7B1111"
+                      : voiceChatStatus === "speaking" ? "#1C1005"
+                      : isDark ? "#121824" : "#FEF3C7",
                     borderColor: colors.indigo,
                     shadowColor: colors.indigo,
                   },
@@ -717,18 +537,12 @@ export default function ChatScreen() {
                 ) : (
                   <MaterialIcons
                     name={
-                      voiceChatStatus === "recording"
-                        ? "stop"
-                        : voiceChatStatus === "speaking"
-                        ? "volume-up"
-                        : "mic"
+                      voiceChatStatus === "recording" ? "stop"
+                      : voiceChatStatus === "speaking" ? "volume-off"
+                      : "mic"
                     }
-                    size={42}
-                    color={
-                      voiceChatStatus === "recording" || voiceChatStatus === "speaking"
-                        ? "#050814"
-                        : colors.indigo
-                    }
+                    size={44}
+                    color={colors.indigo}
                   />
                 )}
               </Animated.View>
@@ -736,24 +550,26 @@ export default function ChatScreen() {
           </View>
 
           <Text style={[styles.voiceStatusText, { color: colors.text }]}>
-            {voiceChatStatus === "idle" && "Chạm vào Kim Đan để đàm đạo"}
-            {voiceChatStatus === "recording" && "Đang truyền đạt thần niệm..."}
-            {voiceChatStatus === "transcribing" && "Đang giải mã thần niệm..."}
-            {voiceChatStatus === "thinking" && "Sensei đang cân nhắc..."}
-            {voiceChatStatus === "speaking" && "Sensei đang thuyết pháp..."}
+            {voiceChatStatus === "idle" && "Chạm để nói chuyện với Emma"}
+            {voiceChatStatus === "recording" && "🔴 Đang ghi âm... (Chạm để dừng)"}
+            {voiceChatStatus === "transcribing" && "✨ Đang nhận diện giọng nói..."}
+            {voiceChatStatus === "thinking" && "🤔 Emma đang suy nghĩ..."}
+            {voiceChatStatus === "speaking" && "🔊 Emma đang trả lời... (Chạm để dừng)"}
           </Text>
 
           {messages.length > 0 && (
             <View style={[styles.voiceTranscriptContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.voiceTranscriptLabel, { color: colors.textMuted }]}>Thần Niệm Cuối Cùng</Text>
-              <Text style={[styles.voiceTranscriptBody, { color: colors.text }]} numberOfLines={3}>
+              <Text style={[styles.voiceTranscriptLabel, { color: colors.textMuted }]}>Tin nhắn gần nhất</Text>
+              <Text style={[styles.voiceTranscriptBody, { color: colors.text }]} numberOfLines={4}>
                 {messages[messages.length - 1].text}
               </Text>
             </View>
           )}
 
-          <TouchableOpacity onPress={toggleVoiceMode} style={[styles.exitVoiceBtn, { borderColor: colors.border }]} activeOpacity={0.7}>
-            <Text style={{ color: colors.textMuted, fontWeight: "600", fontSize: 13 }}>Quay lại giao diện chat</Text>
+          {/* Clear history in voice mode */}
+          <TouchableOpacity onPress={() => { setMessages([]); clearTokens(); }} style={[styles.exitVoiceBtn, { borderColor: colors.border }]} activeOpacity={0.7}>
+            <MaterialIcons name="delete-sweep" size={16} color={colors.error} />
+            <Text style={{ color: colors.error, fontWeight: "600", fontSize: 12, marginLeft: 4 }}>Xoá lịch sử</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -762,85 +578,33 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+
+  // Input area with top micro-action row
+  inputArea: {
+    borderTopWidth: 1.5,
   },
-  masterCard: {
+  inputTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
-    marginHorizontal: 16,
-    marginTop: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    paddingBottom: 2,
   },
-  masterAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
+  iconPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
   },
-  masterInfo: {
-    marginLeft: 14,
-    flex: 1,
-  },
-  masterName: {
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  masterTitle: {
-    fontSize: 12,
+  iconPillLabel: {
+    fontSize: 11,
     fontWeight: "700",
-    marginTop: 2,
-    letterSpacing: 0.5,
   },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  controlBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    elevation: 1,
-    marginTop: 0,
-  },
-  tokenText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  clearBtn: {
-    padding: 6,
-    borderRadius: 8,
-  },
-  voiceToggleBtn: {
-    padding: 6,
-    borderRadius: 8,
-  },
-  scrollBackground: {
-    flex: 1,
-    // Adds a subtle background look for a scroll parchment atmosphere
-    backgroundColor: "transparent",
-  },
+
+  // Navigation context button (appears below bot messages)
   contextNavContainer: {
     alignSelf: "flex-start",
     marginLeft: 15,
@@ -860,17 +624,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+
+  // Voice Overlay
   voiceOverlay: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    justifyContent: "space-evenly",
+    paddingVertical: 30,
+    paddingHorizontal: 24,
+  },
+  voiceCloseBtn: {
+    flexDirection: "row",
+    alignSelf: "flex-end",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   voiceTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    letterSpacing: 2,
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 3,
     textTransform: "uppercase",
   },
   voiceCoreContainer: {
@@ -882,59 +657,52 @@ const styles = StyleSheet.create({
   },
   rippleRing: {
     position: "absolute",
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 1.5,
+  },
+  mainOrb: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    borderWidth: 2,
-  },
-  mainOrb: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
     borderWidth: 2.5,
     alignItems: "center",
     justifyContent: "center",
     elevation: 10,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
   },
   voiceStatusText: {
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
-    marginTop: 10,
+    lineHeight: 22,
   },
   voiceTranscriptContainer: {
     width: "100%",
     borderRadius: 16,
     borderWidth: 1,
-    padding: 16,
-    marginVertical: 15,
+    padding: 14,
   },
   voiceTranscriptLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     textTransform: "uppercase",
     marginBottom: 6,
+    letterSpacing: 0.5,
   },
   voiceTranscriptBody: {
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   exitVoiceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
     borderWidth: 1,
-  },
-  stopVoiceBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#EF4444",
   },
 });

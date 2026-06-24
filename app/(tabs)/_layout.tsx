@@ -66,7 +66,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: 'Sensei',
+          title: 'Emma',
           tabBarIcon: ({ color }) => <MaterialIcons name="chat" size={26} color={color} />,
         }}
       />
