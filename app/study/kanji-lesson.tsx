@@ -563,11 +563,11 @@ export default function KanjiLessonScreen() {
         onRequestClose={() => setEditModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { backgroundColor: colors.surface }]}>
+          <View style={[styles.modalBox, { backgroundColor: "#000000", borderColor: "#8C5C38", borderWidth: 2 }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>✏️ Chỉnh sửa Kanji</Text>
+              <Text style={[styles.modalTitle, { color: colors.indigo }]}>✏️ Chỉnh sửa Kanji</Text>
               <TouchableOpacity onPress={() => setEditModal(false)}>
-                <MaterialIcons name="close" size={24} color={colors.textMuted} />
+                <MaterialIcons name="close" size={24} color={colors.indigo} />
               </TouchableOpacity>
             </View>
 
@@ -663,16 +663,16 @@ export default function KanjiLessonScreen() {
               />
 
               <TouchableOpacity
-                style={[styles.saveBtn, { backgroundColor: colors.indigo, opacity: saving ? 0.6 : 1 }]}
+                style={[styles.saveBtn, { backgroundColor: "#000000", borderColor: "#8C5C38", borderWidth: 2, opacity: saving ? 0.6 : 1 }]}
                 onPress={handleSaveEdit}
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                  <ActivityIndicator size="small" color={colors.indigo} />
                 ) : (
                   <>
-                    <MaterialIcons name="save" size={18} color="#FFF" />
-                    <Text style={styles.saveBtnText}>Lưu thay đổi</Text>
+                    <MaterialIcons name="save" size={18} color={colors.indigo} />
+                    <Text style={[styles.saveBtnText, { color: colors.indigo }]}>Lưu thay đổi</Text>
                   </>
                 )}
               </TouchableOpacity>

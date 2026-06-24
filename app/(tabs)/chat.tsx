@@ -33,7 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // IMPORT COMPONENT UI & STORE
 import ChatBubble from "@/components/ui/vocal/chat/ChatBubble";
 import ChatInput from "@/components/ui/vocal/chat/ChatInput";
-import Header from "../../components/ui/Header";
+
 import { useTheme } from "@/src/context/ThemeContext";
 import { useCultivationStore } from "../../store/useCultivationStore";
 
@@ -514,10 +514,7 @@ export default function ChatScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* CONTROL BAR */}
-      <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border, marginTop: 0 }]}>
-        <Text style={[styles.tokenText, { color: colors.textMuted }]}>
-          Token tiêu thụ: <Text style={{ fontWeight: "bold", color: colors.indigo }}>{tokensUsed.total}</Text> (Prompt: {tokensUsed.prompt} | Rep: {tokensUsed.completion})
-        </Text>
+      <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border, marginTop: 0, justifyContent: "flex-end" }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           {isPlayingVoice && (
             <TouchableOpacity onPress={stopBotSpeaking} style={[styles.stopVoiceBtn, { backgroundColor: isDark ? "#451A1A" : "#FEE2E2" }]} activeOpacity={0.7}>
@@ -635,7 +632,7 @@ export default function ChatScreen() {
                     <ChatBubble
                       message={item.text}
                       role={item.role === "user" ? "user" : "bot"}
-                      avatar={avatarBot || "https://i.pinimg.com/1200x/c0/b4/1c/c0b41c041088fcfb97d76bfd703c47ac.jpg"}
+                      avatar={avatarBot || "https://i.pinimg.com/736x/80/90/c0/8090c0ecdcf5b7f59781fde477f956ad.jpg"}
                     />
                     {isBot && nav && (
                       <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.contextNavContainer}>

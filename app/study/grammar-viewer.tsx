@@ -484,11 +484,11 @@ export default function GrammarViewerScreen() {
         {/* COMPONENT MODAL XÁC NHẬN XÓA */}
         <Modal transparent visible={confirmModal.visible} animationType="fade">
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalBox, { backgroundColor: colors.surface }]}>
-              <View style={[styles.modalIconBox, { backgroundColor: colors.errorLight }]}>
+            <View style={[styles.modalBox, { backgroundColor: "#000000", borderColor: "#8C5C38", borderWidth: 2 }]}>
+              <View style={[styles.modalIconBox, { backgroundColor: "#1A0F0F" }]}>
                 <Feather name="alert-triangle" size={32} color={colors.error} />
               </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Xác nhận xóa</Text>
+              <Text style={[styles.modalTitle, { color: colors.indigo }]}>Xác nhận xóa</Text>
               <Text style={[styles.modalMessage, { color: colors.textMuted }]}>
                 Bạn có chắc chắn muốn xóa cấu trúc này không? Hành động này không
                 thể hoàn tác.
@@ -496,16 +496,16 @@ export default function GrammarViewerScreen() {
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  style={[styles.btnModalCancel, { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" }]}
+                  style={[styles.btnModalCancel, { backgroundColor: "#000000", borderColor: "#8C5C38", borderWidth: 2 }]}
                   onPress={() => setConfirmModal({ visible: false, id: null })}
                 >
-                  <Text style={[styles.btnModalCancelText, { color: colors.text }]}>Hủy Bỏ</Text>
+                  <Text style={[styles.btnModalCancelText, { color: colors.indigo }]}>Hủy Bỏ</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.btnModalConfirm, { backgroundColor: colors.error }]}
+                  style={[styles.btnModalConfirm, { backgroundColor: "#000000", borderColor: colors.error, borderWidth: 2 }]}
                   onPress={executeDelete}
                 >
-                  <Text style={styles.btnModalConfirmText}>Xóa Luôn</Text>
+                  <Text style={[styles.btnModalConfirmText, { color: colors.error }]}>Xóa Luôn</Text>
                 </TouchableOpacity>
               </View>
             </View>

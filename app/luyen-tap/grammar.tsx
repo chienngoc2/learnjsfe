@@ -114,13 +114,13 @@ const parseExample = (exampleStr: any) => {
 const getFontSizeForText = (text: string, type: "jp" | "vn") => {
   const len = text.length;
   if (type === "jp") {
-    if (len > 35) return 10;
-    if (len > 22) return 12;
-    return 14;
+    if (len > 35) return 14;
+    if (len > 22) return 15;
+    return 16;
   } else {
-    if (len > 45) return 9;
-    if (len > 28) return 11;
-    return 13;
+    if (len > 45) return 13;
+    if (len > 28) return 14;
+    return 15;
   }
 };
 
@@ -232,16 +232,16 @@ export default function PracticeGrammarScreen() {
   };
 
   const startMatchGame = (selectedDecks: TopicList[]) => {
-    const allExamples: { jp: string; vn: string }[] = [];
+    const allPairs: { vn: string; meaning: string }[] = [];
     
     selectedDecks.forEach((deck) => {
       if (deck.grammarPoints && deck.grammarPoints.length > 0) {
         deck.grammarPoints.forEach((gp) => {
-          if (gp.examples && gp.examples.length > 0) {
+          if (gp.examples && gp.examples.length > 0 && gp.meaning) {
             gp.examples.forEach((ex) => {
-              const { jp, vn } = parseExample(ex);
-              if (jp !== "" && vn !== "") {
-                allExamples.push({ jp, vn });
+              const { vn } = parseExample(ex);
+              if (vn !== "") {
+                allPairs.push({ vn, meaning: gp.meaning });
               }
             });
           }
@@ -249,19 +249,32 @@ export default function PracticeGrammarScreen() {
       }
     });
 
-    if (allExamples.length === 0) {
+    if (allPairs.length === 0) {
       alert("Các chủ đề được chọn chưa có câu ví dụ để ghép bạn nhé!");
       return;
     }
 
-    // Pick 5 random examples (10 cards total)
-    const selectedPairs = allExamples.sort(() => Math.random() - 0.5).slice(0, 5);
+    // Shuffle and pick unique meanings to avoid ambiguity
+    const uniqueMeaningPairs: { vn: string; meaning: string }[] = [];
+    const seenMeanings = new Set<string>();
+    
+    const shuffledPairs = allPairs.sort(() => Math.random() - 0.5);
+    
+    for (const pair of shuffledPairs) {
+      if (!seenMeanings.has(pair.meaning)) {
+        seenMeanings.add(pair.meaning);
+        uniqueMeaningPairs.push(pair);
+        if (uniqueMeaningPairs.length >= 5) break;
+      }
+    }
+
+    const selectedPairs = uniqueMeaningPairs;
     setTotalPairs(selectedPairs.length);
 
     const jpCards: MatchCard[] = selectedPairs.map((pair, idx) => ({
       id: `jp-${idx}`,
       type: "jp",
-      text: pair.jp,
+      text: pair.meaning,
       pairId: idx,
       matched: false,
     }));
@@ -471,12 +484,14 @@ export default function PracticeGrammarScreen() {
                 style={[
                   styles.btnStart,
                   {
-                    backgroundColor: colors.indigo,
+                    backgroundColor: "#000000",
+                    borderColor: "#8C5C38",
+                    borderWidth: 2,
                     opacity: selectedTopicIds.length === 0 ? 0.5 : 1,
                   },
                 ]}
               >
-                <Text style={styles.btnStartText}>BẮT ĐẦU LUYỆN TẬP 🎮</Text>
+                <Text style={[styles.btnStartText, { color: colors.indigo }]}>BẮT ĐẦU LUYỆN TẬP 🎮</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -523,25 +538,25 @@ export default function PracticeGrammarScreen() {
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.matchGameColumnsRow}>
-                {/* Left Column: Japanese Cards */}
+                {/* Left Column: Grammar Meaning Cards */}
                 <View style={styles.matchGameColumn}>
-                  <Text style={[styles.columnHeader, { color: colors.amber }]}>CÂU VÍ DỤ (JP)</Text>
+                  <Text style={[styles.columnHeader, { color: colors.amber }]}>Ý NGHĨA NGỮ PHÁP</Text>
                   {cardsJp.map((c) => {
                     const isSelected = selectedCard?.id === c.id;
                     const isError = errorIds.includes(c.id);
 
-                    let cardBg = colors.surface;
-                    let cardBorder = colors.border;
-                    let cardText = colors.text;
+                    let cardBg = "#000000";
+                    let cardBorder = "#8C5C38";
+                    let cardText = "#F7E5C4";
 
                     if (c.matched) {
                       return <View key={c.id} style={[styles.matchColCard, { opacity: 0 }]} />;
                     }
 
                     if (isSelected) {
-                      cardBg = isDark ? "#2C1A10" : "#FFF7ED";
-                      cardBorder = colors.amber;
-                      cardText = colors.amber;
+                      cardBg = "#2C1A10";
+                      cardBorder = "#CFAC62";
+                      cardText = "#CFAC62";
                     } else if (isError) {
                       cardBg = "rgba(239, 68, 68, 0.15)";
                       cardBorder = "#ef4444";
@@ -577,25 +592,25 @@ export default function PracticeGrammarScreen() {
                   })}
                 </View>
 
-                {/* Right Column: Vietnamese Meaning Cards */}
+                {/* Right Column: Vietnamese Example Cards */}
                 <View style={styles.matchGameColumn}>
-                  <Text style={[styles.columnHeader, { color: colors.indigo }]}>Ý NGHĨA (VN)</Text>
+                  <Text style={[styles.columnHeader, { color: colors.indigo }]}>VÍ DỤ TIẾNG VIỆT</Text>
                   {cardsVn.map((c) => {
                     const isSelected = selectedCard?.id === c.id;
                     const isError = errorIds.includes(c.id);
 
-                    let cardBg = colors.surface;
-                    let cardBorder = colors.border;
-                    let cardText = colors.text;
+                    let cardBg = "#000000";
+                    let cardBorder = "#8C5C38";
+                    let cardText = "#F7E5C4";
 
                     if (c.matched) {
                       return <View key={c.id} style={[styles.matchColCard, { opacity: 0 }]} />;
                     }
 
                     if (isSelected) {
-                      cardBg = colors.indigoLight;
-                      cardBorder = colors.indigo;
-                      cardText = colors.indigo;
+                      cardBg = "#2C1A10";
+                      cardBorder = "#CFAC62";
+                      cardText = "#CFAC62";
                     } else if (isError) {
                       cardBg = "rgba(239, 68, 68, 0.15)";
                       cardBorder = "#ef4444";
@@ -667,10 +682,14 @@ export default function PracticeGrammarScreen() {
                 }}
                 style={[
                   styles.btnResultAction,
-                  { backgroundColor: colors.indigo },
+                  {
+                    backgroundColor: "#000000",
+                    borderColor: "#8C5C38",
+                    borderWidth: 2,
+                  },
                 ]}
               >
-                <Text style={[styles.btnResultText, { color: isDark ? "#050814" : "#FFF" }]}>THỬ THÁCH LẠI</Text>
+                <Text style={[styles.btnResultText, { color: colors.indigo }]}>THỬ THÁCH LẠI</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -680,10 +699,14 @@ export default function PracticeGrammarScreen() {
                 }}
                 style={[
                   styles.btnResultActionSecondary,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  {
+                    backgroundColor: "#000000",
+                    borderColor: "#8C5C38",
+                    borderWidth: 2,
+                  },
                 ]}
               >
-                <Text style={[styles.btnResultTextSecondary, { color: colors.text }]}>CHỌN CHỦ ĐỀ KHÁC</Text>
+                <Text style={[styles.btnResultTextSecondary, { color: colors.indigo }]}>CHỌN CHỦ ĐỀ KHÁC</Text>
               </TouchableOpacity>
             </View>
           </View>

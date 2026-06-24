@@ -344,13 +344,15 @@ export default function VocabMatchScreen() {
               style={({ pressed }) => [
                 styles.btnStart,
                 {
-                  backgroundColor: colors.indigo,
+                  backgroundColor: "#000000",
+                  borderColor: "#8C5C38",
+                  borderWidth: 2,
                   opacity: selectedListIds.length === 0 ? 0.5 : 1,
                   transform: [{ scale: pressed ? 0.98 : 1 }],
                 },
               ]}
             >
-              <Text style={styles.btnStartText}>BẮT ĐẦU LUYỆN TẬP</Text>
+              <Text style={[styles.btnStartText, { color: colors.indigo }]}>BẮT ĐẦU LUYỆN TẬP</Text>
             </Pressable>
           </ScrollView>
         </LinearGradient>
@@ -395,9 +397,9 @@ export default function VocabMatchScreen() {
                 const isSelected = selectedCard?.id === c.id;
                 const isError = errorIds.includes(c.id);
 
-                let cardBg = colors.surface;
-                let cardBorder = colors.border;
-                let cardText = colors.text;
+                let cardBg = "#000000";
+                let cardBorder = "#8C5C38";
+                let cardText = "#F7E5C4";
 
                 if (c.matched) {
                   // Hide or make fully transparent/non-interactive
@@ -405,9 +407,9 @@ export default function VocabMatchScreen() {
                 }
 
                 if (isSelected) {
-                  cardBg = colors.indigoLight;
-                  cardBorder = colors.indigo;
-                  cardText = colors.indigo;
+                  cardBg = "#2C1A10";
+                  cardBorder = "#CFAC62";
+                  cardText = "#CFAC62";
                 } else if (isError) {
                   cardBg = "rgba(239, 68, 68, 0.15)";
                   cardBorder = "#ef4444";
@@ -430,7 +432,7 @@ export default function VocabMatchScreen() {
                     <Text
                       style={[
                         styles.cardItemText,
-                        { color: cardText, fontSize: c.type === "jp" ? 16 : 12 },
+                        { color: cardText, fontSize: c.type === "jp" ? 18 : 15 },
                       ]}
                       numberOfLines={3}
                     >
@@ -498,12 +500,14 @@ export default function VocabMatchScreen() {
                 style={({ pressed }) => [
                   styles.btnResultAction,
                   {
-                    backgroundColor: colors.indigo,
+                    backgroundColor: "#000000",
+                    borderColor: "#8C5C38",
+                    borderWidth: 2,
                     transform: [{ scale: pressed ? 0.98 : 1 }],
                   },
                 ]}
               >
-                <Text style={[styles.btnResultText, { color: "#050814" }]}>THỬ THÁCH LẠI</Text>
+                <Text style={[styles.btnResultText, { color: colors.indigo }]}>THỬ THÁCH LẠI</Text>
               </Pressable>
 
               <Pressable
@@ -511,13 +515,14 @@ export default function VocabMatchScreen() {
                 style={({ pressed }) => [
                   styles.btnResultActionSecondary,
                   {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
+                    backgroundColor: "#000000",
+                    borderColor: "#8C5C38",
+                    borderWidth: 2,
                     transform: [{ scale: pressed ? 0.98 : 1 }],
                   },
                 ]}
               >
-                <Text style={[styles.btnResultTextSecondary, { color: colors.text }]}>VỀ TRANG CHỦ</Text>
+                <Text style={[styles.btnResultTextSecondary, { color: colors.indigo }]}>VỀ TRANG CHỦ</Text>
               </Pressable>
             </View>
           </View>

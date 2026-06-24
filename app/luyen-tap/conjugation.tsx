@@ -500,13 +500,15 @@ export default function PracticeConjugationScreen() {
               style={({ pressed }) => [
                 styles.btnStart,
                 {
-                  backgroundColor: colors.indigo,
+                  backgroundColor: "#000000",
+                  borderColor: "#8C5C38",
+                  borderWidth: 2,
                   opacity: selectedListIds.length === 0 ? 0.5 : 1,
                   transform: [{ scale: pressed ? 0.98 : 1 }],
                 },
               ]}
             >
-              <Text style={styles.btnStartText}>BẮT ĐẦU LUYỆN TẬP CHIA THỂ</Text>
+              <Text style={[styles.btnStartText, { color: colors.indigo }]}>BẮT ĐẦU LUYỆN TẬP CHIA THỂ</Text>
             </Pressable>
           </ScrollView>
         </LinearGradient>
@@ -608,9 +610,9 @@ export default function PracticeConjugationScreen() {
                 const isSelected = selectedAnswer === option;
                 const isCorrectAnswer = option === currentQuestion.correctAnswer;
                 
-                let optionBgColor = colors.surface;
-                let optionBorderColor = colors.border;
-                let optionTextColor = colors.text;
+                let optionBgColor = "#000000";
+                let optionBorderColor = "#8C5C38";
+                let optionTextColor = "#F7E5C4";
 
                 if (isAnswered) {
                   if (isCorrectAnswer) {
@@ -622,9 +624,9 @@ export default function PracticeConjugationScreen() {
                     optionBorderColor = "#ef4444";
                     optionTextColor = "#FFFFFF";
                   } else {
-                    optionBgColor = colors.surface;
-                    optionBorderColor = colors.border;
-                    optionTextColor = colors.textMuted;
+                    optionBgColor = "#000000";
+                    optionBorderColor = "rgba(140, 92, 56, 0.4)";
+                    optionTextColor = "#A39185";
                   }
                 }
 
@@ -716,12 +718,14 @@ export default function PracticeConjugationScreen() {
                 style={({ pressed }) => [
                   styles.btnResultAction,
                   {
-                    backgroundColor: colors.indigo,
+                    backgroundColor: "#000000",
+                    borderColor: "#8C5C38",
+                    borderWidth: 2,
                     transform: [{ scale: pressed ? 0.98 : 1 }],
                   },
                 ]}
               >
-                <Text style={[styles.btnResultText, { color: "#050814" }]}>THỬ THÁCH LẠI</Text>
+                <Text style={[styles.btnResultText, { color: colors.indigo }]}>THỬ THÁCH LẠI</Text>
               </Pressable>
 
               <Pressable
@@ -729,13 +733,14 @@ export default function PracticeConjugationScreen() {
                 style={({ pressed }) => [
                   styles.btnResultActionSecondary,
                   {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
+                    backgroundColor: "#000000",
+                    borderColor: "#8C5C38",
+                    borderWidth: 2,
                     transform: [{ scale: pressed ? 0.98 : 1 }],
                   },
                 ]}
               >
-                <Text style={[styles.btnResultTextSecondary, { color: colors.text }]}>VỀ TRANG CHỦ</Text>
+                <Text style={[styles.btnResultTextSecondary, { color: colors.indigo }]}>VỀ TRANG CHỦ</Text>
               </Pressable>
             </View>
           </View>
@@ -911,7 +916,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   optionText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     flex: 1,
     marginRight: 10,

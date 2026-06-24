@@ -238,8 +238,8 @@ export default function PracticeTypingScreen() {
         <Text style={styles.finishEmoji}>{accuracy >= 80 ? "🎉" : "💪"}</Text>
         <Text style={[styles.finishTitle, { color: colors.text }]}>Luyện Tập Hoàn Thành!</Text>
         <Text style={[styles.finishSub, { color: colors.textMuted }]}>Đo độ chính xác: {accuracy}%</Text>
-        <TouchableOpacity style={[styles.btnFinish, { backgroundColor: colors.indigo }]} onPress={() => router.back()}>
-          <Text style={[styles.btnFinishText, { color: "#050814" }]}>Trở về Kho Từ Vựng</Text>
+        <TouchableOpacity style={[styles.btnFinish, { backgroundColor: "#000000", borderColor: "#8C5C38", borderWidth: 2 }]} onPress={() => router.back()}>
+          <Text style={[styles.btnFinishText, { color: colors.indigo }]}>Trở về Kho Từ Vựng</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -375,11 +375,22 @@ export default function PracticeTypingScreen() {
       <View style={styles.footer}>
         {status === "typing" ? (
           <TouchableOpacity
-            style={[styles.btnCheck, { backgroundColor: colors.indigo }, !userInput.trim() && { backgroundColor: isDark ? "#1E293B" : "#CBD5E1" }]}
+            style={[
+              styles.btnCheck,
+              {
+                backgroundColor: "#000000",
+                borderColor: "#8C5C38",
+                borderWidth: 2,
+              },
+              !userInput.trim() && {
+                backgroundColor: isDark ? "#151210" : "#FAF7F2",
+                borderColor: "rgba(140,92,56,0.3)",
+              }
+            ]}
             onPress={checkAnswer}
             disabled={!userInput.trim()}
           >
-            <Text style={[styles.btnCheckText, { color: !userInput.trim() ? colors.textMuted : "#050814" }]}>
+            <Text style={[styles.btnCheckText, { color: !userInput.trim() ? colors.textMuted : colors.indigo }]}>
               Kiểm tra
             </Text>
           </TouchableOpacity>
