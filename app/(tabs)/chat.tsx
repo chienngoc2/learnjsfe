@@ -510,18 +510,16 @@ export default function ChatScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <ImageBackground
+      source={{ uri: "https://i.pinimg.com/736x/e1/83/e4/e183e45edeb5c15066999b80f6a37296.jpg" }}
+      style={[styles.container, { paddingTop: insets.top }]}
+      resizeMode="cover"
+    >
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* CONTROL BAR */}
-      <View style={[styles.controlBar, { backgroundColor: colors.surface, borderBottomColor: colors.border, marginTop: 0, justifyContent: "flex-end" }]}>
+      <View style={[styles.controlBar, { backgroundColor: "rgba(0, 0, 0, 0.75)", borderBottomColor: "#8C5C38", borderBottomWidth: 1.5, marginTop: 0, justifyContent: "flex-end" }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          {isPlayingVoice && (
-            <TouchableOpacity onPress={stopBotSpeaking} style={[styles.stopVoiceBtn, { backgroundColor: isDark ? "#451A1A" : "#FEE2E2" }]} activeOpacity={0.7}>
-              <Ionicons name="volume-mute" size={14} color="#EF4444" style={{ marginRight: 4 }} />
-              <Text style={{ color: "#EF4444", fontSize: 11, fontWeight: "800" }}>Dừng nói</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity onPress={toggleVoiceMode} style={styles.voiceToggleBtn} activeOpacity={0.7}>
             <MaterialIcons
               name={voiceChatMode ? "keyboard" : "keyboard-voice"}
@@ -536,17 +534,12 @@ export default function ChatScreen() {
       </View>
 
       {!voiceChatMode ? (
-        /* STANDARD CHAT VIEW WITH PARCHMENT SCROLL STYLE BACKGROUND */
+        /* STANDARD CHAT VIEW */
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
-          <ImageBackground
-            source={{ uri: "https://i.pinimg.com/736x/e1/83/e4/e183e45edeb5c15066999b80f6a37296.jpg" }}
-            style={styles.scrollBackground}
-            resizeMode="cover"
-          >
             <FlatList
               ref={flatListRef}
               data={messages}
@@ -664,7 +657,6 @@ export default function ChatScreen() {
                 flatListRef.current?.scrollToEnd({ animated: true })
               }
             />
-          </ImageBackground>
 
           <ChatInput
             onSendText={handleChat}
@@ -672,6 +664,8 @@ export default function ChatScreen() {
             onStopRecord={stopRecording}
             isRecording={isRecording}
             isLoading={loading}
+            isPlayingVoice={isPlayingVoice}
+            onStopSpeaking={stopBotSpeaking}
           />
         </KeyboardAvoidingView>
       ) : (
@@ -761,7 +755,7 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -826,7 +820,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     elevation: 1,
-    marginTop: 10,
+    marginTop: 0,
   },
   tokenText: {
     fontSize: 11,

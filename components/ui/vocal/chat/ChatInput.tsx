@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // 🚀 ĐÃ FIX ĐƯỜNG DẪN IMPORT CHUẨN: Lùi đúng 3 tầng từ (components/ui/vocal/chat) ra thư mục src/context
 // Nếu file gốc của sếp nằm khác, sếp cứ gõ "@/" hoặc "../" để VSCode gợi ý đường dẫn chính xác tới "ThemeContext" nhé!
@@ -20,6 +21,8 @@ interface ChatInputProps {
   onStopRecord: () => void;
   isRecording: boolean;
   isLoading: boolean;
+  isPlayingVoice?: boolean;
+  onStopSpeaking?: () => void;
 }
 
 export default function ChatInput({
@@ -28,8 +31,11 @@ export default function ChatInput({
   onStopRecord,
   isRecording,
   isLoading,
+  isPlayingVoice,
+  onStopSpeaking,
 }: ChatInputProps) {
   const { colors } = useTheme(); // 🚀 Nếu đường dẫn trên đúng, dòng này sẽ lấy được màu
+  const insets = useSafeAreaInsets();
   const [inputText, setInputText] = useState("");
 
   const handleSend = () => {
@@ -39,28 +45,36 @@ export default function ChatInput({
   };
 
   return (
-    // 🚀 BAO BỌC NGOÀI CÙNG (Thanh chứa toàn bộ cụm nhập): Đổi sang màu Surface của Theme
     <View
       style={[
         styles.container,
-        { backgroundColor: colors.surface, borderTopColor: colors.border },
+        {
+          backgroundColor: "rgba(0, 0, 0, 0.85)",
+          borderTopColor: "#8C5C38",
+          borderTopWidth: 1.5,
+          paddingBottom: Math.max(12, insets.bottom),
+        },
       ]}
     >
-      {/* 🚀 Ô TEXTINPUT (Khung trắng nhỏ nằm trong thanh): Đổi sang màu Background của Theme */}
+      {/* Ô TEXTINPUT */}
       <View
         style={[
           styles.inputWrapper,
-          { backgroundColor: colors.background, borderColor: colors.border },
+          {
+            backgroundColor: "#151210",
+            borderColor: "#8C5C38",
+            borderWidth: 1.5,
+          },
         ]}
       >
         <TextInput
-          style={[styles.input, { color: colors.text }]}
+          style={[styles.input, { color: "#F7E5C4" }]}
           value={inputText}
           onChangeText={setInputText}
           placeholder={
-            isRecording ? "Đang lắng nghe sếp nói..." : "Nhập tin nhắn..."
+            isRecording ? "Đang lắng nghe..." : "Nhập tin nhắn..."
           }
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={isRecording ? "#EF4444" : "#A39185"}
           editable={!isLoading && !isRecording}
         />
 
@@ -72,26 +86,44 @@ export default function ChatInput({
         )}
       </View>
 
-      {/* NÚT GHI ÂM / LOADING */}
+      {/* NÚT GHI ÂM / LOADING / DỪNG PHÁT ÂM */}
       <View style={styles.rightActions}>
         {isLoading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color={colors.indigo} />
           </View>
-        ) : (
+        ) : isPlayingVoice && onStopSpeaking ? (
           <TouchableOpacity
-            onPressIn={onStartRecord} // Nhấn giữ để ghi âm
-            onPressOut={onStopRecord} // Thả ra để gửi đi
+            onPress={onStopSpeaking}
             style={[
               styles.btnMic,
-              { backgroundColor: isRecording ? colors.error : colors.indigo },
+              {
+                backgroundColor: "#EF4444",
+                borderColor: "#EF4444",
+                borderWidth: 2,
+              },
+            ]}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="volume-mute" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={isRecording ? onStopRecord : onStartRecord}
+            style={[
+              styles.btnMic,
+              {
+                backgroundColor: isRecording ? "#EF4444" : "#000000",
+                borderColor: isRecording ? "#EF4444" : "#8C5C38",
+                borderWidth: 2,
+              },
             ]}
             activeOpacity={0.7}
           >
             <MaterialIcons
               name={isRecording ? "stop" : "mic"}
-              size={26}
-              color="#FFFFFF"
+              size={24}
+              color={isRecording ? "#FFFFFF" : colors.indigo}
             />
           </TouchableOpacity>
         )}
