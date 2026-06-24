@@ -512,7 +512,11 @@ export default function ChatScreen() {
           style={{ flex: 1 }}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
-          <View style={styles.scrollBackground}>
+          <ImageBackground
+            source={{ uri: "https://i.pinimg.com/736x/e1/83/e4/e183e45edeb5c15066999b80f6a37296.jpg" }}
+            style={styles.scrollBackground}
+            resizeMode="cover"
+          >
             <FlatList
               ref={flatListRef}
               data={messages}
@@ -599,7 +603,13 @@ export default function ChatScreen() {
                     {isBot && nav && (
                       <Animated.View entering={FadeInDown.delay(100).duration(300)} style={styles.contextNavContainer}>
                         <TouchableOpacity
-                          style={[styles.contextNavBtn, { backgroundColor: colors.indigoLight, borderColor: colors.indigo }]}
+                          style={[
+                            styles.contextNavBtn,
+                            {
+                              backgroundColor: "rgba(253, 251, 247, 0.95)",
+                              borderColor: colors.indigo,
+                            },
+                          ]}
                           onPress={() => handleNavPress(nav)}
                           activeOpacity={0.75}
                         >
@@ -620,7 +630,7 @@ export default function ChatScreen() {
                 flatListRef.current?.scrollToEnd({ animated: true })
               }
             />
-          </View>
+          </ImageBackground>
 
           <ChatInput
             onSendText={handleChat}

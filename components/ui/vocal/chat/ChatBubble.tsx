@@ -46,8 +46,8 @@ export default function ChatBubble({ message, role }: ChatBubbleProps) {
         style={[
           styles.bubble,
           {
-            backgroundColor: isUser ? colors.indigo : colors.surface,
-            borderColor: isUser ? colors.indigo : colors.border,
+            backgroundColor: isUser ? "rgba(223, 206, 186, 0.95)" : "rgba(253, 251, 247, 0.95)",
+            borderColor: isUser ? "rgba(180, 160, 140, 0.8)" : "rgba(220, 215, 205, 0.8)",
             borderBottomRightRadius: isUser ? 4 : 18,
             borderBottomLeftRadius: isUser ? 18 : 4,
           },
@@ -57,7 +57,7 @@ export default function ChatBubble({ message, role }: ChatBubbleProps) {
           style={[
             styles.messageText,
             {
-              color: isUser ? (isDark ? "#120f08" : "#2b1d0f") : colors.text,
+              color: "#3F2E23", // Cozy cocoa dark brown for comfortable readability
             },
           ]}
         >
