@@ -19,6 +19,7 @@ interface ChatInputProps {
   isLoading: boolean;
   isPlayingVoice?: boolean;
   onStopSpeaking?: () => void;
+  countdown?: number;
 }
 
 export default function ChatInput({
@@ -29,6 +30,7 @@ export default function ChatInput({
   isLoading,
   isPlayingVoice,
   onStopSpeaking,
+  countdown,
 }: ChatInputProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -104,7 +106,7 @@ export default function ChatInput({
           value={inputText}
           onChangeText={setInputText}
           placeholder={
-            isRecording ? "Đang lắng nghe..." : "Nhập tin nhắn..."
+            isRecording ? `Đang lắng nghe... (${countdown ?? 3}s)` : "Nhập tin nhắn..."
           }
           placeholderTextColor={isRecording ? "#EF4444" : "#A39185"}
           editable={!isLoading && !isRecording}

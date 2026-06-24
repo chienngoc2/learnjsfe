@@ -2,7 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Text } from 'react-native';
 import { Mic } from 'lucide-react-native'; // Sếp nhớ cài lucide-react-native nhé
 
-export default function VoiceIndicator({ isRecording }: { isRecording: boolean }) {
+interface VoiceIndicatorProps {
+  isRecording: boolean;
+  text?: string;
+}
+
+export default function VoiceIndicator({ isRecording, text = "Đang nghe sếp nói..." }: VoiceIndicatorProps) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -35,7 +40,7 @@ export default function VoiceIndicator({ isRecording }: { isRecording: boolean }
           <Mic size={32} color="#fff" />
         </View>
       </Animated.View>
-      <Text style={styles.text}>Đang nghe sếp nói...</Text>
+      <Text style={styles.text}>{text}</Text>
     </View>
   );
 }

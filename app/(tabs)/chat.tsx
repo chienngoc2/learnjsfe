@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ChatBubble from "@/components/ui/vocal/chat/ChatBubble";
 import ChatInput from "@/components/ui/vocal/chat/ChatInput";
+import VoiceIndicator from "@/components/ui/vocal/chat/VoiceIndicator";
 
 import { useTheme } from "@/src/context/ThemeContext";
 import { useCultivationStore } from "../../store/useCultivationStore";
@@ -70,6 +71,8 @@ export default function ChatScreen() {
   const voiceChatStatusRef = useRef<"idle" | "recording" | "transcribing" | "thinking" | "speaking">("idle");
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const stopAudioRequestRef = useRef(false);
+  const [countdown, setCountdown] = useState(3);
+  const countdownIntervalRef = useRef<any>(null);
 
   // Keep refs in sync
   const setVoiceChatModeSync = (val: boolean) => {
@@ -141,6 +144,9 @@ export default function ChatScreen() {
     return () => {
       currentSoundRef.current?.unloadAsync();
       recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
     };
   }, []);
 
@@ -237,6 +243,23 @@ export default function ChatScreen() {
       recordingRef.current = newRecording;
       setIsRecording(true);
       if (voiceChatModeRef.current) setVoiceChatStatusSync("recording");
+
+      setCountdown(3);
+      let currentSeconds = 3;
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
+      countdownIntervalRef.current = setInterval(() => {
+        currentSeconds -= 1;
+        setCountdown(currentSeconds);
+        if (currentSeconds <= 0) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+          }
+          stopRecording();
+        }
+      }, 1000);
     } catch (err) {
       console.error("Lỗi bắt đầu ghi âm:", err);
       recordingRef.current = null;
@@ -250,6 +273,10 @@ export default function ChatScreen() {
   };
 
   const stopRecording = async (discard = false) => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
     const currentRec = recordingRef.current;
     if (!currentRec) {
       setIsRecording(false);
@@ -514,6 +541,8 @@ export default function ChatScreen() {
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
 
+          <VoiceIndicator isRecording={isRecording} text={`Đang nghe sếp nói... (${countdown}s)`} />
+
           {/* Chat Input with voice toggle + clear icons inside */}
           <View style={[styles.inputArea, { backgroundColor: "rgba(0,0,0,0.85)", borderTopColor: "#8C5C38" }]}>
 
@@ -525,6 +554,7 @@ export default function ChatScreen() {
               isLoading={loading}
               isPlayingVoice={isPlayingVoice}
               onStopSpeaking={stopBotSpeaking}
+              countdown={countdown}
             />
           </View>
         </KeyboardAvoidingView>
@@ -586,7 +616,7 @@ export default function ChatScreen() {
 
           <Text style={[styles.voiceStatusText, { color: colors.text }]}>
             {voiceChatStatus === "idle" && "Chạm để nói chuyện với Emma"}
-            {voiceChatStatus === "recording" && "🔴 Đang ghi âm... (Chạm để dừng)"}
+            {voiceChatStatus === "recording" && `🔴 Đang ghi âm... (Tự động dừng sau ${countdown}s)`}
             {voiceChatStatus === "transcribing" && "✨ Đang nhận diện giọng nói..."}
             {voiceChatStatus === "thinking" && "🤔 Emma đang suy nghĩ..."}
             {voiceChatStatus === "speaking" && "🔊 Emma đang trả lời... (Chạm để dừng)"}
