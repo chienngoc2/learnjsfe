@@ -11,10 +11,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// 🚀 ĐÃ FIX ĐƯỜNG DẪN IMPORT CHUẨN: Lùi đúng 3 tầng từ (components/ui/vocal/chat) ra thư mục src/context
-// Nếu file gốc của sếp nằm khác, sếp cứ gõ "@/" hoặc "../" để VSCode gợi ý đường dẫn chính xác tới "ThemeContext" nhé!
-
-
 interface ChatInputProps {
   onSendText: (text: string) => void;
   onStartRecord: () => void;
@@ -34,7 +30,7 @@ export default function ChatInput({
   isPlayingVoice,
   onStopSpeaking,
 }: ChatInputProps) {
-  const { colors } = useTheme(); // 🚀 Nếu đường dẫn trên đúng, dòng này sẽ lấy được màu
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [inputText, setInputText] = useState("");
 
@@ -43,6 +39,42 @@ export default function ChatInput({
     onSendText(inputText);
     setInputText("");
   };
+
+  // Unified mic button handler:
+  // - If speaking → stop speaking
+  // - If recording → stop recording
+  // - Otherwise → start recording
+  const handleMicPress = () => {
+    if (isPlayingVoice && onStopSpeaking) {
+      onStopSpeaking();
+    } else if (isRecording) {
+      onStopRecord();
+    } else {
+      onStartRecord();
+    }
+  };
+
+  // Mic button visual state
+  const micBg = isPlayingVoice
+    ? "#8C5C38"
+    : isRecording
+    ? "#EF4444"
+    : "#000000";
+  const micBorder = isPlayingVoice
+    ? "#CFAC62"
+    : isRecording
+    ? "#EF4444"
+    : "#8C5C38";
+  const micIcon = isPlayingVoice
+    ? "volume-mute"
+    : isRecording
+    ? "stop"
+    : "mic";
+  const micColor = isPlayingVoice
+    ? "#CFAC62"
+    : isRecording
+    ? "#FFFFFF"
+    : colors.indigo;
 
   return (
     <View
@@ -56,7 +88,7 @@ export default function ChatInput({
         },
       ]}
     >
-      {/* Ô TEXTINPUT */}
+      {/* TEXT INPUT */}
       <View
         style={[
           styles.inputWrapper,
@@ -78,7 +110,7 @@ export default function ChatInput({
           editable={!isLoading && !isRecording}
         />
 
-        {/* Nút gửi tin nhắn chữ */}
+        {/* Send button */}
         {inputText.trim().length > 0 && (
           <TouchableOpacity onPress={handleSend} style={styles.btnAction}>
             <MaterialIcons name="send" size={24} color={colors.indigo} />
@@ -86,45 +118,26 @@ export default function ChatInput({
         )}
       </View>
 
-      {/* NÚT GHI ÂM / LOADING / DỪNG PHÁT ÂM */}
+      {/* MIC / LOADING / STOP button — all unified into one */}
       <View style={styles.rightActions}>
         {isLoading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color={colors.indigo} />
           </View>
-        ) : isPlayingVoice && onStopSpeaking ? (
-          <TouchableOpacity
-            onPress={onStopSpeaking}
-            style={[
-              styles.btnMic,
-              {
-                backgroundColor: "#EF4444",
-                borderColor: "#EF4444",
-                borderWidth: 2,
-              },
-            ]}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="volume-mute" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            onPress={isRecording ? onStopRecord : onStartRecord}
+            onPress={handleMicPress}
             style={[
               styles.btnMic,
               {
-                backgroundColor: isRecording ? "#EF4444" : "#000000",
-                borderColor: isRecording ? "#EF4444" : "#8C5C38",
+                backgroundColor: micBg,
+                borderColor: micBorder,
                 borderWidth: 2,
               },
             ]}
             activeOpacity={0.7}
           >
-            <MaterialIcons
-              name={isRecording ? "stop" : "mic"}
-              size={24}
-              color={isRecording ? "#FFFFFF" : colors.indigo}
-            />
+            <MaterialIcons name={micIcon} size={24} color={micColor} />
           </TouchableOpacity>
         )}
       </View>

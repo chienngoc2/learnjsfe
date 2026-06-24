@@ -194,7 +194,7 @@ export default function DashboardScreen() {
     );
   }
 
-  const accentColor = isDark ? colors.indigo : "#4F46E5";
+  const accentColor = colors.indigo;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -255,7 +255,7 @@ export default function DashboardScreen() {
         {/* ─── PROGRESS CARD (gradient indigo như concept) ─── */}
         <Animated.View entering={FadeInDown.delay(80).duration(550)} style={{ marginHorizontal: 16, marginBottom: 20 }}>
           <LinearGradient
-            colors={isDark ? ["#3730A3", "#1E1B4B"] : ["#4F46E5", "#6366F1"]}
+            colors={isDark ? ["#1C1005", "#2C1810"] : ["#5C3D1E", "#8B6914"]}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={styles.progressCard}
           >
@@ -319,8 +319,8 @@ export default function DashboardScreen() {
           <View style={styles.bentoGrid}>
             {/* Vocab */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[styles.bentoIcon, { backgroundColor: colors.blueLight }]}>
-                <MaterialIcons name="style" size={20} color={colors.blue} />
+              <View style={[styles.bentoIcon, { backgroundColor: isDark ? "#1C1208" : "#FDF7E7" }]}>
+                <MaterialIcons name="style" size={20} color={colors.amber} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{vocabCount}</Text>
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Từ vựng</Text>
@@ -339,12 +339,12 @@ export default function DashboardScreen() {
 
             {/* Grammar */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[styles.bentoIcon, { backgroundColor: colors.purpleLight }]}>
-                <MaterialIcons name="menu-book" size={20} color={colors.purple} />
+              <View style={[styles.bentoIcon, { backgroundColor: isDark ? "#1C1208" : "#FDF7E7" }]}>
+                <MaterialIcons name="menu-book" size={20} color={colors.indigo} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{grammarCount}</Text>
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Ngữ pháp</Text>
-              <Text style={[styles.bentoTrend, { color: colors.emerald }]}>N5-N1</Text>
+              <Text style={[styles.bentoTrend, { color: colors.amber }]}>N5-N1</Text>
             </View>
 
             {/* Streak */}
@@ -442,7 +442,7 @@ export default function DashboardScreen() {
               </View>
 
               <View style={[styles.questRewardBadge, { backgroundColor: quest.completed ? colors.emeraldLight : colors.indigoLight }]}>
-                <Text style={[styles.questRewardText, { color: quest.completed ? colors.emerald : accentColor }]}>
+                <Text style={[styles.questRewardText, { color: quest.completed ? colors.emerald : colors.indigo }]}>
                   +{quest.rewardTuVi} XP
                 </Text>
               </View>
@@ -450,15 +450,6 @@ export default function DashboardScreen() {
           ))}
         </Animated.View>
       </ScrollView>
-
-      {/* ─── FAB ─── */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: accentColor }]}
-        onPress={() => router.push("/study/add-vocab" as any)}
-        activeOpacity={0.8}
-      >
-        <MaterialIcons name="add" size={28} color="#FFF" />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -501,7 +492,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     minHeight: 140,
     ...Platform.select({
-      ios: { shadowColor: "#4F46E5", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16 },
+      ios: { shadowColor: "#8C5C38", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16 },
       android: { elevation: 8 },
     }),
   },
@@ -603,14 +594,8 @@ const styles = StyleSheet.create({
   questRewardBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   questRewardText: { fontSize: 12, fontWeight: "800" },
 
-  // FAB
+  // FAB — hidden, + moved to tab center
   fab: {
-    position: "absolute", right: 20, bottom: 22,
-    width: 56, height: 56, borderRadius: 28,
-    justifyContent: "center", alignItems: "center",
-    ...Platform.select({
-      ios: { shadowColor: "#4F46E5", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14 },
-      android: { elevation: 8 },
-    }),
+    display: "none",
   },
 });

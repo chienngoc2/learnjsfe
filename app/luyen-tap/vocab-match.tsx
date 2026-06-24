@@ -432,7 +432,7 @@ export default function VocabMatchScreen() {
                     <Text
                       style={[
                         styles.cardItemText,
-                        { color: cardText, fontSize: c.type === "jp" ? 18 : 15 },
+                        { color: cardText, fontSize: c.type === "jp" ? 20 : 16 },
                       ]}
                       numberOfLines={3}
                     >
@@ -638,24 +638,24 @@ const styles = StyleSheet.create({
   },
   cardItem: {
     width: (width - 32 - 10) / 2, // 2 columns layout
-    minHeight: 76,
+    minHeight: 86,
     borderRadius: 16,
-    borderWidth: 1.5,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     marginVertical: 4,
-    elevation: 1,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   cardItemText: {
     fontWeight: "800",
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 22,
   },
   emblemIconCircle: {
     width: 90,

@@ -113,15 +113,9 @@ const parseExample = (exampleStr: any) => {
 
 const getFontSizeForText = (text: string, type: "jp" | "vn") => {
   const len = text.length;
-  if (type === "jp") {
-    if (len > 35) return 14;
-    if (len > 22) return 15;
-    return 16;
-  } else {
-    if (len > 45) return 13;
-    if (len > 28) return 14;
-    return 15;
-  }
+  if (len > 40) return 14;
+  if (len > 20) return 16;
+  return 18;
 };
 
 export default function PracticeGrammarScreen() {
@@ -545,18 +539,18 @@ export default function PracticeGrammarScreen() {
                     const isSelected = selectedCard?.id === c.id;
                     const isError = errorIds.includes(c.id);
 
-                    let cardBg = "#000000";
-                    let cardBorder = "#8C5C38";
-                    let cardText = "#F7E5C4";
+                    let cardBg = isDark ? "#1C1814" : "#FDFBF7";
+                    let cardBorder = isDark ? "#8C5C38" : "#C59B27";
+                    let cardText = isDark ? "#FFFFFF" : "#2B1D0F";
 
                     if (c.matched) {
                       return <View key={c.id} style={[styles.matchColCard, { opacity: 0 }]} />;
                     }
 
                     if (isSelected) {
-                      cardBg = "#2C1A10";
-                      cardBorder = "#CFAC62";
-                      cardText = "#CFAC62";
+                      cardBg = isDark ? "#2C1A10" : "#FFF7ED";
+                      cardBorder = isDark ? "#CFAC62" : "#B8860B";
+                      cardText = isDark ? "#CFAC62" : "#B8860B";
                     } else if (isError) {
                       cardBg = "rgba(239, 68, 68, 0.15)";
                       cardBorder = "#ef4444";
@@ -599,18 +593,18 @@ export default function PracticeGrammarScreen() {
                     const isSelected = selectedCard?.id === c.id;
                     const isError = errorIds.includes(c.id);
 
-                    let cardBg = "#000000";
-                    let cardBorder = "#8C5C38";
-                    let cardText = "#F7E5C4";
+                    let cardBg = isDark ? "#1C1814" : "#FDFBF7";
+                    let cardBorder = isDark ? "#8C5C38" : "#C59B27";
+                    let cardText = isDark ? "#FFFFFF" : "#2B1D0F";
 
                     if (c.matched) {
                       return <View key={c.id} style={[styles.matchColCard, { opacity: 0 }]} />;
                     }
 
                     if (isSelected) {
-                      cardBg = "#2C1A10";
-                      cardBorder = "#CFAC62";
-                      cardText = "#CFAC62";
+                      cardBg = isDark ? "#2C1A10" : "#FFF7ED";
+                      cardBorder = isDark ? "#CFAC62" : "#B8860B";
+                      cardText = isDark ? "#CFAC62" : "#B8860B";
                     } else if (isError) {
                       cardBg = "rgba(239, 68, 68, 0.15)";
                       cardBorder = "#ef4444";
@@ -837,24 +831,24 @@ const styles = StyleSheet.create({
   },
   matchColCard: {
     width: "100%",
-    minHeight: 88,
+    minHeight: 96,
     borderRadius: 16,
-    borderWidth: 1.5,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
     marginVertical: 4,
-    elevation: 1.5,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   matchCardText: {
     fontWeight: "800",
     textAlign: "center",
-    lineHeight: 18,
+    lineHeight: 24,
   },
   furiganaRow: {
     flexDirection: "row",

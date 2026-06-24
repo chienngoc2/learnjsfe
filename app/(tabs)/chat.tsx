@@ -517,20 +517,22 @@ export default function ChatScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* CONTROL BAR */}
-      <View style={[styles.controlBar, { backgroundColor: "rgba(0, 0, 0, 0.75)", borderBottomColor: "#8C5C38", borderBottomWidth: 1.5, marginTop: 0, justifyContent: "flex-end" }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <TouchableOpacity onPress={toggleVoiceMode} style={styles.voiceToggleBtn} activeOpacity={0.7}>
-            <MaterialIcons
-              name={voiceChatMode ? "keyboard" : "keyboard-voice"}
-              size={20}
-              color={colors.indigo}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={clearHistory} style={styles.clearBtn} activeOpacity={0.7}>
-            <MaterialIcons name="delete-sweep" size={20} color={colors.error} />
-          </TouchableOpacity>
-        </View>
+      {/* HEADER BAR - compact, dark gold */}
+      <View style={[
+        styles.controlBar,
+        { backgroundColor: "rgba(0, 0, 0, 0.80)", borderBottomColor: "#8C5C38", borderBottomWidth: 1 }
+      ]}>
+        <TouchableOpacity onPress={toggleVoiceMode} style={styles.voiceToggleBtn} activeOpacity={0.7}>
+          <MaterialIcons
+            name={voiceChatMode ? "keyboard" : "keyboard-voice"}
+            size={20}
+            color={colors.indigo}
+          />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={clearHistory} style={styles.clearBtn} activeOpacity={0.7}>
+          <MaterialIcons name="delete-sweep" size={20} color={colors.error} />
+        </TouchableOpacity>
       </View>
 
       {!voiceChatMode ? (
