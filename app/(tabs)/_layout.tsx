@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -28,       // Nổi lên trên cao hơn để tâm nằm đúng giữa đường kẻ
+    marginTop: -48,       
   },
   fabBtn: {
     width: 40,
