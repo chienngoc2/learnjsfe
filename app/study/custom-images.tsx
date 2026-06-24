@@ -143,7 +143,7 @@ export default function CustomImagesScreen() {
                 <View style={[styles.iconBox, { backgroundColor: colors.indigo + "12" }]}>
                   <Ionicons name="chatbubble-ellipses" size={20} color={colors.indigo} />
                 </View>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Ảnh đại diện AI Shiba</Text>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Ảnh đại diện AI Emma</Text>
               </View>
 
               <Text style={[styles.cardDescription, { color: colors.textMuted }]}>
@@ -167,7 +167,7 @@ export default function CustomImagesScreen() {
                     <Text style={{ color: colors.error, fontSize: 12, fontWeight: "600" }}>Xóa link</Text>
                   </TouchableOpacity>
                 ) : (
-                  <Text style={[styles.previewLabel, { color: colors.textMuted }]}>Mặc định (Chó Shiba)</Text>
+                  <Text style={[styles.previewLabel, { color: colors.textMuted }]}>Mặc định (Emma)</Text>
                 )}
               </View>
 
@@ -177,7 +177,7 @@ export default function CustomImagesScreen() {
                   style={[styles.input, { color: colors.text }]}
                   value={botAvatar}
                   onChangeText={setBotAvatar}
-                  placeholder="https://example.com/shiba.jpg"
+                  placeholder="https://example.com/emma.jpg"
                   placeholderTextColor={colors.textMuted + "80"}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -203,17 +203,19 @@ export default function CustomImagesScreen() {
                 Bấm nút dưới mỗi ảnh để áp dụng ngay lập tức mà không cần copy link.
               </Text>
 
-              {/* Shiba Inu Avatars Grid */}
-              <Text style={[styles.suggestGroupTitle, { color: colors.indigo }]}>🐾 Ảnh Shiba Inu (Cho AI)</Text>
+              {/* Emma Avatars Grid */}
+              <Text style={[styles.suggestGroupTitle, { color: colors.indigo }]}>🌸 Ảnh Emma (Cho AI)</Text>
               <View style={styles.suggestGrid}>
                 {[
-                  { label: "Dễ thương", url: "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=300" },
-                  { label: "Ngơ ngác", url: "https://images.unsplash.com/photo-1596492784531-6e6eb5ea9993?q=80&w=300" },
-                  { label: "Quý tộc", url: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=300" },
-                  { label: "Nụ cười", url: "https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?q=80&w=300" },
+                  { label: "Dễ thương", url: "https://api.dicebear.com/7.x/adventurer/png?seed=EmmaCute" },
+                  { label: "Trí tuệ", url: "https://api.dicebear.com/7.x/lorelei/png?seed=EmmaSmart" },
+                  { label: "Phong cách", url: "https://api.dicebear.com/7.x/avataaars/png?seed=EmmaSensei" },
+                  { label: "Robot", url: "https://api.dicebear.com/7.x/bottts/png?seed=EmmaBot" },
                 ].map((item, idx) => (
                   <View key={idx} style={[styles.suggestCard, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                    <Image source={{ uri: item.url }} style={styles.suggestImg} />
+                    <View style={{ width: 50, height: 50, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface }}>
+                      <Image source={{ uri: item.url }} style={styles.suggestImg} />
+                    </View>
                     <Text style={[styles.suggestLabelText, { color: colors.text }]} numberOfLines={1}>{item.label}</Text>
                     <TouchableOpacity
                       style={[styles.suggestApplyBtn, { backgroundColor: colors.indigo }]}

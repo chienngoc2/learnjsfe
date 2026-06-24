@@ -7,9 +7,6 @@ console.log("URL Backend hiện tại là:", process.env.EXPO_PUBLIC_API_URL);
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
-  headers: {
-    "Content-Type": "application/json",
-  },
 });
 
 // Attach JWT token from AsyncStorage to every outgoing request and apply dynamic apiBase url override

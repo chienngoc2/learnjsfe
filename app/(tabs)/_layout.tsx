@@ -6,13 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/src/context/ThemeContext';
 import { useRouter } from 'expo-router';
 
-// Center (+) FAB button component for tab bar
+// Center (+) FAB — renders in place of tab slot 3
 function CenterFabButton({ onPress }: { onPress: () => void }) {
-  const { colors, isDark } = useTheme();
+  const { isDark } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.85}
+      activeOpacity={0.82}
       style={styles.fabWrapper}
     >
       <View
@@ -25,7 +25,7 @@ function CenterFabButton({ onPress }: { onPress: () => void }) {
           },
         ]}
       >
-        <MaterialIcons name="add" size={24} color={isDark ? '#CFAC62' : '#8B6914'} />
+        <MaterialIcons name="add" size={20} color={isDark ? '#CFAC62' : '#8B6914'} />
       </View>
     </TouchableOpacity>
   );
@@ -53,27 +53,27 @@ export default function TabLayout() {
         },
       }}
     >
-      {/* 1. Dashboard */}
+      {/* Tab 1 — Trang chủ */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'Trang chủ',
-          tabBarIcon: ({ color }) => <MaterialIcons name="dashboard" size={26} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="dashboard" size={22} color={color} />,
         }}
       />
 
-      {/* 2. Chat AI */}
+      {/* Tab 2 — Emma AI Chat */}
       <Tabs.Screen
         name="chat"
         options={{
           title: 'Emma',
-          tabBarIcon: ({ color }) => <MaterialIcons name="chat" size={26} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="chat" size={22} color={color} />,
         }}
       />
 
-      {/* 3. Center (+) FAB placeholder tab */}
+      {/* Tab 3 — CENTER (+) FAB → navigates to Add Vocab */}
       <Tabs.Screen
-        name="vocab"
+        name="add"
         options={{
           title: '',
           tabBarIcon: () => null,
@@ -84,12 +84,21 @@ export default function TabLayout() {
         }}
       />
 
-      {/* 4. Study */}
+      {/* Tab 4 — Học tập (vocab/study hub) */}
+      <Tabs.Screen
+        name="vocab"
+        options={{
+          title: 'Học tập',
+          tabBarIcon: ({ color }) => <MaterialIcons name="style" size={22} color={color} />,
+        }}
+      />
+
+      {/* Tab 5 — Cá nhân (profile) */}
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Học tập',
-          tabBarIcon: ({ color }) => <MaterialIcons name="style" size={26} color={color} />,
+          title: 'Cá nhân',
+          tabBarIcon: ({ color }) => <MaterialIcons name="person" size={22} color={color} />,
         }}
       />
     </Tabs>
@@ -101,22 +110,22 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 4,
+    marginTop: -18,       // Nổi lên trên đường kẻ tab bar
   },
   fabBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.45,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.35,
+        shadowRadius: 6,
       },
-      android: { elevation: 8 },
+      android: { elevation: 6 },
     }),
   },
 });

@@ -56,6 +56,7 @@ export default function ChatScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const isPreparingRecording = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
+  const activeSoundResolveRef = useRef<(() => void) | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   const { addTokens, clearTokens } = useCultivationStore();
@@ -148,6 +149,10 @@ export default function ChatScreen() {
     stopAudioRequestRef.current = true;
     setIsPlayingVoice(false);
     setVoiceChatStatusSync("idle");
+    if (activeSoundResolveRef.current) {
+      activeSoundResolveRef.current();
+      activeSoundResolveRef.current = null;
+    }
     try {
       if (currentSoundRef.current) {
         await currentSoundRef.current.stopAsync();
@@ -185,11 +190,15 @@ export default function ChatScreen() {
           break;
         }
 
-        await new Promise<void>((resolve) =>
+        await new Promise<void>((resolve) => {
+          activeSoundResolveRef.current = resolve;
           sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish || stopAudioRequestRef.current) resolve();
-          })
-        );
+            if (status.didJustFinish || stopAudioRequestRef.current) {
+              resolve();
+            }
+          });
+        });
+        activeSoundResolveRef.current = null;
         await sound.unloadAsync();
         currentSoundRef.current = null;
       } catch (error) {
@@ -240,7 +249,7 @@ export default function ChatScreen() {
     }
   };
 
-  const stopRecording = async () => {
+  const stopRecording = async (discard = false) => {
     const currentRec = recordingRef.current;
     if (!currentRec) {
       setIsRecording(false);
@@ -256,7 +265,7 @@ export default function ChatScreen() {
         staysActiveInBackground: false,
         playThroughEarpieceAndroid: false,
       });
-      if (uri) sendAudio(uri);
+      if (uri && !discard) sendAudio(uri);
     } catch (err) {
       console.error("Lỗi dừng ghi âm:", err);
       if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
@@ -271,18 +280,52 @@ export default function ChatScreen() {
     if (voiceChatModeRef.current) setVoiceChatStatusSync("transcribing");
 
     const formData = new FormData();
-    // @ts-ignore
-    formData.append("audio", { uri, name: "voice.m4a", type: "audio/m4a" });
+
+    if (Platform.OS === "web") {
+      try {
+        const res = await fetch(uri);
+        const blob = await res.blob();
+        const rawMime = blob.type || "";
+        console.log("[Audio] MIME:", rawMime, "Size:", blob.size);
+
+        if (blob.size < 200) {
+          console.warn("Audio too small, skipping upload.");
+          setLoading(false);
+          if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
+          return;
+        }
+
+        let ext = "webm";
+        if (rawMime.includes("mp4") || rawMime.includes("m4a") || rawMime.includes("aac")) ext = "m4a";
+        else if (rawMime.includes("wav")) ext = "wav";
+        else if (rawMime.includes("mpeg") || rawMime.includes("mp3")) ext = "mp3";
+        else if (rawMime.includes("ogg")) ext = "ogg";
+
+        formData.append("audio", blob, `voice.${ext}`);
+      } catch (err) {
+        console.error("Web audio convert error:", err);
+        // @ts-ignore
+        formData.append("audio", { uri, name: "voice.webm", type: "audio/webm" });
+      }
+    } else {
+      // Native iOS / Android
+      // @ts-ignore
+      formData.append("audio", { uri, name: "voice.m4a", type: "audio/m4a" });
+    }
 
     try {
       const response = await api.post("/api/chat/transcribe", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: {
+          "Content-Type": Platform.OS === "web" ? undefined : "multipart/form-data",
+        },
       });
       const recognizedText = response.data.text || "";
       if (voiceChatModeRef.current) setVoiceChatStatusSync("thinking");
       await handleChat(recognizedText);
-    } catch (err) {
-      Alert.alert("Lỗi", "Kết nối máy chủ thất bại.");
+    } catch (err: any) {
+      console.error("Transcribe API error:", err?.response?.data || err.message);
+      const serverMsg = err?.response?.data?.message || "Kết nối máy chủ thất bại.";
+      Alert.alert("Lỗi", serverMsg);
       if (voiceChatModeRef.current) setVoiceChatStatusSync("idle");
     } finally {
       setLoading(false);
@@ -412,6 +455,9 @@ export default function ChatScreen() {
 
   const toggleVoiceMode = () => {
     stopBotSpeaking();
+    if (recordingRef.current) {
+      stopRecording(true);
+    }
     setVoiceChatModeSync(!voiceChatModeRef.current);
     setVoiceChatStatusSync("idle");
   };
@@ -470,17 +516,6 @@ export default function ChatScreen() {
 
           {/* Chat Input with voice toggle + clear icons inside */}
           <View style={[styles.inputArea, { backgroundColor: "rgba(0,0,0,0.85)", borderTopColor: "#8C5C38" }]}>
-            {/* Top actions row: voice toggle + trash */}
-            <View style={styles.inputTopRow}>
-              <TouchableOpacity onPress={toggleVoiceMode} style={styles.iconPill} activeOpacity={0.7}>
-                <MaterialIcons name="keyboard-voice" size={16} color={colors.indigo} />
-                <Text style={[styles.iconPillLabel, { color: colors.indigo }]}>Voice</Text>
-              </TouchableOpacity>
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity onPress={() => { setMessages([]); clearTokens(); }} style={styles.iconPill} activeOpacity={0.7}>
-                <MaterialIcons name="delete-sweep" size={16} color={colors.error} />
-              </TouchableOpacity>
-            </View>
 
             <ChatInput
               onSendText={handleChat}
