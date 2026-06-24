@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Text } from 'react-native';
-import { Mic } from 'lucide-react-native'; // Sếp nhớ cài lucide-react-native nhé
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface VoiceIndicatorProps {
   isRecording: boolean;
@@ -37,7 +37,7 @@ export default function VoiceIndicator({ isRecording, text = "Đang nghe sếp n
     <View style={styles.overlay}>
       <Animated.View style={[styles.pulse, { transform: [{ scale: pulseAnim }] }]}>
         <View style={styles.micCircle}>
-          <Mic size={32} color="#fff" />
+          <MaterialIcons name="mic" size={32} color="#fff" />
         </View>
       </Animated.View>
       <Text style={styles.text}>{text}</Text>
