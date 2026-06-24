@@ -19,13 +19,13 @@ function CenterFabButton({ onPress }: { onPress: () => void }) {
         style={[
           styles.fabBtn,
           {
-            backgroundColor: isDark ? '#1C160E' : '#FFFFFF',
-            borderColor: isDark ? 'rgba(207, 172, 98, 0.35)' : 'rgba(139, 105, 20, 0.25)',
-            shadowColor: isDark ? '#CFAC62' : '#8B6914',
+            backgroundColor: isDark ? '#1A150D' : '#FFFFFF',
+            borderColor: isDark ? 'rgba(207, 172, 98, 0.25)' : 'rgba(139, 105, 20, 0.15)',
+            shadowColor: '#000000',
           },
         ]}
       >
-        <MaterialIcons name="add" size={18} color={isDark ? '#CFAC62' : '#8B6914'} />
+        <MaterialIcons name="add" size={20} color={isDark ? '#CFAC62' : '#8B6914'} />
       </View>
     </TouchableOpacity>
   );
@@ -36,7 +36,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const tabBarHeight = Platform.OS === 'ios' ? 52 + insets.bottom : 52;
+  const tabBarHeight = Platform.OS === 'ios' ? 56 + insets.bottom : 56;
 
   return (
     <Tabs
@@ -126,19 +126,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fabBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
       },
-      android: { elevation: 4 },
+      android: { elevation: 3 },
     }),
   },
 });
