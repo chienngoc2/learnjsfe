@@ -67,6 +67,8 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const isPreparingRecording = useRef(false);
   const currentSoundRef = useRef<Audio.Sound | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
@@ -166,6 +168,11 @@ export default function ChatScreen() {
       if (currentSoundRef.current) {
         currentSoundRef.current.unloadAsync();
       }
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch((e) => {
+          console.log("Error unloading recording on unmount:", e);
+        });
+      }
     };
   }, []);
 
@@ -217,6 +224,11 @@ export default function ChatScreen() {
   };
 
   const startRecording = async () => {
+    if (isRecording || recordingRef.current || isPreparingRecording.current) {
+      console.warn("Recording is already in progress or preparing.");
+      return;
+    }
+    isPreparingRecording.current = true;
     try {
       setIsRecording(true);
       if (voiceChatMode) setVoiceChatStatus("recording");
@@ -229,6 +241,7 @@ export default function ChatScreen() {
         );
         setIsRecording(false);
         if (voiceChatMode) setVoiceChatStatus("idle");
+        isPreparingRecording.current = false;
         return;
       }
 
@@ -239,19 +252,20 @@ export default function ChatScreen() {
         playThroughEarpieceAndroid: false,
       });
 
-      if (recording) {
-        try {
-          await recording.stopAndUnloadAsync();
-        } catch (e) {}
-      }
+
 
       const { recording: newRecording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
+      recordingRef.current = newRecording;
       setRecording(newRecording);
+      isPreparingRecording.current = false;
     } catch (err) {
       console.error("Lỗi bắt đầu ghi âm:", err);
+      recordingRef.current = null;
+      setRecording(null);
       setIsRecording(false);
+      isPreparingRecording.current = false;
       if (voiceChatMode) setVoiceChatStatus("idle");
       Alert.alert(
         "Lỗi Microphone",
@@ -261,11 +275,17 @@ export default function ChatScreen() {
   };
 
   const stopRecording = async () => {
+    const currentRec = recordingRef.current;
+    if (!currentRec) {
+      console.warn("No active recording to stop.");
+      setIsRecording(false);
+      return;
+    }
+
     try {
       setIsRecording(false);
-      if (!recording) return;
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      await currentRec.stopAndUnloadAsync();
+      const uri = currentRec.getURI();
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
@@ -274,12 +294,16 @@ export default function ChatScreen() {
         playThroughEarpieceAndroid: false,
       });
 
-      if (uri) sendAudio(uri);
-      setRecording(null);
+      if (uri) {
+        sendAudio(uri);
+      }
     } catch (err) {
       console.error("Lỗi dừng ghi âm:", err);
       if (voiceChatMode) setVoiceChatStatus("idle");
       Alert.alert("Lỗi Ghi Âm", "Không thể dừng và lưu đoạn ghi âm.");
+    } finally {
+      recordingRef.current = null;
+      setRecording(null);
     }
   };
 
@@ -296,6 +320,14 @@ export default function ChatScreen() {
         // Log the actual MIME type for verification
         const rawMime = blob.type || "";
         console.log("=== 🎙️ [WEB AUDIO] BLOB MIME TYPE ===", rawMime);
+        console.log("=== 🎙️ [WEB AUDIO] BLOB SIZE ===", blob.size, "bytes");
+
+        if (blob.size < 200) {
+          console.warn("Audio file is too small or empty, skipping upload.");
+          setLoading(false);
+          if (voiceChatMode) setVoiceChatStatus("idle");
+          return;
+        }
         
         let ext = "webm";
         if (rawMime.includes("mp4") || rawMime.includes("m4a") || rawMime.includes("aac")) {
