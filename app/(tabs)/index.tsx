@@ -216,7 +216,7 @@ export default function DashboardScreen() {
           <View style={styles.headerLeft}>
             <View style={[styles.avatarWrap, { borderColor: accentColor + "40" }]}>
               <Image
-                source={{ uri: avatarUser || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username }}
+                source={{ uri: avatarUser || "https://i.pinimg.com/1200x/21/22/b5/2122b5f6964f4dfb1d87ec514be679ae.jpg" }}
                 style={styles.avatar}
               />
             </View>

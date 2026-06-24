@@ -147,7 +147,7 @@ export default function CustomImagesScreen() {
               </View>
 
               <Text style={[styles.cardDescription, { color: colors.textMuted }]}>
-                Dán link ảnh (URL) chú chó Shiba khác hoặc bất kỳ hình ảnh nào để làm avatar cho AI.
+                https://i.pinimg.com/1200x/c0/b4/1c/c0b41c041088fcfb97d76bfd703c47ac.jpg
               </Text>
 
               {/* Preview Box */}
@@ -229,10 +229,10 @@ export default function CustomImagesScreen() {
               <Text style={[styles.suggestGroupTitle, { color: colors.indigo }]}>🎓 Ảnh Học Viên (Cho Bạn)</Text>
               <View style={styles.suggestGrid}>
                 {[
-                  { label: "Anime Nam", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=ShibaStudent" },
-                  { label: "Anime Nữ", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Sakura" },
-                  { label: "Cute Boy", url: "https://api.dicebear.com/7.x/lorelei/svg?seed=Felix" },
-                  { label: "Cute Girl", url: "https://api.dicebear.com/7.x/lorelei/svg?seed=Heidi" },
+                  { label: "Anime Nam", url: DEFAULT_USER_AVATAR },
+                  { label: "Anime Nữ", url: "https://api.dicebear.com/7.x/adventurer/png?seed=Sakura" },
+                  { label: "Cute Boy", url: "https://api.dicebear.com/7.x/lorelei/png?seed=Felix" },
+                  { label: "Cute Girl", url: "https://api.dicebear.com/7.x/lorelei/png?seed=Heidi" },
                 ].map((item, idx) => (
                   <View key={idx} style={[styles.suggestCard, { borderColor: colors.border, backgroundColor: colors.background }]}>
                     <View style={{ width: 50, height: 50, borderRadius: 10, overflow: 'hidden', backgroundColor: colors.surface }}>

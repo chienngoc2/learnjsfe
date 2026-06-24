@@ -11,6 +11,7 @@ import {
   Image,
   ImageBackground,
   ScrollView,
+  Alert,
 } from "react-native";
 import { Audio } from "expo-av";
 import { Stack, useRouter } from "expo-router";
@@ -143,10 +144,19 @@ export default function ChatScreen() {
         return;
       }
 
-      await Audio.requestPermissionsAsync();
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Quyền truy cập Microphone",
+          "Ứng dụng cần quyền sử dụng microphone để ghi âm giọng nói khi trò chuyện với AI. Vui lòng cấp quyền trong cài đặt thiết bị."
+        );
+      }
+
       await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
+        allowsRecordingIOS: false, // Default to false for main speaker playback
         playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
       });
     })();
 
@@ -208,13 +218,43 @@ export default function ChatScreen() {
     try {
       setIsRecording(true);
       if (voiceChatMode) setVoiceChatStatus("recording");
-      const { recording } = await Audio.Recording.createAsync(
+
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Quyền truy cập Microphone",
+          "Ứng dụng cần quyền sử dụng microphone để ghi âm giọng nói. Vui lòng cấp quyền trong cài đặt thiết bị."
+        );
+        setIsRecording(false);
+        if (voiceChatMode) setVoiceChatStatus("idle");
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
+      });
+
+      if (recording) {
+        try {
+          await recording.stopAndUnloadAsync();
+        } catch (e) {}
+      }
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
-      setRecording(recording);
+      setRecording(newRecording);
     } catch (err) {
+      console.error("Lỗi bắt đầu ghi âm:", err);
       setIsRecording(false);
       if (voiceChatMode) setVoiceChatStatus("idle");
+      Alert.alert(
+        "Lỗi Microphone",
+        "Không thể bắt đầu ghi âm. Hãy kiểm tra cài đặt quyền micro trong điện thoại."
+      );
     }
   };
 
@@ -224,11 +264,20 @@ export default function ChatScreen() {
       if (!recording) return;
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
+      });
+
       if (uri) sendAudio(uri);
       setRecording(null);
     } catch (err) {
-      console.error(err);
+      console.error("Lỗi dừng ghi âm:", err);
       if (voiceChatMode) setVoiceChatStatus("idle");
+      Alert.alert("Lỗi Ghi Âm", "Không thể dừng và lưu đoạn ghi âm.");
     }
   };
 
@@ -236,8 +285,23 @@ export default function ChatScreen() {
     setLoading(true);
     if (voiceChatMode) setVoiceChatStatus("transcribing");
     const formData = new FormData();
-    // @ts-ignore
-    formData.append("audio", { uri, name: "voice.m4a", type: "audio/m4a" });
+    
+    if (Platform.OS === "web") {
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        formData.append("audio", blob, "voice.webm");
+      } catch (err) {
+        console.error("Lỗi chuyển đổi âm thanh trên Web:", err);
+        // Fallback
+        // @ts-ignore
+        formData.append("audio", { uri, name: "voice.webm", type: "audio/webm" });
+      }
+    } else {
+      // Native iOS / Android
+      // @ts-ignore
+      formData.append("audio", { uri, name: "voice.m4a", type: "audio/m4a" });
+    }
 
     try {
       const response = await api.post("/api/chat/transcribe", formData, {
@@ -403,7 +467,7 @@ export default function ChatScreen() {
       {/* SHIBA AI SENSEI AVATAR HEADER CARD */}
       <View style={[styles.masterCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Image
-          source={{ uri: avatarBot || "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=300" }}
+          source={{ uri: avatarBot || "https://i.pinimg.com/1200x/c0/b4/1c/c0b41c041088fcfb97d76bfd703c47ac.jpg" }}
           style={[styles.masterAvatar, { borderColor: colors.indigo }]}
         />
         <View style={styles.masterInfo}>

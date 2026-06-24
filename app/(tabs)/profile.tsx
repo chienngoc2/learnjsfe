@@ -151,7 +151,7 @@ export default function ProfileScreen() {
       <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={[styles.avatarCircle, { borderColor: colors.indigo, padding: 2 }]}>
           <Image
-            source={{ uri: avatarUser || "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username }}
+            source={{ uri: avatarUser || "https://i.pinimg.com/1200x/21/22/b5/2122b5f6964f4dfb1d87ec514be679ae.jpg" }}
             style={{ width: "100%", height: "100%", borderRadius: 28 }}
           />
         </View>
