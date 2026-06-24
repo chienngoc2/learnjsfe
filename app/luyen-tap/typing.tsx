@@ -236,10 +236,10 @@ export default function PracticeTypingScreen() {
     return (
       <SafeAreaView style={[styles.finishContainer, { backgroundColor: colors.background }]}>
         <Text style={styles.finishEmoji}>{accuracy >= 80 ? "🎉" : "💪"}</Text>
-        <Text style={[styles.finishTitle, { color: colors.text }]}>Thanh Toán Trận Pháp!</Text>
-        <Text style={[styles.finishSub, { color: colors.textMuted }]}>Độ chính xác: {accuracy}%</Text>
+        <Text style={[styles.finishTitle, { color: colors.text }]}>Luyện Tập Hoàn Thành!</Text>
+        <Text style={[styles.finishSub, { color: colors.textMuted }]}>Đo độ chính xác: {accuracy}%</Text>
         <TouchableOpacity style={[styles.btnFinish, { backgroundColor: colors.indigo }]} onPress={() => router.back()}>
-          <Text style={[styles.btnFinishText, { color: "#050814" }]}>Trở về Tàng Thư Các</Text>
+          <Text style={[styles.btnFinishText, { color: "#050814" }]}>Trở về Kho Từ Vựng</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );

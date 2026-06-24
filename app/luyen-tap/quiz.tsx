@@ -124,7 +124,7 @@ export default function PracticeQuizScreen() {
     );
 
     if (filteredGrammar.length === 0) {
-      alert("Các bài học được chọn chưa có cấu trúc ngữ pháp nào sếp ơi!");
+      alert("Các bài học được chọn chưa có cấu trúc ngữ pháp nào bạn nhé!");
       return null;
     }
 
@@ -334,7 +334,7 @@ export default function PracticeQuizScreen() {
     });
 
     if (allWords.length === 0) {
-      alert("Bài học được chọn chưa có từ vựng nào sếp ơi!");
+      alert("Bài học được chọn chưa có từ vựng nào bạn nhé!");
       return;
     }
 
@@ -471,7 +471,7 @@ export default function PracticeQuizScreen() {
               <Text style={[styles.sectionHeading, { color: colors.indigo }]}>1. CHỌN BÀI LUYỆN TẬP</Text>
               {vocabLists.length === 0 ? (
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                  Chưa có bài học nào. Sếp cần tạo bài trước nha!
+                  Chưa có bài học nào. Bạn cần tạo bài trước nha!
                 </Text>
               ) : (
                 <View style={styles.listGrid}>
@@ -616,7 +616,7 @@ export default function PracticeQuizScreen() {
               <Feather name="x" size={20} color={colors.text} />
             </Pressable>
             <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Tu Luyện Trắc Nghiệm</Text>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Trắc Nghiệm Ghi Nhớ</Text>
               <Text style={[styles.headerSub, { color: colors.textMuted }]}>
                 {String(currentIdx + 1).padStart(2, "0")} <Text style={{ color: colors.textMuted }}>/</Text> {String(questions.length).padStart(2, "0")}
               </Text>
@@ -747,7 +747,7 @@ export default function PracticeQuizScreen() {
               <Ionicons name="trophy-outline" size={50} color={colors.indigo} />
             </View>
 
-            <Text style={[styles.resultTitle, { color: colors.text }]}>TU LUYỆN HOÀN THÀNH</Text>
+            <Text style={[styles.resultTitle, { color: colors.text }]}>BÀI TẬP HOÀN THÀNH</Text>
             <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
               Thử thách trắc nghiệm đã được chinh phục!
             </Text>
@@ -774,7 +774,7 @@ export default function PracticeQuizScreen() {
               <View style={[styles.rewardCard, { backgroundColor: colors.surface, borderColor: colors.indigo }]}>
                 <Ionicons name="sparkles" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
                 <Text style={[styles.rewardCardText, { color: colors.text }]}>
-                  Gặt hái thành công: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained}</Text> Tu Vi pháp lực!
+                  Gặt hái thành công: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained}</Text> XP và +{score * 5} kinh nghiệm!
                 </Text>
               </View>
             ) : null}
@@ -791,7 +791,7 @@ export default function PracticeQuizScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.btnResultText, { color: "#050814" }]}>TU LUYỆN LẠI</Text>
+                <Text style={[styles.btnResultText, { color: "#050814" }]}>THỬ THÁCH LẠI</Text>
               </Pressable>
 
               <Pressable

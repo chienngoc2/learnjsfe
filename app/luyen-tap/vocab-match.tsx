@@ -127,7 +127,7 @@ export default function VocabMatchScreen() {
     });
 
     if (allWords.length === 0) {
-      alert("Bài học được chọn chưa có từ vựng nào sếp ơi!");
+      alert("Bài học được chọn chưa có từ vựng nào bạn nhé!");
       return;
     }
 
@@ -272,7 +272,7 @@ export default function VocabMatchScreen() {
               <Text style={[styles.sectionHeading, { color: colors.indigo }]}>CHỌN BÀI LUYỆN TẬP</Text>
               {vocabLists.length === 0 ? (
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                  Chưa có bài học nào. Sếp cần tạo bài trước nha!
+                  Chưa có bài học nào. Bạn cần tạo bài trước nha!
                 </Text>
               ) : (
                 <View style={styles.listGrid}>
@@ -350,7 +350,7 @@ export default function VocabMatchScreen() {
                 },
               ]}
             >
-              <Text style={styles.btnStartText}>BẮT ĐẦU PHÁ TRẬN</Text>
+              <Text style={styles.btnStartText}>BẮT ĐẦU LUYỆN TẬP</Text>
             </Pressable>
           </ScrollView>
         </LinearGradient>
@@ -381,7 +381,7 @@ export default function VocabMatchScreen() {
               <Feather name="x" size={20} color={colors.text} />
             </Pressable>
             <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Trận Pháp Ghép Từ</Text>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Luyện Ghép Từ Vựng</Text>
               <Text style={[styles.headerSub, { color: colors.textMuted }]}>
                 ĐÃ GHÉP: {score} <Text style={{ color: colors.textMuted }}>/</Text> {totalPairs} | MOVES: {moves}
               </Text>
@@ -461,9 +461,9 @@ export default function VocabMatchScreen() {
               <Ionicons name="sparkles-outline" size={50} color={colors.indigo} />
             </View>
 
-            <Text style={[styles.resultTitle, { color: colors.text }]}>ĐẠI TRẬN HOÀN THÀNH</Text>
+            <Text style={[styles.resultTitle, { color: colors.text }]}>BÀI TẬP HOÀN THÀNH</Text>
             <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
-              Các thạch bản cổ ngữ đã được phá giải hoàn chỉnh!
+              Chúc mừng bạn đã ghép chính xác toàn bộ thẻ từ vựng!
             </Text>
 
             {/* Score Bento Box */}
@@ -484,9 +484,9 @@ export default function VocabMatchScreen() {
             {/* Rewards Card */}
             {rewardTuViGained > 0 ? (
               <View style={[styles.rewardCard, { backgroundColor: colors.surface, borderColor: colors.indigo }]}>
-                <Ionicons name="flash" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
+                <Ionicons name="sparkles" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
                 <Text style={[styles.rewardCardText, { color: colors.text }]}>
-                  Thu hoạch linh khí: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained}</Text> Tu Vi pháp lực!
+                  Điểm tích lũy: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained}</Text> XP và +{totalPairs * 10} kinh nghiệm!
                 </Text>
               </View>
             ) : null}
@@ -633,12 +633,14 @@ const styles = StyleSheet.create({
   },
   cardItem: {
     width: (width - 32 - 10) / 2, // 2 columns layout
-    height: Platform.OS === 'web' ? 90 : 74,
+    minHeight: 76,
     borderRadius: 16,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    padding: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginVertical: 4,
     elevation: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

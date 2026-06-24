@@ -235,7 +235,7 @@ export default function PracticeConjugationScreen() {
     });
 
     if (selectedVerbs.length === 0) {
-      alert("Các bài học được chọn chưa có động từ nào có chia thể sếp ơi! Vui lòng chọn bài khác.");
+      alert("Các bài học được chọn chưa có động từ nào có chia thể bạn nhé! Vui lòng chọn bài khác.");
       return;
     }
 
@@ -404,7 +404,7 @@ export default function PracticeConjugationScreen() {
               <Text style={[styles.sectionHeading, { color: colors.indigo }]}>1. CHỌN BÀI CHỨA ĐỘNG TỪ</Text>
               {vocabLists.length === 0 ? (
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                  Chưa có bài học nào. Sếp cần tạo bài trước nha!
+                  Chưa có bài học nào. Bạn cần tạo bài trước nha!
                 </Text>
               ) : (
                 <View style={styles.listGrid}>
@@ -506,7 +506,7 @@ export default function PracticeConjugationScreen() {
                 },
               ]}
             >
-              <Text style={styles.btnStartText}>BẮT ĐẦU TU LUYỆN CHIA THỂ</Text>
+              <Text style={styles.btnStartText}>BẮT ĐẦU LUYỆN TẬP CHIA THỂ</Text>
             </Pressable>
           </ScrollView>
         </LinearGradient>
@@ -540,7 +540,7 @@ export default function PracticeConjugationScreen() {
               <Feather name="x" size={20} color={colors.text} />
             </Pressable>
             <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Tu Luyện Chia Thể</Text>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Luyện Tập Chia Thể</Text>
               <Text style={[styles.headerSub, { color: colors.textMuted }]}>
                 {String(currentIdx + 1).padStart(2, "0")} <Text style={{ color: colors.textMuted }}>/</Text> {String(questions.length).padStart(2, "0")}
               </Text>
@@ -677,7 +677,7 @@ export default function PracticeConjugationScreen() {
               <Ionicons name="sparkles-outline" size={50} color={colors.indigo} />
             </View>
 
-            <Text style={[styles.resultTitle, { color: colors.text }]}>PHÁP LỰC ĐỘT PHÁ</Text>
+            <Text style={[styles.resultTitle, { color: colors.text }]}>BÀI TẬP HOÀN THÀNH</Text>
             <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
               Hoàn thành thử thách trắc nghiệm chia thể động từ!
             </Text>
@@ -704,7 +704,7 @@ export default function PracticeConjugationScreen() {
               <View style={[styles.rewardCard, { backgroundColor: colors.surface, borderColor: colors.indigo }]}>
                 <Ionicons name="sparkles" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
                 <Text style={[styles.rewardCardText, { color: colors.text }]}>
-                  Lĩnh ngộ võ công: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained}</Text> Tu Vi pháp lực!
+                  Gặt hái thành công: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained}</Text> XP và +{score * 5} kinh nghiệm!
                 </Text>
               </View>
             ) : null}
@@ -721,7 +721,7 @@ export default function PracticeConjugationScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.btnResultText, { color: "#050814" }]}>TU LUYỆN LẠI</Text>
+                <Text style={[styles.btnResultText, { color: "#050814" }]}>THỬ THÁCH LẠI</Text>
               </Pressable>
 
               <Pressable

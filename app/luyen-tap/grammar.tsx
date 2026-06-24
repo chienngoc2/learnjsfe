@@ -94,8 +94,11 @@ function FuriganaText({
   );
 }
 
-const parseExample = (exampleStr: string) => {
+const parseExample = (exampleStr: any) => {
   if (!exampleStr) return { jp: "", vn: "" };
+  if (typeof exampleStr === "object") {
+    return { jp: exampleStr.jp || "", vn: exampleStr.vn || "" };
+  }
   let colonIndex = exampleStr.indexOf(":");
   if (colonIndex === -1) {
     colonIndex = exampleStr.indexOf("：");
@@ -144,14 +147,28 @@ export default function PracticeGrammarScreen() {
   const [isFinished, setIsFinished] = useState(false);
   const [totalPairs, setTotalPairs] = useState(0);
 
-  // Fetch topics
+  // Fetch topics and grammar points together, then map them
   useEffect(() => {
     setLoading(true);
-    api.get("/api/vocab/lists")
-      .then((res) => {
-        if (res.data.success && res.data.data) {
-          const data = res.data.data.filter((l: any) => l.grammarPoints && l.grammarPoints.length > 0);
-          setTopics(data);
+    const fetchLists = api.get("/api/vocab/lists");
+    const fetchGrammars = api.get("/api/vocab/all-grammar-points").catch(() => ({ data: { success: false, data: [] } }));
+
+    Promise.all([fetchLists, fetchGrammars])
+      .then(([listsRes, grammarsRes]) => {
+        if (listsRes.data.success && listsRes.data.data) {
+          const lists = listsRes.data.data;
+          const grammars = (grammarsRes.data.success && grammarsRes.data.data) ? grammarsRes.data.data : [];
+
+          // Map grammar points to their respective lists
+          const listsWithGrammar = lists.map((list: any) => {
+            const gps = grammars.filter((g: any) => g.topicId && g.topicId.toString() === list._id.toString());
+            return {
+              ...list,
+              grammarPoints: gps
+            };
+          }).filter((list: any) => list.grammarPoints && list.grammarPoints.length > 0);
+
+          setTopics(listsWithGrammar);
 
           // Auto-select topic
           const targetId = params.topicId || params.listId;
@@ -159,10 +176,10 @@ export default function PracticeGrammarScreen() {
           
           let preSelectedId: string | null = null;
           if (targetId) {
-            const matched = data.find((l: any) => l._id.toString() === targetId.toString());
+            const matched = listsWithGrammar.find((l: any) => l._id.toString() === targetId.toString());
             if (matched) preSelectedId = matched._id;
           } else if (targetTitle) {
-            const matched = data.find((l: any) => 
+            const matched = listsWithGrammar.find((l: any) => 
               l.title.toLowerCase().includes(targetTitle.toLowerCase())
             );
             if (matched) preSelectedId = matched._id;
@@ -170,8 +187,8 @@ export default function PracticeGrammarScreen() {
 
           if (preSelectedId) {
             setSelectedTopicIds([preSelectedId]);
-          } else if (data.length > 0) {
-            setSelectedTopicIds([data[0]._id]);
+          } else if (listsWithGrammar.length > 0) {
+            setSelectedTopicIds([listsWithGrammar[0]._id]);
           }
         }
       })
@@ -233,7 +250,7 @@ export default function PracticeGrammarScreen() {
     });
 
     if (allExamples.length === 0) {
-      alert("Các chủ đề được chọn chưa có câu ví dụ để ghép sếp ơi!");
+      alert("Các chủ đề được chọn chưa có câu ví dụ để ghép bạn nhé!");
       return;
     }
 
@@ -343,7 +360,7 @@ export default function PracticeGrammarScreen() {
       <View style={[styles.centerBox, { backgroundColor: bgColors[0] }]}>
         <ActivityIndicator size="large" color={colors.indigo} />
         <Text style={[styles.loadingText, { color: colors.textMuted }]}>
-          Đang chuẩn bị trận pháp ghép ngữ pháp...
+          Đang chuẩn bị câu hỏi ghép ngữ pháp...
         </Text>
       </View>
     );
@@ -384,7 +401,7 @@ export default function PracticeGrammarScreen() {
                 
                 {topics.length === 0 ? (
                   <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                    Chưa có bài học chứa cấu trúc ngữ pháp nào sếp ơi! 📭
+                    Chưa có bài học chứa cấu trúc ngữ pháp nào bạn nhé! 📭
                   </Text>
                 ) : (
                   <View style={styles.listGrid}>
@@ -459,7 +476,7 @@ export default function PracticeGrammarScreen() {
                   },
                 ]}
               >
-                <Text style={styles.btnStartText}>BẮT ĐẦU PHÁ TRẬN 🎮</Text>
+                <Text style={styles.btnStartText}>BẮT ĐẦU LUYỆN TẬP 🎮</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -483,7 +500,7 @@ export default function PracticeGrammarScreen() {
                 <Feather name="x" size={20} color={colors.text} />
               </TouchableOpacity>
               <View style={styles.headerTitleWrap}>
-                <Text style={[styles.headerTitle, { color: colors.text }]}>Trận Pháp Ghép Ngữ Pháp</Text>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>Luyện Ghép Ngữ Pháp</Text>
                 <Text style={[styles.headerSub, { color: colors.textMuted }]}>
                   ĐÃ GHÉP: {score} <Text style={{ color: colors.textMuted }}>/</Text> {totalPairs} | LƯỢT ĐI: {moves}
                 </Text>
@@ -616,9 +633,9 @@ export default function PracticeGrammarScreen() {
               <Ionicons name="sparkles-outline" size={50} color={colors.indigo} />
             </View>
 
-            <Text style={[styles.resultTitle, { color: colors.text }]}>ĐẠI TRẬN HOÀN THÀNH</Text>
+            <Text style={[styles.resultTitle, { color: colors.text }]}>BÀI TẬP HOÀN THÀNH</Text>
             <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
-              Chúc mừng sếp đã ghép chuẩn toàn bộ ví dụ cấu trúc ngữ pháp!
+              Chúc mừng bạn đã ghép chính xác toàn bộ câu ví dụ ngữ pháp!
             </Text>
 
             <View style={[styles.resultBentoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -636,9 +653,9 @@ export default function PracticeGrammarScreen() {
             </View>
 
             <View style={[styles.rewardCard, { backgroundColor: colors.surface, borderColor: colors.indigo }]}>
-              <Ionicons name="flash" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
+              <Ionicons name="sparkles" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
               <Text style={[styles.rewardCardText, { color: colors.text }]}>
-                Thu hoạch linh khí: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{totalPairs * 5}</Text> Tu Vi pháp lực!
+                Điểm tích lũy: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{totalPairs * 10}</Text> XP và +{totalPairs * 5} Điểm kinh nghiệm!
               </Text>
             </View>
 
@@ -797,17 +814,19 @@ const styles = StyleSheet.create({
   },
   matchColCard: {
     width: "100%",
-    height: Platform.OS === 'web' ? 110 : 88,
-    borderRadius: 14,
+    minHeight: 88,
+    borderRadius: 16,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    padding: 6,
-    elevation: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginVertical: 4,
+    elevation: 1.5,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   matchCardText: {
     fontWeight: "800",
