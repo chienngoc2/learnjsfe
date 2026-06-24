@@ -3,61 +3,61 @@
 
 export const themes = {
   light: {
-    background: "#F0F2F8",            // Nền chính — xanh bạc nhạt
-    surface: "#FFFFFF",                // Nền card — trắng tinh
-    surfaceAlt: "#F7F9FC",            // Nền card phụ nhạt hơn
-    text: "#0F172A",                   // Chữ chính — xanh đen đậm
-    textMuted: "#64748B",              // Chữ phụ — xanh xám
-    border: "rgba(15,23,42,0.08)",    // Viền rất nhẹ
+    background: "#FAF7F2",            // Warm snowy ivory/cream
+    surface: "#FFFFFF",               // Pure snow card
+    surfaceAlt: "#F5EFE6",           // Cozy light winter wood
+    text: "#2B1D0F",                  // Rich chocolate brown text
+    textMuted: "#8B7E74",             // Frosted wood grey
+    border: "rgba(184,134,11,0.15)",   // Soft bronze/gold border viền nhẹ
 
-    // Accent: Indigo (single accent, saturation < 80%)
-    indigo: "#4F46E5",                 // Indigo chính
-    indigoLight: "#EEF2FF",            // Indigo tint rất nhạt
-    indigoMid: "#818CF8",              // Indigo mid (gradient)
+    // Accent: Gold (saturation < 80%)
+    indigo: "#B8860B",                // Dark Goldenrod / Antique Gold
+    indigoLight: "#FDF7E7",           // Soft gold champagne tint
+    indigoMid: "#C59B27",             // Muted gold
 
     // Secondary accents
-    amber: "#F59E0B",                  // Vàng cam (streak / fire)
-    amberLight: "#FEF3C7",
-    purple: "#8B5CF6",                 // Tím (grammar)
-    purpleLight: "#F5F3FF",
-    blue: "#3B82F6",                   // Xanh dương (vocab)
-    blueLight: "#EFF6FF",
-    emerald: "#10B981",                // Xanh lá (success)
-    emeraldLight: "#D1FAE5",
+    amber: "#C59B27",                 // Gold amber
+    amberLight: "#FFFDF5",
+    purple: "#8B5A2B",                // Cozy warm winter wood brown
+    purpleLight: "#FBF5F0",
+    blue: "#A0522D",                  // Sienna/wood
+    blueLight: "#FFF8F5",
+    emerald: "#2E7D32",               // Forest green
+    emeraldLight: "#E8F5E9",
 
-    error: "#EF4444",
-    errorLight: "#FEF2F2",
+    error: "#C62828",
+    errorLight: "#FFEBEE",
 
-    shadowColor: "#4F46E5",
-    shadowNeutral: "#0F172A",
+    shadowColor: "#B8860B",
+    shadowNeutral: "#2B1D0F",
   },
   dark: {
-    background: "#080C18",             // Nền OLED — navy đen sâu
-    surface: "#111827",                // Nền card — navy tối
-    surfaceAlt: "#1A2235",             // Nền card phụ
-    text: "#F1F5F9",                   // Chữ chính — trắng kem
-    textMuted: "#64748B",              // Chữ phụ — xám trung
-    border: "rgba(241,245,249,0.08)", // Viền rất nhẹ
+    background: "#090807",            // Pitch black Russian winter night
+    surface: "#151210",               // Cozy dark oak/mahogany cabin wood
+    surfaceAlt: "#1F1A17",            // Stone/dark bronze card
+    text: "#F7E5C4",                  // Warm lantern light / champagne text
+    textMuted: "#A39185",             // Frosted winter mist grey
+    border: "rgba(207,172,98,0.12)",  // Czar Gold border hint
 
-    // Accent: Indigo (sáng hơn cho dark mode readability)
-    indigo: "#818CF8",                 // Indigo sáng
-    indigoLight: "#1E1B4B",            // Indigo tint tối
-    indigoMid: "#4F46E5",              // Indigo mid
+    // Accent: Imperial Gold (sáng hơn cho dark mode readability)
+    indigo: "#CFAC62",                // Imperial Czar Gold
+    indigoLight: "#261B12",           // Deep wood brown tint
+    indigoMid: "#8C5C38",             // Amber fire brown
 
     // Secondary accents
-    amber: "#FBBF24",
-    amberLight: "#1C1508",
-    purple: "#A78BFA",
-    purpleLight: "#1E1535",
-    blue: "#60A5FA",
-    blueLight: "#0C1A2E",
+    amber: "#CFAC62",
+    amberLight: "#2E1D11",
+    purple: "#8C5C38",
+    purpleLight: "#261B12",
+    blue: "#D4AF37",
+    blueLight: "#151210",
     emerald: "#34D399",
     emeraldLight: "#052E16",
 
     error: "#F87171",
     errorLight: "#450A0A",
 
-    shadowColor: "#818CF8",
+    shadowColor: "#CFAC62",
     shadowNeutral: "#000000",
   },
 };
