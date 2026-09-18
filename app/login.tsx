@@ -59,10 +59,11 @@ export default function LoginScreen() {
       }
     } catch (err: any) {
       console.error("Lỗi xác thực:", err);
-      if (err.response && err.response.data && err.response.data.message) {
-        setError(err.response.data.message);
+      const serverMsg = err.response?.data?.message || err.response?.data?.error;
+      if (serverMsg) {
+        setError(serverMsg);
       } else {
-        setError("Không thể kết nối đến server backend.");
+        setError("Không thể kết nối đến server backend (Vui lòng kiểm tra mạng hoặc URL backend).");
       }
     } finally {
       setLoading(false);
