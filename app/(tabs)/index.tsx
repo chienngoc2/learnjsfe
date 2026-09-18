@@ -36,17 +36,17 @@ const { width } = Dimensions.get("window");
 
 // Quick action data
 const QUICK_ACTIONS = [
+  { id: "pronunciation", label: "Phát âm AI", icon: "record-voice-over", route: "/luyen-tap/pronunciation" },
   { id: "flashcard", label: "Flashcard", icon: "style", route: "/study/flashcard" },
   { id: "vocab", label: "Thêm từ", icon: "post-add", route: "/study/add-vocab" },
   { id: "game", label: "Luyện tập", icon: "extension", route: "/luyen-tap/grammar" },
-  { id: "stats", label: "Thống kê", icon: "bar-chart", route: "/profile" },
 ];
 
-const JAP_IMAGES = [
+const CHINESE_IMAGES = [
+  "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=300",
+  "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=300",
   "https://images.unsplash.com/photo-1542051841857-5f90071e7989?q=80&w=300",
-  "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=300",
   "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=300",
-  "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=300",
 ];
 
 export default function DashboardScreen() {
@@ -177,12 +177,13 @@ export default function DashboardScreen() {
     return title || 'Học viên';
   };
 
-  const getJpLevelStr = (lv: number) => {
-    if (lv >= 41) return "Cao cấp N1";
-    if (lv >= 31) return "Trung-Cao cấp N2";
-    if (lv >= 21) return "Trung cấp N3";
-    if (lv >= 11) return "Sơ-Trung cấp N4";
-    return "Sơ cấp N5";
+  const getTocflLevelStr = (lv: number) => {
+    if (lv >= 41) return "TOCFL C2 (Lưu loát)";
+    if (lv >= 31) return "TOCFL C1 (Cao cấp)";
+    if (lv >= 21) return "TOCFL B2 (Trung cấp cao)";
+    if (lv >= 11) return "TOCFL B1 (Tiến bộ)";
+    if (lv >= 5)  return "TOCFL A2 (Căn bản)";
+    return "TOCFL A1 (Khởi động)";
   };
 
   if (loading) {
@@ -275,7 +276,7 @@ export default function DashboardScreen() {
               </View>
 
               <Text style={styles.progressStage}>
-                {getJpLevelStr(level)} · Cấp {level}
+                {getTocflLevelStr(level)} · Cấp {level}
               </Text>
             </View>
 
@@ -328,24 +329,24 @@ export default function DashboardScreen() {
               <Text style={[styles.bentoTrend, { color: colors.emerald }]}>+{completionPercent}%</Text>
             </View>
 
-            {/* Kanji */}
+            {/* Chữ Hán Phồn Thể */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.bentoIcon, { backgroundColor: colors.amberLight }]}>
                 <MaterialIcons name="font-download" size={16} color={colors.amber} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{kanjiCount}</Text>
-              <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Kanji</Text>
-              <Text style={[styles.bentoTrend, { color: colors.emerald }]}>JLPT</Text>
+              <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Chữ Hán</Text>
+              <Text style={[styles.bentoTrend, { color: colors.emerald }]}>TOCFL</Text>
             </View>
 
-            {/* Grammar */}
+            {/* Ngữ pháp */}
             <View style={[styles.bentoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.bentoIcon, { backgroundColor: isDark ? "#1C1208" : "#FDF7E7" }]}>
                 <MaterialIcons name="menu-book" size={16} color={colors.indigo} />
               </View>
               <Text style={[styles.bentoNum, { color: colors.text }]}>{grammarCount}</Text>
               <Text style={[styles.bentoLabel, { color: colors.textMuted }]}>Ngữ pháp</Text>
-              <Text style={[styles.bentoTrend, { color: colors.amber }]}>N5-N1</Text>
+              <Text style={[styles.bentoTrend, { color: colors.amber }]}>A1-C2</Text>
             </View>
 
             {/* Streak */}
@@ -374,8 +375,8 @@ export default function DashboardScreen() {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
             {(recentDecks.length > 0 ? recentDecks : [
-              { _id: "1", title: "Từ vựng N5 cốt lõi", words: [], __img: JAP_IMAGES[0] },
-              { _id: "2", title: "Hán tự bài học", words: [], __img: JAP_IMAGES[1] },
+              { _id: "1", title: "Từ vựng TOCFL A1 Cốt Lõi", words: [], __img: CHINESE_IMAGES[0] },
+              { _id: "2", title: "Chữ Hán Phồn Thể Giao Tiếp", words: [], __img: CHINESE_IMAGES[1] },
             ]).map((deck, idx) => {
               const cardPercent = Math.min(100, Math.round(((deck.words?.length || 0) / 200) * 100)) || Math.round(30 + idx * 25);
               return (
@@ -386,7 +387,7 @@ export default function DashboardScreen() {
                   style={[styles.deckCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 >
                   <Image
-                    source={{ uri: deck.__img || JAP_IMAGES[idx % JAP_IMAGES.length] }}
+                    source={{ uri: deck.__img || CHINESE_IMAGES[idx % CHINESE_IMAGES.length] }}
                     style={styles.deckImg}
                   />
                   <View style={styles.deckInfo}>

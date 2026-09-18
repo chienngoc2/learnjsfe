@@ -422,12 +422,14 @@ export default function ChatScreen() {
   // ─── NAVIGATION HELPER ───────────────────────────────────────
   const executeNavigation = (nav: any) => {
     const { tab, game, mode, listId, topicTitle } = nav;
-    if (tab === "match") {
+    if (tab === "pronunciation") {
+      router.push("/luyen-tap/pronunciation" as any);
+    } else if (tab === "match") {
       if (game === "grammar_match") router.push({ pathname: "/luyen-tap/grammar", params: { topicTitle, mode: "match" } } as any);
       else if (game === "vocab_match" || game === "match" || game === "memory") router.push({ pathname: "/luyen-tap/vocab-match", params: { topicId: listId } } as any);
       else if (game === "tower") router.push({ pathname: "/luyen-tap/quiz", params: { topicId: listId } } as any);
       else if (game === "missing") router.push({ pathname: "/luyen-tap/typing", params: { topicId: listId } } as any);
-      else router.push({ pathname: "/luyen-tap/conjugation", params: { topicId: listId } } as any);
+      else router.push("/luyen-tap/pronunciation" as any);
     } else if (tab === "add-grammar") router.push("/study/add-grammar" as any);
     else if (tab === "grammar-viewer") router.push("/study/grammar-viewer" as any);
     else if (tab === "add-vocab") router.push("/study/add-vocab" as any);
@@ -447,12 +449,13 @@ export default function ChatScreen() {
 
   const getNavLabel = (nav: any) => {
     const { tab, game, mode } = nav;
+    if (tab === "pronunciation") return "Luyện Phát Âm AI 🎙️";
     if (tab === "match") {
       if (game === "grammar_match") return "Ghép Ngữ Pháp 📚";
       if (game === "vocab_match" || game === "match" || game === "memory") return "Ghép Từ Vựng 🎮";
       if (game === "tower") return "Trắc Nghiệm ⚡";
-      if (game === "missing") return "Luyện Gõ Chữ ✍️";
-      return "Chia Động Từ 🔄";
+      if (game === "missing") return "Luyện Gõ Pinyin ✍️";
+      return "Luyện Phát Âm AI 🎙️";
     }
     if (tab === "add-grammar") return "Thêm Ngữ Pháp ➕";
     if (tab === "grammar-viewer") return "Xem Ngữ Pháp 📖";
