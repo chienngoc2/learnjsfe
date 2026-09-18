@@ -27,7 +27,7 @@ export default function RootLayout() {
           {/* Luyện tập & Mini Games */}
           <Stack.Screen name="luyen-tap/typing" />
           <Stack.Screen name="luyen-tap/quiz" />
-          <Stack.Screen name="luyen-tap/conjugation" />
+          <Stack.Screen name="luyen-tap/pronunciation" />
           <Stack.Screen name="luyen-tap/grammar" />
           <Stack.Screen name="luyen-tap/vocab-match" />
         </Stack>
