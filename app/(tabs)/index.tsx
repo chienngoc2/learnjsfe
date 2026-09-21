@@ -138,21 +138,23 @@ export default function DashboardScreen() {
       // Stats
       try {
         const vocabRes = await api.get("/api/vocab/lists");
-        const list = vocabRes.data.data || vocabRes.data || [];
+        const rawList = vocabRes.data?.data || vocabRes.data || [];
+        const list = Array.isArray(rawList) ? rawList : [];
         setVocabCount(list.reduce((acc: number, item: any) => acc + (item.words?.length || 0), 0));
-        // Lấy 2 deck gần nhất
         setRecentDecks(list.slice(0, 2));
       } catch {}
 
       try {
         const kanjiRes = await api.get("/api/kanji/groups");
-        const list = kanjiRes.data.data || kanjiRes.data;
+        const rawList = kanjiRes.data?.data || kanjiRes.data || [];
+        const list = Array.isArray(rawList) ? rawList : [];
         setKanjiCount(list.reduce((acc: number, g: any) => acc + (g.count || 0), 0));
       } catch {}
 
       try {
         const grammarRes = await api.get("/api/vocab/all-grammar-points");
-        const list = grammarRes.data.data || grammarRes.data || [];
+        const rawList = grammarRes.data?.data || grammarRes.data || [];
+        const list = Array.isArray(rawList) ? rawList : [];
         setGrammarCount(list.length);
       } catch {}
 
