@@ -31,4 +31,16 @@ api.interceptors.request.use(async (config) => {
   return Promise.reject(error);
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response && error.response.status === 401) {
+      try {
+        await AsyncStorage.removeItem("token");
+      } catch (e) {}
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

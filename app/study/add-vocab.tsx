@@ -68,13 +68,13 @@ export default function AddVocabScreen() {
     Animated.timing(slideAnim, {
       toValue: 40,
       duration: 400,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     }).start();
     setTimeout(() => {
       Animated.timing(slideAnim, {
         toValue: -100,
         duration: 400,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }).start(() => setToast(null));
     }, 3000);
   };

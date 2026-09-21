@@ -91,9 +91,9 @@ export default function PracticeTypingScreen() {
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
-    Animated.timing(toastAnim, { toValue: 40, duration: 300, useNativeDriver: true }).start();
+    Animated.timing(toastAnim, { toValue: 40, duration: 300, useNativeDriver: Platform.OS !== "web" }).start();
     setTimeout(() => {
-      Animated.timing(toastAnim, { toValue: -100, duration: 300, useNativeDriver: true }).start(() =>
+      Animated.timing(toastAnim, { toValue: -100, duration: 300, useNativeDriver: Platform.OS !== "web" }).start(() =>
         setToastMsg(null)
       );
     }, 2500);

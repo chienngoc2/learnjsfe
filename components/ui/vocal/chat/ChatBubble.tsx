@@ -1,6 +1,6 @@
 import { useTheme } from "@/src/context/ThemeContext";
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, Text, Animated, Image } from "react-native";
+import { StyleSheet, View, Text, Animated, Image, Platform } from "react-native";
 
 interface ChatBubbleProps {
   message: string;
@@ -21,13 +21,13 @@ export default function ChatBubble({ message, role, avatar }: ChatBubbleProps) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 250,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }),
       Animated.spring(slideAnim, {
         toValue: 0,
         speed: 12,
         bounciness: 4,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }),
     ]).start();
   }, []);

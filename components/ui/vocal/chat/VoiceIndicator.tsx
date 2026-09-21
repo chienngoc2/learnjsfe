@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Text } from 'react-native';
+import { View, StyleSheet, Animated, Text, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 interface VoiceIndicatorProps {
@@ -17,12 +17,12 @@ export default function VoiceIndicator({ isRecording, text = "Đang nghe sếp n
           Animated.timing(pulseAnim, {
             toValue: 1.5,
             duration: 500,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== "web",
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
             duration: 500,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== "web",
           }),
         ])
       ).start();

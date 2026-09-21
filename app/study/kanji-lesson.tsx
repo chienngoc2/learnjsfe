@@ -108,9 +108,9 @@ export default function KanjiLessonScreen() {
 
   const triggerToast = (type: "success" | "error", text: string) => {
     setToast({ type, text });
-    Animated.timing(slideAnim, { toValue: 40, duration: 400, useNativeDriver: true }).start();
+    Animated.timing(slideAnim, { toValue: 40, duration: 400, useNativeDriver: Platform.OS !== "web" }).start();
     setTimeout(() => {
-      Animated.timing(slideAnim, { toValue: -100, duration: 400, useNativeDriver: true })
+      Animated.timing(slideAnim, { toValue: -100, duration: 400, useNativeDriver: Platform.OS !== "web" })
         .start(() => setToast(null));
     }, 3500);
   };
@@ -176,12 +176,12 @@ export default function KanjiLessonScreen() {
       Animated.timing(cardSlideAnim, {
         toValue,
         duration: 250,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }),
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       })
     ]).start(() => {
       callback();
@@ -190,12 +190,12 @@ export default function KanjiLessonScreen() {
         Animated.timing(cardSlideAnim, {
           toValue: 0,
           duration: 250,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== "web",
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 250,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== "web",
         })
       ]).start();
     });
