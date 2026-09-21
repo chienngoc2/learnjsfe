@@ -8,19 +8,17 @@ import {
   ScrollView,
   ActivityIndicator,
   Keyboard,
-  Platform, // 🚀 Thêm Platform để tự động nhận diện thiết bị Web/Mobile
+  Platform,
 } from "react-native";
-import { WebView } from "react-native-webview";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
+import * as Speech from "expo-speech";
 import { useTheme } from "@/src/context/ThemeContext";
 import Header from "../../components/ui/Header";
-import api from "@/services/api"; // Giữ nguyên import service chuẩn của sếp
+import api from "@/services/api";
+import HandwritingCanvas from "../../components/HandwritingCanvas";
+import StrokeOrderPractice from "../../components/StrokeOrderPractice";
 
-// 🚀 Đưa bùa chú ép kiểu TS ra ngoài để component chạy mượt hơn, tránh re-render thừa
-const ExpoWebView = WebView as any;
-
-// 1. Định nghĩa các Interface chuẩn khớp 100% với Backend TS
 interface ExampleWord {
   word: string;
   reading: string;
@@ -28,28 +26,31 @@ interface ExampleWord {
 }
 
 interface KanjiData {
-  _id: string;
+  _id?: string;
   character: string;
   meaning: string;
-  onyomi: string;
-  kunyomi: string;
+  pinyin?: string;
+  zhuyin?: string;
+  onyomi?: string;
+  kunyomi?: string;
   vietnamese_reading: string;
   level: string;
   stroke_order?: string[];
-  example_words: ExampleWord[];
+  example_words?: ExampleWord[];
+  story?: string;
+  components?: string[];
 }
 
 export default function KanjiSearchScreen() {
   const { colors, isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
+  const [inputMode, setInputMode] = useState<"keyboard" | "handwriting">("handwriting");
   const [selectedKanji, setSelectedKanji] = useState<KanjiData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [animationKey, setAnimationKey] = useState(0);
 
-  // 🚀 LOGIC GỌI API KẾT NỐI BACKEND LOCAL / PRODUCTION
-  const handleSearch = async () => {
+  const performSearch = async (queryText: string) => {
     Keyboard.dismiss();
-    const query = searchQuery.trim();
+    const query = queryText.trim();
     if (!query) return;
 
     setLoading(true);
@@ -58,123 +59,191 @@ export default function KanjiSearchScreen() {
         params: { q: query },
       });
 
-      if (response.data.success && response.data.data) {
+      if (response.data && response.data.success && response.data.data) {
         setSelectedKanji(response.data.data);
-        setAnimationKey((prev) => prev + 1); // Reset lại key để ép chữ múa nét lại từ đầu
+      } else {
+        // Fallback: Cho phép luyện viết ngay với chữ người dùng nhập/vẽ
+        const isSingleChineseChar = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(query);
+        if (isSingleChineseChar) {
+          setSelectedKanji({
+            character: query[0],
+            meaning: "Chữ Hán Phồn Thể (Tự do luyện tập)",
+            vietnamese_reading: "Đang cập nhật",
+            pinyin: "",
+            level: "Phồn Thể",
+            example_words: [],
+          });
+        } else {
+          setSelectedKanji(null);
+        }
+      }
+    } catch (error) {
+      console.warn("API Search Error:", error);
+      // Fallback nếu server chưa có data
+      const isSingleChineseChar = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(query);
+      if (isSingleChineseChar) {
+        setSelectedKanji({
+          character: query[0],
+          meaning: "Chữ Hán Phồn Thể (Tự do luyện tập)",
+          vietnamese_reading: "Tự do",
+          pinyin: "",
+          level: "Phồn Thể",
+          example_words: [],
+        });
       } else {
         setSelectedKanji(null);
       }
-    } catch (error) {
-      console.error("❌ Lỗi kết nối API Kanji:", error);
-      setSelectedKanji(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // 🎨 SCRIPT HOẠT HỌA VẼ NÉT KANJI (Thu gọn kích thước xuống 130px cho vừa khít ô vuông bên phải)
-  const generateStrokeAnimationHtml = (char: string) => {
-    const strokeColor = isDark ? "#F59E0B" : "#4B5563";
-    const outlineColor = isDark ? "#334155" : "#E5E7EB";
+  const handleSelectHandwrittenChar = (char: string) => {
+    setSearchQuery(char);
+    performSearch(char);
+  };
 
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
-        <style>
-          body {
-            margin: 0; padding: 0; display: flex; justify-content: center;
-            align-items: center; background-color: transparent; height: 100vh; overflow: hidden;
-          }
-          #kanji-box { width: 130px; height: 130px; }
-        </style>
-      </head>
-      <body>
-        <div id="kanji-box"></div>
-        <script>
-          var writer = HanziWriter.create('kanji-box', '${char}', {
-            width: 130, height: 130, padding: 2,
-            strokeAnimationSpeed: 1.2, delayBetweenStrokes: 150, 
-            strokeColor: '${strokeColor}', outlineColor: '${outlineColor}',
-            radicalColor: '#EF4444',
-            showOutline: true
-          });
-          writer.animateCharacter();
-        </script>
-      </body>
-      </html>
-    `;
+  const playPronunciation = (text: string) => {
+    Speech.speak(text, {
+      language: "zh-TW",
+      rate: 0.9,
+    });
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header title="🉐 Tra Cứu Kanji" />
+      <Header title="✍️ Tra cứu & Luyện viết Chữ Hán" />
 
-      {/* 🔍 THANH TÌM KIẾM THÔNG MINH */}
-      <View style={styles.searchSection}>
-        <View
+      {/* Mode Selector Tabs (Bàn phím vs Viết tay vào ô) */}
+      <View style={styles.modeTabsRow}>
+        <TouchableOpacity
           style={[
-            styles.searchContainer,
-            { backgroundColor: colors.surface, borderColor: colors.border },
+            styles.modeTab,
+            inputMode === "handwriting" && {
+              backgroundColor: colors.indigo,
+              borderColor: colors.indigo,
+            },
+            inputMode !== "handwriting" && {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
           ]}
+          onPress={() => setInputMode("handwriting")}
         >
           <MaterialIcons
-            name="search"
-            size={22}
-            color={colors.textMuted}
-            style={styles.searchIcon}
+            name="gesture"
+            size={18}
+            color={inputMode === "handwriting" ? "#FFFFFF" : colors.text}
           />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Nhập Kanji, Hán Việt hoặc Ý nghĩa..."
-            placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearch}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <MaterialIcons name="clear" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+          <Text
+            style={[
+              styles.modeTabText,
+              { color: inputMode === "handwriting" ? "#FFFFFF" : colors.text },
+            ]}
+          >
+            Viết tay nhận diện
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.btnSearch, { backgroundColor: colors.amber }]}
-          onPress={handleSearch}
+          style={[
+            styles.modeTab,
+            inputMode === "keyboard" && {
+              backgroundColor: colors.indigo,
+              borderColor: colors.indigo,
+            },
+            inputMode !== "keyboard" && {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+          onPress={() => setInputMode("keyboard")}
         >
-          <Text style={styles.btnSearchText}>Tìm</Text>
+          <MaterialIcons
+            name="keyboard"
+            size={18}
+            color={inputMode === "keyboard" ? "#FFFFFF" : colors.text}
+          />
+          <Text
+            style={[
+              styles.modeTabText,
+              { color: inputMode === "keyboard" ? "#FFFFFF" : colors.text },
+            ]}
+          >
+            Nhập bàn phím
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* 📦 VÙNG HIỂN THỊ KẾT QUẢ ĐỘNG (BẢN NEW UI: SIDE-BY-SIDE) */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 60 }}
       >
+        {/* INPUT: BÀN PHÍM */}
+        {inputMode === "keyboard" ? (
+          <View style={styles.searchSection}>
+            <View
+              style={[
+                styles.searchContainer,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <MaterialIcons
+                name="search"
+                size={22}
+                color={colors.textMuted}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Nhập Chữ Hán, Pinyin, Hán Việt..."
+                placeholderTextColor={colors.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={() => performSearch(searchQuery)}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <MaterialIcons name="clear" size={20} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity
+              style={[styles.btnSearch, { backgroundColor: colors.indigo }]}
+              onPress={() => performSearch(searchQuery)}
+            >
+              <Text style={styles.btnSearchText}>Tra cứu</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* INPUT: VIẾT TAY NHẬN DIỆN */
+          <View style={styles.handwritingSection}>
+            <HandwritingCanvas onSelectCharacter={handleSelectHandwrittenChar} />
+          </View>
+        )}
+
+        {/* KẾT QUẢ TRA CỨU & KHU VỰC LUYỆN VIẾT THEO NÉT MỜ */}
         {loading ? (
           <View style={styles.centerBox}>
-            <ActivityIndicator size="large" color={colors.amber} />
+            <ActivityIndicator size="large" color={colors.indigo} />
             <Text style={[styles.loadingText, { color: colors.textMuted }]}>
-              Đang lục lọi Database sếp ơi...
+              Đang tra cứu từ điển Hán tự...
             </Text>
           </View>
         ) : selectedKanji ? (
           <View
             style={[
-              styles.mainCard,
+              styles.resultCard,
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
-            {/* 🔗 BỐ CỤC CHIA ĐÔI: BÊN TRÁI THÔNG TIN - BÊN PHẢI Ô CHỮ KANJI VẼ NÉT */}
-            <View style={styles.rowLayout}>
-              {/* 📑 BÊN TRÁI: CHI TIẾT ÂM NGHĨA */}
-              <View style={styles.leftInfoBlock}>
-                <View style={styles.titleInlineRow}>
-                  <Text style={[styles.hanVietText, { color: colors.amber }]}>
-                    {selectedKanji.vietnamese_reading}
+            {/* Header info */}
+            <View style={styles.cardHeader}>
+              <View>
+                <View style={styles.titleRow}>
+                  <Text style={[styles.hanVietText, { color: colors.indigo }]}>
+                    {selectedKanji.vietnamese_reading || selectedKanji.character}
                   </Text>
                   <View
                     style={[
@@ -182,167 +251,118 @@ export default function KanjiSearchScreen() {
                       { backgroundColor: isDark ? "#1E293B" : "#EEF2F6" },
                     ]}
                   >
-                    <Text style={[styles.levelText, { color: colors.text }]}>
-                      {selectedKanji.level}
+                    <Text style={[styles.levelText, { color: colors.indigo }]}>
+                      {selectedKanji.level || "TOCFL"}
                     </Text>
                   </View>
                 </View>
-
                 <Text style={[styles.meaningText, { color: colors.text }]}>
                   {selectedKanji.meaning}
                 </Text>
-
-                <View style={styles.yomiContainer}>
-                  <Text style={[styles.yomiItem, { color: colors.text }]}>
-                    <Text
-                      style={{ color: colors.textMuted, fontWeight: "600" }}
-                    >
-                      Âm ON:{" "}
-                    </Text>
-                    {selectedKanji.onyomi || "---"}
-                  </Text>
-                  <Text style={[styles.yomiItem, { color: colors.text }]}>
-                    <Text
-                      style={{ color: colors.textMuted, fontWeight: "600" }}
-                    >
-                      Âm KUN:{" "}
-                    </Text>
-                    {selectedKanji.kunyomi || "---"}
-                  </Text>
-                </View>
               </View>
 
-              {/* 🖌️ BÊN PHẢI: Ô VUÔNG TẬP VIẾT & VẼ CHỮ KANJI */}
-              <View style={styles.rightDrawBlock}>
-                <View
-                  style={[
-                    styles.webViewWrapper,
-                    { borderColor: colors.border },
-                  ]}
-                >
-                  {Platform.OS === "web" ? (
-                    <iframe
-                      key={animationKey}
-                      srcDoc={generateStrokeAnimationHtml(
-                        selectedKanji.character,
-                      )}
-                      style={{
-                        width: "130px",
-                        height: "130px",
-                        border: "none",
-                        backgroundColor: "transparent",
-                      }}
-                    />
-                  ) : (
-                    <ExpoWebView
-                      key={animationKey}
-                      originWhitelist={["*"]}
-                      source={{
-                        html: generateStrokeAnimationHtml(
-                          selectedKanji.character,
-                        ),
-                      }}
-                      style={{ backgroundColor: "transparent" }}
-                      scrollEnabled={false}
-                      javaScriptEnabled={true}
-                    />
-                  )}
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.btnReplay,
-                    { backgroundColor: isDark ? "#2D1A10" : "#FEF3C7" },
-                  ]}
-                  onPress={() => setAnimationKey((prev) => prev + 1)}
-                >
-                  <MaterialIcons
-                    name="play-circle-outline"
-                    size={13}
-                    color={colors.amber}
-                  />
-                  <Text style={[styles.btnReplayText, { color: colors.amber }]}>
-                    Xem lại nét
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[styles.audioBtn, { backgroundColor: isDark ? "#1E293B" : "#EFF6FF" }]}
+                onPress={() => playPronunciation(selectedKanji.character)}
+              >
+                <MaterialIcons name="volume-up" size={24} color={colors.indigo} />
+              </TouchableOpacity>
             </View>
 
-            <View
-              style={[styles.divider, { backgroundColor: colors.border }]}
-            />
+            {/* Khối Luyện viết theo nét mờ trực quan */}
+            <View style={[styles.practiceWrap, { borderColor: colors.border }]}>
+              <View style={styles.practiceHeader}>
+                <MaterialIcons name="border-color" size={18} color={colors.indigo} />
+                <Text style={[styles.practiceTitle, { color: colors.text }]}>
+                  Luyện viết theo nét mờ (Stroke Order)
+                </Text>
+              </View>
+              <StrokeOrderPractice
+                character={selectedKanji.character}
+                pinyin={selectedKanji.pinyin || selectedKanji.onyomi}
+                zhuyin={selectedKanji.zhuyin}
+                vietnameseReading={selectedKanji.vietnamese_reading}
+                size={260}
+              />
+            </View>
 
-            {/* 🌟 PHẦN DƯỚI: DANH SÁCH TỪ VỰNG VÍ DỤ MẪU (Bung rộng toàn màn hình) */}
-            <Text style={[styles.exampleTitle, { color: colors.textMuted }]}>
-              Từ vựng ví dụ mẫu:
-            </Text>
-
-            {selectedKanji.example_words &&
-            selectedKanji.example_words.length > 0 ? (
-              selectedKanji.example_words.map((ex, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.exampleBox,
-                    { backgroundColor: colors.background, marginBottom: 8 },
-                  ]}
-                >
-                  <MaterialIcons
-                    name="star-outline"
-                    size={18}
-                    color={colors.amber}
-                    style={{ marginRight: 6 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.exampleText, { color: colors.text }]}>
-                      {ex.word}{" "}
-                      <Text
-                        style={{ fontWeight: "400", color: colors.textMuted }}
-                      >
-                        ({ex.reading})
-                      </Text>
-                    </Text>
-                    <Text
-                      style={[
-                        styles.exampleMeaning,
-                        { color: colors.textMuted },
-                      ]}
-                    >
-                      {ex.meaning}
-                    </Text>
-                  </View>
+            {/* Thông tin mở rộng: Pinyin, Zhuyin, Bộ thủ, Mẹo nhớ */}
+            <View style={styles.detailGrid}>
+              {(selectedKanji.pinyin || selectedKanji.onyomi) && (
+                <View style={[styles.detailItem, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Pinyin (Bính âm):</Text>
+                  <Text style={[styles.detailValue, { color: colors.indigo }]}>
+                    {selectedKanji.pinyin || selectedKanji.onyomi}
+                  </Text>
                 </View>
-              ))
-            ) : (
-              <Text
-                style={{
-                  color: colors.textMuted,
-                  fontSize: 13,
-                  fontStyle: "italic",
-                }}
-              >
-                Chưa có ví dụ mẫu cho chữ này.
+              )}
+
+              {selectedKanji.zhuyin && (
+                <View style={[styles.detailItem, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Zhuyin (Chú âm):</Text>
+                  <Text style={[styles.detailValue, { color: colors.amber }]}>
+                    {selectedKanji.zhuyin}
+                  </Text>
+                </View>
+              )}
+
+              {selectedKanji.story ? (
+                <View style={[styles.storyBox, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>💡 Mẹo ghi nhớ / Chiết tự:</Text>
+                  <Text style={[styles.storyText, { color: colors.text }]}>
+                    {selectedKanji.story}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Từ ghép ví dụ */}
+            <View style={styles.examplesSection}>
+              <Text style={[styles.examplesHeading, { color: colors.textMuted }]}>
+                Từ ghép ví dụ:
               </Text>
-            )}
+              {selectedKanji.example_words && selectedKanji.example_words.length > 0 ? (
+                selectedKanji.example_words.map((ex, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.exampleItem,
+                      { backgroundColor: colors.background, borderColor: colors.border },
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.speakerMini}
+                      onPress={() => playPronunciation(ex.word)}
+                    >
+                      <MaterialIcons name="volume-up" size={16} color={colors.indigo} />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.exampleWord, { color: colors.text }]}>
+                        {ex.word}{" "}
+                        <Text style={{ fontWeight: "400", color: colors.indigo, fontSize: 13 }}>
+                          [{ex.reading}]
+                        </Text>
+                      </Text>
+                      <Text style={[styles.exampleMeaning, { color: colors.textMuted }]}>
+                        {ex.meaning}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text style={{ color: colors.textMuted, fontSize: 13, fontStyle: "italic" }}>
+                  Chưa có từ ghép mẫu cho chữ này.
+                </Text>
+              )}
+            </View>
           </View>
         ) : (
           <View style={styles.centerBox}>
-            <MaterialIcons
-              name="find-in-page"
-              size={48}
-              color={colors.textMuted}
-            />
-            <Text
-              style={{
-                color: colors.textMuted,
-                marginTop: 10,
-                textAlign: "center",
-                paddingHorizontal: 40,
-              }}
-            >
+            <MaterialIcons name="draw" size={48} color={colors.textMuted} />
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
               {searchQuery
-                ? "Không tìm thấy chữ này dưới DB rồi sếp ơi! 😢"
-                : "Sếp hãy nhập từ khóa để dò tìm chữ Kanji nhé!"}
+                ? "Không tìm thấy chữ này trong từ điển. Hãy vẽ tay hoặc chọn chữ khác nhé!"
+                : "Vẽ chữ Hán vào ô trên hoặc nhập từ khóa để tra cứu và luyện viết!"}
             </Text>
           </View>
         )}
@@ -353,10 +373,30 @@ export default function KanjiSearchScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  modeTabsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 12,
+  },
+  modeTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+  },
+  modeTabText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
   searchSection: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 14,
     gap: 8,
   },
   searchContainer: {
@@ -371,74 +411,147 @@ const styles = StyleSheet.create({
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 14 },
   btnSearch: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     height: 48,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
-  btnSearchText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
-
-  // 🆕 Hệ thống Style Layout Hàng ngang Mới Đét
-  mainCard: {
+  btnSearchText: { color: "#FFF", fontWeight: "700", fontSize: 14 },
+  handwritingSection: {
+    paddingHorizontal: 16,
+  },
+  resultCard: {
     marginHorizontal: 16,
-    borderRadius: 16,
+    marginTop: 10,
+    borderRadius: 18,
     padding: 16,
     borderWidth: 1,
   },
-  rowLayout: {
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    marginBottom: 12,
   },
-  leftInfoBlock: { flex: 1, paddingRight: 12 },
-  titleInlineRow: {
+  titleRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  hanVietText: { fontSize: 24, fontWeight: "800" },
-  levelBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  levelText: { fontSize: 11, fontWeight: "700" },
+  hanVietText: {
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  levelBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  levelText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
   meaningText: {
     fontSize: 15,
-    fontWeight: "500",
-    lineHeight: 20,
-    marginBottom: 12,
+    fontWeight: "600",
   },
-  yomiContainer: { gap: 4 },
-  yomiItem: { fontSize: 13, fontWeight: "500" },
-
-  // 🖌️ Khu vực cấu trúc ô vuông bên phải
-  rightDrawBlock: { alignItems: "center" },
-  webViewWrapper: {
-    width: 130,
-    height: 130,
-    overflow: "hidden",
-    borderRadius: 12,
-    borderWidth: 1,
+  audioBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  btnReplay: {
+  practiceWrap: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: 14,
+    marginVertical: 10,
+  },
+  practiceHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    marginTop: 8,
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: 6,
   },
-  btnReplayText: { fontSize: 11, fontWeight: "700", marginLeft: 4 },
-
-  divider: { height: 1, marginVertical: 16 },
-  exampleTitle: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
-  exampleBox: {
+  practiceTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  detailGrid: {
+    gap: 8,
+    marginVertical: 10,
+  },
+  detailItem: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 12,
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 10,
     borderRadius: 10,
   },
-  exampleText: { fontSize: 15, fontWeight: "700" },
-  exampleMeaning: { fontSize: 13, marginTop: 2 },
-  centerBox: { alignItems: "center", marginTop: 60, justifyContent: "center" },
-  loadingText: { marginTop: 10, fontSize: 13, fontWeight: "500" },
+  detailLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  storyBox: {
+    padding: 10,
+    borderRadius: 10,
+    gap: 4,
+  },
+  storyText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  examplesSection: {
+    marginTop: 10,
+  },
+  examplesHeading: {
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  exampleItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 6,
+    gap: 10,
+  },
+  speakerMini: {
+    padding: 4,
+  },
+  exampleWord: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  exampleMeaning: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  centerBox: {
+    alignItems: "center",
+    marginTop: 40,
+    justifyContent: "center",
+    paddingHorizontal: 30,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  emptyHint: {
+    marginTop: 10,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
 });

@@ -3,10 +3,14 @@
 export interface WordDetails {
   word: string;
   reading: string;
+  pinyin?: string;
+  zhuyin?: string;
+  hanviet?: string;
   meaning: string;
   type: string;
-  jlpt: string;
-  examples: { jp: string; vn: string }[];
+  level: string;
+  jlpt?: string;
+  examples: { cn?: string; jp?: string; pinyin?: string; vn: string }[];
   audio: string;
   tags: string[];
   notes: string;
@@ -40,23 +44,27 @@ export function parseWord(term: string, def: string | object): WordDetails {
     }
 
     if (parsed) {
-      // If the parsed object has a `word` field, use it as term fallback
-      const wordValue = term || parsed.word || "";
+      const wordValue = term || parsed.word || parsed.term || "";
+      const pinyinVal = parsed.pinyin || parsed.reading || "";
       return {
         word: wordValue,
-        reading: parsed.reading || wordValue,
-        meaning: parsed.meaning || "",
+        reading: pinyinVal || wordValue,
+        pinyin: pinyinVal,
+        zhuyin: parsed.zhuyin || "",
+        hanviet: parsed.hanviet || "",
+        meaning: parsed.meaning || parsed.def || "",
         type: parsed.type || "noun",
-        jlpt: parsed.jlpt || "N5",
+        level: parsed.level || parsed.jlpt || "TOCFL A1",
+        jlpt: parsed.level || parsed.jlpt || "TOCFL A1",
         examples: parsed.examples || [],
         audio: parsed.audio || "",
         tags: parsed.tags || [],
         notes: parsed.notes || "",
-        te: parsed.te || parsed.conjugations?.te || "",
-        ta: parsed.ta || parsed.conjugations?.ta || "",
-        nai: parsed.nai || parsed.conjugations?.nai || "",
-        ru: parsed.ru || parsed.conjugations?.ru || "",
-        masu: parsed.masu || parsed.conjugations?.masu || "",
+        te: parsed.te || "",
+        ta: parsed.ta || "",
+        nai: parsed.nai || "",
+        ru: parsed.ru || "",
+        masu: parsed.masu || "",
       };
     }
   } catch (e) {
@@ -67,21 +75,26 @@ export function parseWord(term: string, def: string | object): WordDetails {
   try {
     if (typeof term === "string" && term.trim().startsWith("{")) {
       const parsedTerm = JSON.parse(term);
+      const pinyinVal = parsedTerm.pinyin || parsedTerm.reading || "";
       return {
-        word: parsedTerm.word || "",
-        reading: parsedTerm.reading || parsedTerm.word || "",
-        meaning: parsedTerm.meaning || (typeof def === "string" ? def : ""),
+        word: parsedTerm.word || parsedTerm.term || "",
+        reading: pinyinVal || parsedTerm.word || "",
+        pinyin: pinyinVal,
+        zhuyin: parsedTerm.zhuyin || "",
+        hanviet: parsedTerm.hanviet || "",
+        meaning: parsedTerm.meaning || parsedTerm.def || (typeof def === "string" ? def : ""),
         type: parsedTerm.type || "noun",
-        jlpt: parsedTerm.jlpt || "N5",
+        level: parsedTerm.level || parsedTerm.jlpt || "TOCFL A1",
+        jlpt: parsedTerm.level || parsedTerm.jlpt || "TOCFL A1",
         examples: parsedTerm.examples || [],
         audio: parsedTerm.audio || "",
         tags: parsedTerm.tags || [],
         notes: parsedTerm.notes || "",
-        te: parsedTerm.te || parsedTerm.conjugations?.te || "",
-        ta: parsedTerm.ta || parsedTerm.conjugations?.ta || "",
-        nai: parsedTerm.nai || parsedTerm.conjugations?.nai || "",
-        ru: parsedTerm.ru || parsedTerm.conjugations?.ru || "",
-        masu: parsedTerm.masu || parsedTerm.conjugations?.masu || "",
+        te: "",
+        ta: "",
+        nai: "",
+        ru: "",
+        masu: "",
       };
     }
   } catch (e) {}
@@ -90,9 +103,13 @@ export function parseWord(term: string, def: string | object): WordDetails {
   return {
     word: term || "",
     reading: term || "",
+    pinyin: "",
+    zhuyin: "",
+    hanviet: "",
     meaning: typeof def === "string" ? def : "",
     type: "noun",
-    jlpt: "N5",
+    level: "TOCFL A1",
+    jlpt: "TOCFL A1",
     examples: [],
     audio: "",
     tags: [],
@@ -103,4 +120,9 @@ export function parseWord(term: string, def: string | object): WordDetails {
     ru: "",
     masu: "",
   };
+}
+
+export function formatWordForDisplay(word: WordDetails): string {
+  if (!word) return "";
+  return word.reading ? `${word.word} (${word.reading})` : word.word;
 }

@@ -69,8 +69,8 @@ export default function StudyMenuScreen() {
         },
         {
           id: "kanji_search",
-          title: "Tra cứu Kanji",
-          desc: "Xem âm Hán Việt, ví dụ mẫu & mô phỏng nét vẽ động",
+          title: "Tra cứu & Luyện viết Chữ Hán",
+          desc: "Nhận diện nét vẽ tay, tra Pinyin, Zhuyin, Hán Việt & tập viết nét mờ",
           icon: "search",
           color: colors.amber,
           lightColor: colors.amberLight,
@@ -84,7 +84,7 @@ export default function StudyMenuScreen() {
         {
           id: "quiz_vocab",
           title: "Trắc nghiệm Từ vựng",
-          desc: "Kiểm tra phản xạ nghĩa từ vựng Nhật - Việt dưới áp lực thời gian",
+          desc: "Kiểm tra phản xạ nghĩa từ vựng Trung - Việt dưới áp lực thời gian",
           icon: "quiz",
           color: colors.indigo,
           lightColor: colors.indigoLight,
@@ -104,7 +104,7 @@ export default function StudyMenuScreen() {
         {
           id: "match_vocab",
           title: "Game Ghép Từ vựng",
-          desc: "Ghép cặp từ vựng Nhật - Việt để tích lũy kinh nghiệm học tập",
+          desc: "Ghép cặp từ vựng Trung - Việt để tích lũy kinh nghiệm học tập",
           icon: "layers",
           color: colors.blue,
           lightColor: colors.blueLight,
@@ -113,7 +113,7 @@ export default function StudyMenuScreen() {
         {
           id: "match_grammar",
           title: "Game Ghép Câu Ngữ pháp",
-          desc: "Ghép các cặp câu ví dụ Nhật - Việt nhằm thấu hiểu sâu ngữ pháp",
+          desc: "Ghép các cặp câu ví dụ Trung - Việt nhằm thấu hiểu sâu ngữ pháp",
           icon: "extension",
           color: colors.amber,
           lightColor: colors.amberLight,

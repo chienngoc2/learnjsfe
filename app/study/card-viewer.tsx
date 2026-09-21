@@ -107,11 +107,9 @@ export default function CardViewer() {
   };
 
   const speak = (text: string) => {
-    const cleanText = text
-      .replace(/\s*\(.*?\)\s*/g, "")
-      .split("/")[0]
-      .trim();
-    Speech.speak(cleanText, { language: "ja-JP", rate: 0.85 });
+    if (!text) return;
+    const cleanText = text.replace(/[\(\)\[\]（）]/g, "").trim();
+    Speech.speak(cleanText, { language: "zh-TW", rate: 0.85 });
   };
 
   if (loading) {
@@ -270,7 +268,7 @@ export default function CardViewer() {
                     <View style={styles.badgeRow}>
                       <View style={[styles.badge, { borderColor: "rgba(124, 92, 255, 0.3)" }]}>
                         <Text style={[styles.badgeText, { color: colors.purple }]}>
-                          {parsed.jlpt || "N5"}
+                          {parsed.level || parsed.jlpt || "TOCFL A1"}
                         </Text>
                       </View>
                       <View style={[styles.badge, { borderColor: "rgba(77, 168, 255, 0.3)" }]}>
@@ -285,19 +283,28 @@ export default function CardViewer() {
                     contentContainerStyle={styles.cardFrontScroll}
                     showsVerticalScrollIndicator={false}
                   >
-                    {/* Kanji chính */}
+                    {/* Chữ Hán Phồn Thể chính */}
                     <View style={styles.japaneseWrapper}>
                       <Text style={[styles.cardTextSolid, { color: colors.indigo }]}>
                         {parsed.word}
                       </Text>
-                      {parsed.reading && parsed.reading !== parsed.word && (
+                      {parsed.pinyin ? (
+                        <Text style={[styles.readingText, { color: colors.indigo }]}>
+                          {parsed.pinyin}
+                        </Text>
+                      ) : parsed.reading && parsed.reading !== parsed.word ? (
                         <Text style={[styles.readingText, { color: colors.textMuted }]}>
                           {parsed.reading}
                         </Text>
-                      )}
+                      ) : null}
+                      {parsed.zhuyin ? (
+                        <Text style={[{ fontSize: 13, color: colors.amber, marginTop: 2, fontWeight: "600" }]}>
+                          ({parsed.zhuyin})
+                        </Text>
+                      ) : null}
                     </View>
 
-                    {/* Ví dụ tiếng Nhật (chỉ hiện phần JP) */}
+                    {/* Ví dụ mẫu */}
                     {parsed.examples && parsed.examples.length > 0 && (
                       <View style={styles.detailsSection}>
                         <View style={styles.sectionHeaderRow}>
@@ -309,8 +316,13 @@ export default function CardViewer() {
                         {parsed.examples.slice(0, 2).map((ex, idx) => (
                           <View key={idx} style={[styles.exampleItem, { borderLeftColor: colors.indigo }]}>
                             <Text style={[styles.exampleJp, { color: colors.text }]}>
-                              {ex.jp}
+                              {ex.cn || ex.jp}
                             </Text>
+                            {ex.pinyin ? (
+                              <Text style={{ fontSize: 12, color: colors.indigo, marginTop: 2 }}>
+                                {ex.pinyin}
+                              </Text>
+                            ) : null}
                           </View>
                         ))}
                       </View>

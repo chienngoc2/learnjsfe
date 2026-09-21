@@ -39,14 +39,17 @@ interface KanjiItem {
   _id: string;
   character: string;
   meaning: string;
-  onyomi: string;
-  kunyomi: string;
+  pinyin?: string;
+  zhuyin?: string;
+  onyomi?: string;
+  kunyomi?: string;
   vietnamese_reading: string;
   level: string;
   lessonGroup?: string;
   components?: string[];
   story?: string;
   stroke_order?: string[];
+  example_words?: ExampleWord[];
   onyomi_examples?: ExampleWord[];
   kunyomi_examples?: ExampleWord[];
 }
@@ -62,6 +65,12 @@ const LIMIT = 50;
 
 // Màu sắc cho từng level badge
 const LEVEL_COLORS: Record<string, { bg: string; bgDark: string; text: string; textDark: string }> = {
+  "TOCFL A1": { bg: "#DCFCE7", bgDark: "#14532D", text: "#15803D", textDark: "#86EFAC" },
+  "TOCFL A2": { bg: "#DBEAFE", bgDark: "#1E3A5F", text: "#1D4ED8", textDark: "#93C5FD" },
+  "TOCFL B1": { bg: "#FEF3C7", bgDark: "#2D1A10", text: "#D97706", textDark: "#FBBF24" },
+  "TOCFL B2": { bg: "#F5F3FF", bgDark: "#2E1A5E", text: "#7C3AED", textDark: "#C4B5FD" },
+  "TOCFL C1": { bg: "#FCE7F3", bgDark: "#500724", text: "#BE185D", textDark: "#F472B6" },
+  "TOCFL C2": { bg: "#FFF0F0", bgDark: "#3A1C1C", text: "#DC2626", textDark: "#F87171" },
   N5: { bg: "#DCFCE7", bgDark: "#14532D", text: "#15803D", textDark: "#86EFAC" },
   N4: { bg: "#DBEAFE", bgDark: "#1E3A5F", text: "#1D4ED8", textDark: "#93C5FD" },
   N3: { bg: "#FEF3C7", bgDark: "#2D1A10", text: "#D97706", textDark: "#FBBF24" },
@@ -426,19 +435,19 @@ export default function KanjiLessonScreen() {
 
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-                {/* Onyomi & Kunyomi */}
+                {/* Pinyin & Zhuyin */}
                 <View style={styles.backYomiBlock}>
                   <View style={[styles.yomiRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
                     <View style={[styles.yomiLabelBadge, { backgroundColor: isDark ? "#1A2E1A" : "#F0FDF4" }]}>
-                      <Text style={[styles.yomiLabelText, { color: isDark ? "#86EFAC" : "#166534" }]}>ON 音</Text>
+                      <Text style={[styles.yomiLabelText, { color: isDark ? "#86EFAC" : "#166534" }]}>Pinyin</Text>
                     </View>
-                    <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.onyomi || "—"}</Text>
+                    <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.pinyin || currentKanji.onyomi || "—"}</Text>
                   </View>
                   <View style={styles.yomiRow}>
                     <View style={[styles.yomiLabelBadge, { backgroundColor: isDark ? "#1A2035" : "#F5F3FF" }]}>
-                      <Text style={[styles.yomiLabelText, { color: isDark ? "#C4B5FD" : "#7C3AED" }]}>KUN 訓</Text>
+                      <Text style={[styles.yomiLabelText, { color: isDark ? "#C4B5FD" : "#7C3AED" }]}>Zhuyin</Text>
                     </View>
-                    <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.kunyomi || "—"}</Text>
+                    <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.zhuyin || currentKanji.kunyomi || "—"}</Text>
                   </View>
                 </View>
 

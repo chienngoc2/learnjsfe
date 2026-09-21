@@ -15,7 +15,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 interface Props {
-  term: string; // Từ tiếng Nhật
+  term: string; // Từ tiếng Trung Phồn Thể
   definition: string; // Nghĩa tiếng Việt
 }
 
@@ -52,7 +52,7 @@ export default function Flashcard({ term, definition }: Props) {
       style={styles.container}
     >
       <View style={{ flex: 1, position: "relative" }}>
-        {/* MẶT TRƯỚC: TIẾNG NHẬT */}
+        {/* MẶT TRƯỚC: TIẾNG TRUNG PHỒN THỂ */}
         <Animated.View
           style={[
             styles.card,

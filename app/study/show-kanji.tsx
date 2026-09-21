@@ -31,6 +31,12 @@ interface KanjiGroup {
 
 // Màu sắc cho từng level badge
 const LEVEL_COLORS: Record<string, { bg: string; bgDark: string; text: string; textDark: string }> = {
+  "TOCFL A1": { bg: "#DCFCE7", bgDark: "#14532D", text: "#15803D", textDark: "#86EFAC" },
+  "TOCFL A2": { bg: "#DBEAFE", bgDark: "#1E3A5F", text: "#1D4ED8", textDark: "#93C5FD" },
+  "TOCFL B1": { bg: "#FEF3C7", bgDark: "#2D1A10", text: "#D97706", textDark: "#FBBF24" },
+  "TOCFL B2": { bg: "#F5F3FF", bgDark: "#2E1A5E", text: "#7C3AED", textDark: "#C4B5FD" },
+  "TOCFL C1": { bg: "#FCE7F3", bgDark: "#500724", text: "#BE185D", textDark: "#F472B6" },
+  "TOCFL C2": { bg: "#FFF0F0", bgDark: "#3A1C1C", text: "#DC2626", textDark: "#F87171" },
   N5: { bg: "#DCFCE7", bgDark: "#14532D", text: "#15803D", textDark: "#86EFAC" },
   N4: { bg: "#DBEAFE", bgDark: "#1E3A5F", text: "#1D4ED8", textDark: "#93C5FD" },
   N3: { bg: "#FEF3C7", bgDark: "#2D1A10", text: "#D97706", textDark: "#FBBF24" },
@@ -38,14 +44,13 @@ const LEVEL_COLORS: Record<string, { bg: string; bgDark: string; text: string; t
   N1: { bg: "#FFF0F0", bgDark: "#3A1C1C", text: "#DC2626", textDark: "#F87171" },
 };
 
-// Hình ảnh Nhật Bản cho từng card bài học
-const JAP_IMAGES = [
-  "https://images.unsplash.com/photo-1542051841857-5f90071e7989?q=80&w=200", // Tokyo
-  "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=200", // Kyoto
-  "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=200", // Sakura
-  "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?q=80&w=200", // Sunset Mt Fuji
+// Hình ảnh Đài Loan / Trung Hoa cho từng card bài học
+const CHINESE_IMAGES = [
+  "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=200", // Taipei 101
+  "https://images.unsplash.com/photo-1542051841857-5f90071e7989?q=80&w=200", // Traditional Lanterns
+  "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?q=80&w=200", // Jiufen Taiwan
+  "https://images.unsplash.com/photo-1528164344705-47542687000d?q=80&w=200", // Asian Architecture
   "https://images.unsplash.com/photo-1504109586057-7a2ae4fdd853?q=80&w=200", // Temple
-  "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200", // Pagoda
 ];
 
 function SkeletonCard({ colors }: { colors: any }) {
@@ -247,7 +252,7 @@ export default function ShowKanjiScreen() {
         ) : (
           <>
             {groups.slice(0, visibleCount).map((group, idx) => {
-              const thumbnail = JAP_IMAGES[idx % JAP_IMAGES.length];
+              const thumbnail = CHINESE_IMAGES[idx % CHINESE_IMAGES.length];
               const progressPercentage = Math.min(100, Math.round((6 / (group.count || 6)) * 100)) || 50; // Mock progress based on counts
 
               return (

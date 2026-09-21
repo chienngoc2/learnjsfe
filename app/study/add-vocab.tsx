@@ -171,7 +171,7 @@ export default function AddVocabScreen() {
             def: typeof item.meaning === "string" ? item.meaning : String(item.meaning || ""),
             reading: item.reading || item.word || "",
             type: item.type || "noun",
-            jlpt: item.jlpt || "N5",
+            jlpt: item.level || item.jlpt || "TOCFL A1",
             examples: item.examples || [],
             audio: item.audio || "",
             tags: item.tags || [],
@@ -263,19 +263,18 @@ export default function AddVocabScreen() {
     const serializedList = finalWordsList.map((w: any) => ({
       term: w.term.trim(),
       def: JSON.stringify({
-        reading: w.reading || w.term || "",
+        reading: w.reading || w.pinyin || w.term || "",
+        pinyin: w.pinyin || w.reading || "",
+        zhuyin: w.zhuyin || "",
+        hanviet: w.hanviet || "",
         meaning: w.def.trim(),
         type: w.type || "noun",
-        jlpt: w.jlpt || "N5",
+        level: w.level || w.jlpt || "TOCFL A1",
+        jlpt: w.level || w.jlpt || "TOCFL A1",
         examples: w.examples || [],
         audio: w.audio || "",
         tags: w.tags || [],
         notes: w.notes || "",
-        te: w.te || "",
-        ta: w.ta || "",
-        nai: w.nai || "",
-        ru: w.ru || "",
-        masu: w.masu || "",
       }),
     }));
 
@@ -331,15 +330,10 @@ export default function AddVocabScreen() {
         reading: w.reading || w.term,
         meaning: w.def,
         type: w.type || "noun",
-        jlpt: w.jlpt || "N5",
+        level: w.jlpt || "TOCFL A1",
         examples: w.examples || [],
         tags: w.tags || [],
         notes: w.notes || "",
-        te: w.te || "",
-        ta: w.ta || "",
-        nai: w.nai || "",
-        ru: w.ru || "",
-        masu: w.masu || ""
       }));
       setJsonText(JSON.stringify(jsonList, null, 2));
     } else if (nextTab === "manual") {

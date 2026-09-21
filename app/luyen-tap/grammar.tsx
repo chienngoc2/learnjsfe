@@ -214,7 +214,7 @@ export default function PracticeGrammarScreen() {
 
   const speak = (text: string) => {
     const cleanText = text.replace(/\[.*?\]/g, "");
-    Speech.speak(cleanText, { language: "ja-JP", rate: 0.85 });
+    Speech.speak(cleanText, { language: "zh-TW", rate: 0.85 });
   };
 
   const stopSpeaking = async () => {

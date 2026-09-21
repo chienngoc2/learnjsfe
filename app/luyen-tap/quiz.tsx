@@ -417,7 +417,7 @@ export default function PracticeQuizScreen() {
   };
 
   const speak = (text: string) => {
-    Speech.speak(text, { language: "ja-JP", rate: 0.85 });
+    Speech.speak(text, { language: "zh-TW", rate: 0.85 });
   };
 
   const bgColors: readonly [string, string, ...string[]] = isDark 

@@ -5,7 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface DailyQuest {
   id: string;
   label: string;
-  jpLabel: string;
+  jpLabel?: string;
+  cnLabel?: string;
   current: number;
   target: number;
   rewardTuVi: number;
@@ -46,14 +47,14 @@ interface CultivationState {
 }
 
 const STAGES = [
-  { name: 'Luyện Khí 期 (練気期 - N5)', minLevel: 1 },
-  { name: 'Trúc Cơ 期 (築基期 - N4)', minLevel: 11 },
-  { name: 'Kim Đan 期 (金丹期 - N3)', minLevel: 21 },
-  { name: 'Nguyên Anh 期 (元嬰期 - N2)', minLevel: 31 },
-  { name: 'Hóa Thần 期 (化神期 - N1)', minLevel: 41 },
-  { name: 'Luyện Hư 期 (煉虚期 - Tông Sư)', minLevel: 51 },
-  { name: 'Hợp Thể 期 (合体期 - Hộ Pháp)', minLevel: 65 },
-  { name: 'Đại Thừa 期 (大乗期 - Tiên Nhân)', minLevel: 80 }
+  { name: 'Luyện Khí 期 (練氣期 - TOCFL A1)', minLevel: 1 },
+  { name: 'Trúc Cơ 期 (築基期 - TOCFL A2)', minLevel: 11 },
+  { name: 'Kim Đan 期 (金丹期 - TOCFL B1)', minLevel: 21 },
+  { name: 'Nguyên Anh 期 (元嬰期 - TOCFL B2)', minLevel: 31 },
+  { name: 'Hóa Thần 期 (化神期 - TOCFL C1)', minLevel: 41 },
+  { name: 'Luyện Hư 期 (煉虛期 - TOCFL C2)', minLevel: 51 },
+  { name: 'Hợp Thể 期 (合體期 - Hán Học Tông Sư)', minLevel: 65 },
+  { name: 'Đại Thừa 期 (大乘期 - Tiên Thiên Đạo Nhân)', minLevel: 80 }
 ];
 
 const getStageForLevel = (level: number): string => {
@@ -73,8 +74,9 @@ const getTuViRequiredForLevel = (level: number): number => {
 const INITIAL_QUESTS: DailyQuest[] = [
   {
     id: 'kanji',
-    label: 'Học 20 Kanji',
-    jpLabel: '漢字を20個学ぶ',
+    label: 'Học 20 Chữ Hán Phồn Thể',
+    jpLabel: '學習20個繁體字',
+    cnLabel: '學習20個繁體字',
     current: 12,
     target: 20,
     rewardTuVi: 60,
@@ -82,8 +84,9 @@ const INITIAL_QUESTS: DailyQuest[] = [
   },
   {
     id: 'flashcards',
-    label: 'Ôn 50 Flashcard',
-    jpLabel: 'フラッシュカードを50枚復習する',
+    label: 'Ôn 50 Flashcard Từ Vựng',
+    jpLabel: '複習50張單字卡',
+    cnLabel: '複習50張單字卡',
     current: 34,
     target: 50,
     rewardTuVi: 40,
@@ -91,8 +94,9 @@ const INITIAL_QUESTS: DailyQuest[] = [
   },
   {
     id: 'listening',
-    label: 'Hoàn thành 1 bài nghe',
-    jpLabel: 'リスニングを1回完了する',
+    label: 'Hoàn thành 1 bài luyện đàm thoại',
+    jpLabel: '完成1次會話練習',
+    cnLabel: '完成1次會話練習',
     current: 0,
     target: 1,
     rewardTuVi: 50,
@@ -101,7 +105,8 @@ const INITIAL_QUESTS: DailyQuest[] = [
   {
     id: 'streak',
     label: 'Giữ streak 7 ngày',
-    jpLabel: '7日連続で修行する',
+    jpLabel: '連續修煉7天',
+    cnLabel: '連續修煉7天',
     current: 7,
     target: 7,
     rewardTuVi: 100,
@@ -110,10 +115,10 @@ const INITIAL_QUESTS: DailyQuest[] = [
 ];
 
 const INITIAL_ACTIVITIES: RecentActivity[] = [
-  { id: '1', type: 'kanji', name: 'N5 Kanji list', time: '2 phút trước' },
-  { id: '2', type: 'vocab', name: 'N5 語彙 - 食物', time: '15 phút trước' },
-  { id: '3', type: 'grammar', name: 'Cấu trúc N5 〜ている', time: '1 giờ trước' },
-  { id: '4', type: 'listening', name: 'Luyện nghe hiểu N5', time: 'Hôm qua' }
+  { id: '1', type: 'kanji', name: 'TOCFL A1 Danh sách Chữ Hán', time: '2 phút trước' },
+  { id: '2', type: 'vocab', name: 'TOCFL A1 詞彙 - 飲食 (Ẩm thực)', time: '15 phút trước' },
+  { id: '3', type: 'grammar', name: 'Cấu trúc 把字句 & 被字句', time: '1 giờ trước' },
+  { id: '4', type: 'listening', name: 'Luyện nghe phát âm Pinyin & Zhuyin', time: 'Hôm qua' }
 ];
 
 export const useCultivationStore = create<CultivationState>()(
@@ -122,7 +127,7 @@ export const useCultivationStore = create<CultivationState>()(
       xp: 12450,
       tuVi: 2450,
       level: 28,
-      stage: 'Kim Đan 期 (金丹期 - N3)',
+      stage: 'Kim Đan 期 (金丹期 - TOCFL B1)',
       streak: 7,
       lastActive: new Date().toISOString().split('T')[0],
       dailyQuests: INITIAL_QUESTS,

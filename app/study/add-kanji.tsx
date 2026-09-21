@@ -31,34 +31,40 @@ interface KanjiItem {
   _id?: string;
   character: string;
   meaning: string;
-  onyomi: string;
-  kunyomi: string;
+  pinyin?: string;
+  zhuyin?: string;
+  onyomi?: string;
+  kunyomi?: string;
   vietnamese_reading: string;
   level: string;
   components?: string[];
   story?: string;
   lessonGroup?: string;
+  example_words?: ExampleWord[];
   onyomi_examples?: ExampleWord[];
   kunyomi_examples?: ExampleWord[];
 }
 
-const LEVEL_OPTIONS = ["N5", "N4", "N3", "N2", "N1"];
+const LEVEL_OPTIONS = ["TOCFL A1", "TOCFL A2", "TOCFL B1", "TOCFL B2", "TOCFL C1", "TOCFL C2"];
 
 const LEVEL_COLORS: Record<string, string> = {
-  N5: "#10B981",
-  N4: "#3B82F6",
-  N3: "#F59E0B",
-  N2: "#8B5CF6",
-  N1: "#EF4444",
+  "TOCFL A1": "#10B981",
+  "TOCFL A2": "#3B82F6",
+  "TOCFL B1": "#F59E0B",
+  "TOCFL B2": "#8B5CF6",
+  "TOCFL C1": "#EC4899",
+  "TOCFL C2": "#EF4444",
 };
 
 const EMPTY_FORM: KanjiItem = {
   character: "",
   meaning: "",
+  pinyin: "",
+  zhuyin: "",
   onyomi: "",
   kunyomi: "",
   vietnamese_reading: "",
-  level: "N5",
+  level: "TOCFL A1",
   components: [],
   story: "",
   lessonGroup: "",
@@ -180,8 +186,10 @@ export default function AddKanjiScreen() {
       const res = await api.post("/api/kanji/add", {
         character: form.character.trim(),
         meaning: form.meaning.trim(),
-        onyomi: form.onyomi.trim(),
-        kunyomi: form.kunyomi.trim(),
+        pinyin: (form.pinyin || form.onyomi || "").trim(),
+        zhuyin: (form.zhuyin || form.kunyomi || "").trim(),
+        onyomi: (form.onyomi || form.pinyin || "").trim(),
+        kunyomi: (form.kunyomi || form.zhuyin || "").trim(),
         vietnamese_reading: form.vietnamese_reading.trim(),
         level: form.level,
         components: form.components || [],
@@ -390,32 +398,38 @@ export default function AddKanjiScreen() {
                 </View>
               </View>
 
-              {/* ÂM ON + KUN */}
+              {/* PINYIN + ZHUYIN */}
               <View style={styles.twoCol}>
                 <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Âm ON 音</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Pinyin (Bính âm)</Text>
                   <TextInput
                     style={[styles.fieldInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                    value={form.onyomi}
-                    onChangeText={(t) => setField("onyomi", t)}
-                    placeholder="いち"
+                    value={form.pinyin || form.onyomi}
+                    onChangeText={(t) => {
+                      setField("pinyin", t);
+                      setField("onyomi", t);
+                    }}
+                    placeholder="yī"
                     placeholderTextColor={colors.textMuted + "60"}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Âm KUN 訓</Text>
+                  <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Zhuyin (Chú âm)</Text>
                   <TextInput
                     style={[styles.fieldInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                    value={form.kunyomi}
-                    onChangeText={(t) => setField("kunyomi", t)}
-                    placeholder="ひと"
+                    value={form.zhuyin || form.kunyomi}
+                    onChangeText={(t) => {
+                      setField("zhuyin", t);
+                      setField("kunyomi", t);
+                    }}
+                    placeholder="ㄧ"
                     placeholderTextColor={colors.textMuted + "60"}
                   />
                 </View>
               </View>
 
               {/* CẤP ĐỘ */}
-              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Cấp độ JLPT</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Cấp độ TOCFL</Text>
               <LevelChips selected={form.level} onSelect={(lv) => setField("level", lv)} />
 
               {/* BÀI HỌC / NHÓM */}
