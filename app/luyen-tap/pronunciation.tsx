@@ -31,6 +31,8 @@ import Animated, {
 import api from "../../services/api";
 import { evaluatePronunciation } from "../../services/aiService";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
+import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -115,6 +117,7 @@ const CATEGORIES = ["Tất cả", "Chào hỏi", "Mua sắm", "Ẩm thực Đài
 export default function PronunciationPracticeScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { hidePinyin } = usePinyin();
   const { addXP } = useCultivationStore();
 
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
@@ -317,7 +320,7 @@ export default function PronunciationPracticeScreen() {
           </Text>
           <Text style={styles.headerSub}>Tiếng Trung Phồn Thể (繁體中文)</Text>
         </View>
-        <View style={{ width: 40 }} />
+        <PinyinCheckbox compact />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -403,10 +406,10 @@ export default function PronunciationPracticeScreen() {
           </Text>
 
           {/* Pinyin */}
-          <Text style={styles.pinyinText}>{currentItem.pinyin}</Text>
+          {!hidePinyin && <Text style={styles.pinyinText}>{currentItem.pinyin}</Text>}
 
           {/* Zhuyin / Bopomofo */}
-          {!!currentItem.zhuyin && (
+          {!hidePinyin && !!currentItem.zhuyin && (
             <View style={styles.zhuyinBadge}>
               <Text style={styles.zhuyinText}>{currentItem.zhuyin}</Text>
             </View>

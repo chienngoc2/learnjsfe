@@ -17,6 +17,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Speech from "expo-speech";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
+import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { parseWord } from "../../src/utils/wordParser";
 
@@ -46,6 +48,7 @@ const getQuestionFontSize = (text: string) => {
 export default function PracticeQuizScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { hidePinyin } = usePinyin();
   const params = useLocalSearchParams<{ topicId?: string; listId?: string; mode?: string }>();
   
   // Cultivation store rewards
@@ -458,7 +461,7 @@ export default function PracticeQuizScreen() {
               <Text style={[styles.headerTitle, { color: colors.text }]}>Trắc Nghiệm Ghi Nhớ</Text>
               <Text style={[styles.headerSub, { color: colors.textMuted }]}>CẤU HÌNH THỬ THÁCH</Text>
             </View>
-            <View style={{ width: 42 }} />
+            <PinyinCheckbox compact />
           </View>
 
           <ScrollView
@@ -623,19 +626,22 @@ export default function PracticeQuizScreen() {
                 {String(currentIdx + 1).padStart(2, "0")} <Text style={{ color: colors.textMuted }}>/</Text> {String(questions.length).padStart(2, "0")}
               </Text>
             </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.btnIconHeader,
-                { 
-                  backgroundColor: colors.surface, 
-                  borderColor: colors.border,
-                  transform: [{ scale: pressed ? 0.95 : 1 }]
-                },
-              ]}
-              onPress={() => speak(currentQuestion.questionWord.word)}
-            >
-              <Feather name="volume-2" size={20} color={colors.indigo} />
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <PinyinCheckbox compact />
+              <Pressable
+                style={({ pressed }) => [
+                  styles.btnIconHeader,
+                  { 
+                    backgroundColor: colors.surface, 
+                    borderColor: colors.border,
+                    transform: [{ scale: pressed ? 0.95 : 1 }]
+                  },
+                ]}
+                onPress={() => speak(currentQuestion.questionWord.word)}
+              >
+                <Feather name="volume-2" size={20} color={colors.indigo} />
+              </Pressable>
+            </View>
           </View>
 
           {/* Progress Bar */}
@@ -666,9 +672,11 @@ export default function PracticeQuizScreen() {
                 },
               ]}
             >
-              <Text style={[styles.questionReading, { color: colors.textMuted }]}>
-                {currentQuestion.questionWord.reading}
-              </Text>
+              {(!hidePinyin || currentQuestion.questionWord.reading.startsWith("CHỌN") || currentQuestion.questionWord.reading.startsWith("CẤU TRÚC")) && currentQuestion.questionWord.reading ? (
+                <Text style={[styles.questionReading, { color: colors.textMuted }]}>
+                  {currentQuestion.questionWord.reading}
+                </Text>
+              ) : null}
               <Text style={[styles.questionWordText, { color: colors.indigo, fontSize: getQuestionFontSize(currentQuestion.questionWord.word) }]}>
                 {currentQuestion.questionWord.word}
               </Text>

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -10,9 +10,11 @@ import { WebView } from "react-native-webview";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Speech from "expo-speech";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
 
 interface StrokeOrderPracticeProps {
   character: string;
+  charIndex?: number;
   pinyin?: string;
   zhuyin?: string;
   vietnameseReading?: string;
@@ -21,20 +23,26 @@ interface StrokeOrderPracticeProps {
 
 export default function StrokeOrderPractice({
   character,
+  charIndex = 0,
   pinyin,
   zhuyin,
   vietnameseReading,
-  size = 280,
+  size = 140,
 }: StrokeOrderPracticeProps) {
   const { colors, isDark } = useTheme();
+  const { hidePinyin } = usePinyin();
   const [practiceMode, setPracticeMode] = useState<"quiz" | "animate">("quiz");
-  const [statusMessage, setStatusMessage] = useState<string>("Tô theo nét mờ để tập viết");
+  const [statusMessage, setStatusMessage] = useState<string>("Tô theo nét mờ");
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const webViewRef = useRef<any>(null);
 
   const strokeColor = isDark ? "#38BDF8" : "#0284C7";
   const ghostColor = isDark ? "rgba(148, 163, 184, 0.28)" : "rgba(100, 116, 139, 0.22)";
   const highlightColor = "#F59E0B";
+  const iframeUniqueId = `hanzi-writer-iframe-${character}-${charIndex}`;
+
+  const paddingVal = Math.max(6, Math.round(size * 0.07));
+  const drawWidthVal = Math.max(8, Math.round(size * 0.08));
 
   const hanziHtml = `
     <!DOCTYPE html>
@@ -54,9 +62,9 @@ export default function StrokeOrderPractice({
           width: ${size}px;
           height: ${size}px;
           background: ${isDark ? "#0F172A" : "#FFFFFF"};
-          border-radius: 16px;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.12);
-          border: 2px solid ${isDark ? "#334155" : "#CBD5E1"};
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+          border: 1.5px solid ${isDark ? "#334155" : "#CBD5E1"};
         }
         .grid-line {
           position: absolute;
@@ -98,6 +106,8 @@ export default function StrokeOrderPractice({
         let writer = null;
 
         function sendMessage(data) {
+          data.char = '${character}';
+          data.charIndex = ${charIndex};
           const msg = JSON.stringify(data);
           if (window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(msg);
@@ -113,13 +123,13 @@ export default function StrokeOrderPractice({
           writer = HanziWriter.create('target-writer', '${character || "學"}', {
             width: ${size},
             height: ${size},
-            padding: 18,
+            padding: ${paddingVal},
             strokeAnimationSpeed: 1.2,
             delayBetweenStrokes: 150,
             strokeColor: '${strokeColor}',
             outlineColor: '${ghostColor}',
             highlightColor: '${highlightColor}',
-            drawingWidth: 20,
+            drawingWidth: ${drawWidthVal},
             showOutline: true,
             showCharacter: false,
           });
@@ -144,6 +154,9 @@ export default function StrokeOrderPractice({
 
         function startAnimate() {
           if (!writer) return;
+          try {
+            writer.cancelQuiz();
+          } catch(e) {}
           writer.animateCharacter({
             onComplete: function() {
               sendMessage({ type: 'ANIMATION_DONE' });
@@ -154,10 +167,12 @@ export default function StrokeOrderPractice({
         window.addEventListener('message', function(event) {
           try {
             const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+            if (data.targetChar && data.targetChar !== '${character}') return;
             if (data.action === 'ANIMATE') startAnimate();
-            if (data.action === 'QUIZ') startQuiz();
-            if (data.action === 'RESET') {
-              writer.cancelQuiz();
+            if (data.action === 'QUIZ' || data.action === 'RESET') {
+              try {
+                writer.cancelQuiz();
+              } catch(e) {}
               startQuiz();
             }
           } catch(e) {}
@@ -173,46 +188,62 @@ export default function StrokeOrderPractice({
     try {
       const raw = event.nativeEvent ? event.nativeEvent.data : event.data;
       const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (parsed.char && parsed.char !== character) return;
+      if (parsed.charIndex !== undefined && parsed.charIndex !== charIndex) return;
+
       if (parsed.type === "CORRECT_STROKE") {
-        setStatusMessage(`✨ Nét ${parsed.strokeNum + 1} chính xác! Tiếp tục nào...`);
+        setStatusMessage(`✨ Nét ${parsed.strokeNum + 1} đúng!`);
       } else if (parsed.type === "MISTAKE") {
-        setStatusMessage("⚠️ Sai nét hoặc sai hướng! Hãy thử lại theo nét mờ.");
+        setStatusMessage("⚠️ Sai nét, thử lại!");
       } else if (parsed.type === "COMPLETE") {
         setIsCompleted(true);
-        setStatusMessage(`🎉 Xuất sắc! Hoàn thành chữ với ${parsed.mistakes || 0} lần sai!`);
+        setStatusMessage(`🎉 Xong! (${parsed.mistakes || 0} lỗi)`);
       } else if (parsed.type === "ANIMATION_DONE") {
-        setStatusMessage("Đã trình diễn xong thứ tự nét! Bấm 'Tự viết' để luyện.");
+        setStatusMessage("Thị phạm xong!");
       }
     } catch (e) {
       console.warn("Error in StrokeOrderPractice message:", e);
     }
   };
 
+  // Lắng nghe sự kiện postMessage trên Web từ iframe
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const onWebMessage = (e: MessageEvent) => {
+        handleMessage(e);
+      };
+      window.addEventListener("message", onWebMessage);
+      return () => {
+        window.removeEventListener("message", onWebMessage);
+      };
+    }
+  }, [character, charIndex]);
+
   const triggerAnimate = () => {
     setPracticeMode("animate");
     setIsCompleted(false);
-    setStatusMessage("Đang thị phạm thứ tự từng nét...");
+    setStatusMessage("Đang thị phạm...");
     if (Platform.OS === "web") {
-      const iframe = document.getElementById("hanzi-writer-iframe") as HTMLIFrameElement;
+      const iframe = document.getElementById(iframeUniqueId) as HTMLIFrameElement;
       if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage(JSON.stringify({ action: "ANIMATE" }), "*");
+        iframe.contentWindow.postMessage(JSON.stringify({ action: "ANIMATE", targetChar: character }), "*");
       }
     } else {
-      webViewRef.current?.postMessage(JSON.stringify({ action: "ANIMATE" }));
+      webViewRef.current?.postMessage(JSON.stringify({ action: "ANIMATE", targetChar: character }));
     }
   };
 
   const triggerQuiz = () => {
     setPracticeMode("quiz");
     setIsCompleted(false);
-    setStatusMessage("Tô theo nét mờ để tập viết");
+    setStatusMessage("Tô theo nét mờ");
     if (Platform.OS === "web") {
-      const iframe = document.getElementById("hanzi-writer-iframe") as HTMLIFrameElement;
+      const iframe = document.getElementById(iframeUniqueId) as HTMLIFrameElement;
       if (iframe?.contentWindow) {
-        iframe.contentWindow.postMessage(JSON.stringify({ action: "RESET" }), "*");
+        iframe.contentWindow.postMessage(JSON.stringify({ action: "RESET", targetChar: character }), "*");
       }
     } else {
-      webViewRef.current?.postMessage(JSON.stringify({ action: "RESET" }));
+      webViewRef.current?.postMessage(JSON.stringify({ action: "RESET", targetChar: character }));
     }
   };
 
@@ -226,40 +257,43 @@ export default function StrokeOrderPractice({
     }
   };
 
+  const isMini = size < 160;
+
   return (
     <View style={styles.container}>
-      {/* Header Info (Pinyin, Zhuyin, Âm Hán Việt) */}
-      <View style={styles.headerInfo}>
-        <View style={styles.charInfoRow}>
-          {pinyin ? <Text style={[styles.pinyinText, { color: colors.indigo }]}>{pinyin}</Text> : null}
-          {zhuyin ? <Text style={[styles.zhuyinText, { color: colors.amber }]}>({zhuyin})</Text> : null}
+      {/* Header Info (Pinyin, Âm Hán Việt) */}
+      {((!hidePinyin && pinyin) || vietnameseReading) ? (
+        <View style={styles.headerInfo}>
+          <View style={styles.charInfoRow}>
+            {!hidePinyin && pinyin ? <Text style={[styles.pinyinText, { color: colors.amber }]}>[{pinyin}]</Text> : null}
+            {vietnameseReading ? (
+              <Text style={[styles.hanvietText, { color: colors.textMuted }]}>
+                {!hidePinyin && pinyin ? "• " : ""}<Text style={{ color: colors.text, fontWeight: "700" }}>{vietnameseReading}</Text>
+              </Text>
+            ) : null}
+          </View>
         </View>
-        {vietnameseReading ? (
-          <Text style={[styles.hanvietText, { color: colors.textMuted }]}>
-            Âm Hán Việt: <Text style={{ color: colors.text, fontWeight: "700" }}>{vietnameseReading}</Text>
-          </Text>
-        ) : null}
-      </View>
+      ) : null}
 
       {/* Canvas Practice Box */}
       <View style={[styles.canvasBox, { width: size, height: size }]}>
         {Platform.OS === "web" ? (
           <iframe
-            id="hanzi-writer-iframe"
-            key={`${character}-${practiceMode}`}
+            id={iframeUniqueId}
+            key={iframeUniqueId}
             srcDoc={hanziHtml}
             style={{
               width: "100%",
               height: "100%",
               border: "none",
-              borderRadius: 16,
+              borderRadius: 12,
               backgroundColor: "transparent",
             }}
           />
         ) : (
           <WebView
             ref={webViewRef}
-            key={`${character}-${practiceMode}`}
+            key={iframeUniqueId}
             originWhitelist={["*"]}
             source={{ html: hanziHtml }}
             style={{ backgroundColor: "transparent" }}
@@ -271,7 +305,7 @@ export default function StrokeOrderPractice({
 
       {/* Status Feedback */}
       <View style={[styles.statusBox, { backgroundColor: isCompleted ? (isDark ? "#064E3B" : "#ECFDF5") : (isDark ? "#1E293B" : "#F8FAFC") }]}>
-        <Text style={[styles.statusText, { color: isCompleted ? "#10B981" : colors.text }]}>
+        <Text style={[styles.statusText, { color: isCompleted ? "#10B981" : colors.text }]} numberOfLines={1}>
           {statusMessage}
         </Text>
       </View>
@@ -282,24 +316,24 @@ export default function StrokeOrderPractice({
           style={[styles.btnAction, { backgroundColor: isDark ? "#1E293B" : "#EFF6FF", borderColor: colors.indigo, borderWidth: 1 }]}
           onPress={playPronunciation}
         >
-          <MaterialIcons name="volume-up" size={18} color={colors.indigo} />
-          <Text style={[styles.btnActionText, { color: colors.indigo }]}>Phát âm</Text>
+          <MaterialIcons name="volume-up" size={14} color={colors.indigo} />
+          <Text style={[styles.btnActionText, { color: colors.indigo }]}>Đọc</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.btnAction, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}
           onPress={triggerAnimate}
         >
-          <MaterialIcons name="play-circle-outline" size={18} color={colors.text} />
-          <Text style={[styles.btnActionText, { color: colors.text }]}>Thị phạm nét</Text>
+          <MaterialIcons name="play-arrow" size={14} color={colors.text} />
+          <Text style={[styles.btnActionText, { color: colors.text }]}>Nét</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.btnAction, { backgroundColor: colors.indigo }]}
           onPress={triggerQuiz}
         >
-          <MaterialIcons name="edit" size={18} color="#FFFFFF" />
-          <Text style={[styles.btnActionText, { color: "#FFFFFF" }]}>Luyện viết lại</Text>
+          <MaterialIcons name="edit" size={13} color="#FFFFFF" />
+          <Text style={[styles.btnActionText, { color: "#FFFFFF" }]}>Viết</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -310,64 +344,60 @@ const styles = StyleSheet.create({
   container: {
     alignItems: "center",
     width: "100%",
-    marginVertical: 8,
+    marginVertical: 2,
   },
   headerInfo: {
     alignItems: "center",
-    marginBottom: 10,
-    gap: 2,
+    marginBottom: 4,
   },
   charInfoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
+    flexWrap: "wrap",
+    justifyContent: "center",
   },
   pinyinText: {
-    fontSize: 20,
+    fontSize: 13,
     fontWeight: "700",
   },
-  zhuyinText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
   hanvietText: {
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 12,
   },
   canvasBox: {
-    borderRadius: 18,
+    borderRadius: 12,
     overflow: "hidden",
   },
   statusBox: {
-    marginTop: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    marginTop: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
     alignItems: "center",
-    maxWidth: 320,
+    maxWidth: 180,
   },
   statusText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
     textAlign: "center",
   },
   actionButtonsRow: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 12,
+    gap: 4,
+    marginTop: 6,
     flexWrap: "wrap",
     justifyContent: "center",
   },
   btnAction: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   btnActionText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "700",
   },
 });

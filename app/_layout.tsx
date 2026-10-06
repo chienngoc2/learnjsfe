@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ThemeProvider } from "@/src/context/ThemeContext";
+import { PinyinProvider } from "@/src/context/PinyinContext";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -34,7 +35,8 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthGate>
+        <PinyinProvider>
+          <AuthGate>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -67,6 +69,7 @@ export default function RootLayout() {
             <Stack.Screen name="luyen-tap/vocab-match" />
           </Stack>
         </AuthGate>
+        </PinyinProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

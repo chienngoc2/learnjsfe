@@ -21,22 +21,32 @@ export default function LoginScreen() {
   const { colors } = useTheme();
   const router = useRouter();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleAuth = async () => {
-    if (!username.trim() || !password.trim()) {
-      setError("Vui lòng điền đầy đủ tài khoản và mật khẩu.");
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setError("Vui lòng điền đầy đủ email và mật khẩu.");
       return;
     }
 
-    if (isRegistering && password !== confirmPassword) {
-      setError("Mật khẩu xác nhận không khớp.");
-      return;
+    if (isRegistering) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        setError("Email không đúng định dạng (VD: example@gmail.com).");
+        return;
+      }
+      if (cleanPassword.length < 6) {
+        setError("Mật khẩu phải từ 6 ký tự trở lên.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -45,8 +55,8 @@ export default function LoginScreen() {
     try {
       const endpoint = isRegistering ? "/api/auth/register" : "/api/auth/login";
       const payload = isRegistering
-        ? { username: username.trim(), password: password.trim(), role: "student" }
-        : { username: username.trim(), password: password.trim() };
+        ? { email: cleanEmail, username: cleanEmail, password: cleanPassword, role: "student" }
+        : { email: cleanEmail, username: cleanEmail, password: cleanPassword };
 
       const res = await api.post(endpoint, payload);
 
@@ -92,7 +102,9 @@ export default function LoginScreen() {
                 <Ionicons name="sparkles" size={20} color="#4255ff" />
               </View>
               <Text style={styles.title}>AI SENSEI</Text>
-              <Text style={styles.subtitle}>QUIZLET LEARNING APP</Text>
+              <Text style={styles.subtitle}>
+                {isRegistering ? "ĐĂNG KÝ TÀI KHOẢN MỚI" : "QUIZLET LEARNING APP"}
+              </Text>
             </View>
 
             {/* Error Message */}
@@ -106,18 +118,20 @@ export default function LoginScreen() {
             {/* Form Fields */}
             <View style={styles.form}>
               
-              {/* Username field */}
+              {/* Email field */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Tên tài khoản</Text>
+                <Text style={styles.label}>Email</Text>
                 <View style={styles.inputWrapper}>
-                  <Feather name="user" size={14} color="#939bb4" style={styles.inputIcon} />
+                  <Feather name="mail" size={14} color="#939bb4" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Nhập tên đăng nhập..."
+                    placeholder="Nhập địa chỉ email..."
                     placeholderTextColor="rgba(147, 155, 180, 0.5)"
-                    value={username}
-                    onChangeText={setUsername}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
                     autoCapitalize="none"
+                    autoCorrect={false}
                     editable={!loading}
                   />
                 </View>
@@ -130,38 +144,28 @@ export default function LoginScreen() {
                   <Feather name="lock" size={14} color="#939bb4" style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Nhập mật khẩu..."
+                    placeholder={isRegistering ? "Nhập mật khẩu (tối thiểu 6 ký tự)..." : "Nhập mật khẩu..."}
                     placeholderTextColor="rgba(147, 155, 180, 0.5)"
-                    secureTextEntry
+                    secureTextEntry={!showPassword}
                     value={password}
                     onChangeText={setPassword}
                     autoCapitalize="none"
                     editable={!loading}
                   />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={{ padding: 4 }}
+                  >
+                    <Feather
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={16}
+                      color="#939bb4"
+                    />
+                  </TouchableOpacity>
                 </View>
               </View>
 
-              {/* Confirm Password field */}
-              {isRegistering && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Xác nhận mật khẩu</Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="lock" size={14} color="#939bb4" style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Xác nhận mật khẩu..."
-                      placeholderTextColor="rgba(147, 155, 180, 0.5)"
-                      secureTextEntry
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                      autoCapitalize="none"
-                      editable={!loading}
-                    />
-                  </View>
-                </View>
-              )}
-
-              {/* Submit Button with Button-in-Button Trailing Icon */}
+              {/* Submit Button */}
               <TouchableOpacity
                 style={styles.submitButton}
                 onPress={handleAuth}
@@ -169,7 +173,9 @@ export default function LoginScreen() {
                 activeOpacity={0.9}
               >
                 <Text style={styles.submitButtonText}>
-                  {loading ? "ĐANG XỬ LÝ..." : (isRegistering ? "ĐĂNG KÝ TÀI KHOẢN" : "ĐĂNG NHẬP HỆ THỐNG")}
+                  {loading
+                    ? "ĐANG XỬ LÝ..."
+                    : (isRegistering ? "ĐĂNG KÝ TÀI KHOẢN" : "ĐĂNG NHẬP")}
                 </Text>
                 <View style={styles.arrowCircle}>
                   {loading ? (

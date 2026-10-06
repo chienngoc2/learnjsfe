@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -6,25 +6,45 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  ScrollView,
 } from "react-native";
 import { WebView } from "react-native-webview";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
+import masterData from "@/assets/data/vocab_master.json";
 
 interface HandwritingCanvasProps {
   onSelectCharacter: (char: string) => void;
   width?: number;
   height?: number;
+  vocabList?: Array<{ word: string; pinyin?: string; meaning: string; level?: string }>;
 }
+
+const masterWords: Array<{ word: string; pinyin?: string; meaning: string; level?: string }> =
+  (masterData as any).words || [];
 
 export default function HandwritingCanvas({
   onSelectCharacter,
-  width = 300,
-  height = 260,
+  width = 270,
+  height = 185,
+  vocabList,
 }: HandwritingCanvasProps) {
   const { colors, isDark } = useTheme();
-  const [candidates, setCandidates] = useState<string[]>([]);
+  const { hidePinyin } = usePinyin();
+
+  const wordsPool = useMemo(() => {
+    return vocabList && vocabList.length > 0 ? vocabList : masterWords;
+  }, [vocabList]);
+
+  // Multi-box states (ô viết tay co giãn linh hoạt)
+  const [activeBox, setActiveBox] = useState<number>(0);
+  const [boxChars, setBoxChars] = useState<string[]>(["", "", ""]);
+  const [boxCandidates, setBoxCandidates] = useState<string[][]>([[], [], []]);
   const [recognizing, setRecognizing] = useState(false);
+  const [currentStrokes, setCurrentStrokes] = useState<number[][][]>([]);
+  const [hideSuggestions, setHideSuggestions] = useState<boolean>(false);
+
   const webViewRef = useRef<any>(null);
 
   // HTML + JS Canvas capturing stroke ink coordinates
@@ -200,9 +220,13 @@ export default function HandwritingCanvas({
   `;
 
   // Call Google Input Tools Handwriting Recognition API
-  const recognizeStrokes = async (ink: number[][][]) => {
+  const recognizeStrokes = async (ink: number[][][], boxIdx: number) => {
     if (!ink || ink.length === 0) {
-      setCandidates([]);
+      setBoxCandidates((prev) => {
+        const next = [...prev];
+        next[boxIdx] = [];
+        return next;
+      });
       return;
     }
 
@@ -240,8 +264,31 @@ export default function HandwritingCanvas({
 
       const data = await res.json();
       if (data && data[0] === "SUCCESS" && data[1] && data[1][0] && data[1][0][1]) {
-        const foundChars: string[] = data[1][0][1];
-        setCandidates(foundChars);
+        const rawChars: string[] = data[1][0][1];
+        // Lọc bỏ ký tự rác hoặc dấu chấm câu không hợp lệ
+        const foundChars = rawChars
+          .map((c) => c.trim())
+          .filter(
+            (c) =>
+              /[\u4e00-\u9fff\u3400-\u4dbf]/.test(c) &&
+              !/[.,/#!$%^&*;:{}=\-_`~()?]/.test(c)
+          );
+
+        setBoxCandidates((prev) => {
+          const next = [...prev];
+          next[boxIdx] = foundChars;
+          return next;
+        });
+
+        // Tự động gán ứng viên đầu tiên vào ô nếu ô đang trống
+        setBoxChars((prev) => {
+          if (!prev[boxIdx] && foundChars.length > 0) {
+            const nextChars = [...prev];
+            nextChars[boxIdx] = foundChars[0];
+            return nextChars;
+          }
+          return prev;
+        });
       }
     } catch (err) {
       console.warn("Handwriting recognition error:", err);
@@ -255,15 +302,29 @@ export default function HandwritingCanvas({
       const raw = event.nativeEvent ? event.nativeEvent.data : event.data;
       const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
       if (parsed.type === "STROKES_UPDATED") {
-        recognizeStrokes(parsed.strokes);
+        setHideSuggestions(false);
+        setCurrentStrokes(parsed.strokes || []);
+        recognizeStrokes(parsed.strokes, activeBox);
       }
     } catch (e) {
       console.warn("Error parsing canvas message", e);
     }
   };
 
-  const clearCanvas = () => {
-    setCandidates([]);
+  // Lắng nghe sự kiện postMessage trên Web
+  useEffect(() => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const onWebMessage = (e: MessageEvent) => {
+        handleMessage(e);
+      };
+      window.addEventListener("message", onWebMessage);
+      return () => {
+        window.removeEventListener("message", onWebMessage);
+      };
+    }
+  }, [activeBox]);
+
+  const clearCurrentCanvasInk = () => {
     if (Platform.OS === "web") {
       const iframe = document.getElementById("handwriting-iframe") as HTMLIFrameElement;
       if (iframe?.contentWindow) {
@@ -272,6 +333,40 @@ export default function HandwritingCanvas({
     } else {
       webViewRef.current?.postMessage(JSON.stringify({ action: "CLEAR" }));
     }
+  };
+
+  const clearCurrentCanvas = () => {
+    setBoxCandidates((prev) => {
+      const next = [...prev];
+      next[activeBox] = [];
+      return next;
+    });
+    setBoxChars((prev) => {
+      const next = [...prev];
+      next[activeBox] = "";
+      return next;
+    });
+    setCurrentStrokes([]);
+    setHideSuggestions(false);
+    clearCurrentCanvasInk();
+  };
+
+  const clearAllBoxes = () => {
+    setBoxChars((prev) => new Array(Math.max(prev.length, 2)).fill(""));
+    setBoxCandidates((prev) => new Array(Math.max(prev.length, 2)).fill([]));
+    setCurrentStrokes([]);
+    setActiveBox(0);
+    setHideSuggestions(false);
+    clearCurrentCanvasInk();
+  };
+
+  const addBox = () => {
+    setBoxChars((prev) => [...prev, ""]);
+    setBoxCandidates((prev) => [...prev, []]);
+    setActiveBox(boxChars.length);
+    setCurrentStrokes([]);
+    setHideSuggestions(false);
+    clearCurrentCanvasInk();
   };
 
   const undoStroke = () => {
@@ -285,9 +380,207 @@ export default function HandwritingCanvas({
     }
   };
 
+  const handleSelectCandidate = (char: string) => {
+    // Nếu ứng viên là cụm từ (vd: "田中誠一" hoặc "陳月美")
+    if (char.length > 1) {
+      const chars = char.split("").filter((c) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(c));
+      const newBoxChars = chars.length > 0 ? chars : [char];
+      setBoxChars(newBoxChars);
+      setBoxCandidates(new Array(newBoxChars.length).fill([]));
+      setHideSuggestions(true);
+      onSelectCharacter(char);
+      return;
+    }
+
+    // Nếu là 1 chữ đơn
+    setHideSuggestions(false);
+    setBoxChars((prev) => {
+      const next = [...prev];
+      next[activeBox] = char;
+      return next;
+    });
+
+    // Nếu chưa ở ô cuối, tự động chuyển sang ô kế tiếp
+    if (activeBox < boxChars.length - 1) {
+      setTimeout(() => {
+        handleChangeActiveBox(activeBox + 1);
+      }, 200);
+    }
+  };
+
+  const handleChangeActiveBox = (newIdx: number) => {
+    setActiveBox(newIdx);
+    setHideSuggestions(false);
+    setCurrentStrokes([]);
+    clearCurrentCanvasInk();
+  };
+
+  // 🌟 TÌM TẤT CẢ CÁC TỪ TRONG KHO CHỨA BẤT KỲ CHỮ NÀO ĐÃ NHẬP Ở BẤT CỨ Ô NÀO
+  const matchedVocabSuggestions = useMemo(() => {
+    const activeCandidates = (boxCandidates[activeBox] || []).filter((c) =>
+      /[\u4e00-\u9fff\u3400-\u4dbf]/.test(c)
+    );
+
+    // Thu thập tất cả các chữ Hán đã viết ở mọi ô hoặc top gợi ý nhận diện
+    const directChars = boxChars.filter((c) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(c));
+    const candidateChars = activeCandidates.slice(0, 6).flatMap((c) =>
+      c.split("").filter((ch) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch))
+    );
+
+    const searchChars = Array.from(new Set([...directChars, ...candidateChars]));
+    const assembled = boxChars.filter(Boolean).join("");
+
+    if (searchChars.length === 0 && !assembled) return [];
+
+    const matched: Array<{
+      word: string;
+      pinyin: string;
+      meaning: string;
+      matchedChar: string;
+      isExactPrefix: boolean;
+    }> = [];
+    const seen = new Set<string>();
+
+    wordsPool.forEach((w) => {
+      const isExactPrefix = assembled.length > 0 && w.word.startsWith(assembled);
+      const matchedChar = searchChars.find((ch) => w.word.includes(ch)) || "";
+
+      if ((isExactPrefix || matchedChar) && !seen.has(w.word)) {
+        seen.add(w.word);
+        matched.push({
+          word: w.word,
+          pinyin: w.pinyin || "",
+          meaning: w.meaning || "",
+          matchedChar: isExactPrefix ? assembled : matchedChar,
+          isExactPrefix,
+        });
+      }
+    });
+
+    // Sắp xếp: Ưu tiên khớp tổ hợp trước, sau đó sắp xếp theo độ dài từ
+    matched.sort((a, b) => {
+      if (a.isExactPrefix && !b.isExactPrefix) return -1;
+      if (!a.isExactPrefix && b.isExactPrefix) return 1;
+      return a.word.length - b.word.length;
+    });
+
+    return matched.slice(0, 24);
+  }, [boxChars, boxCandidates, activeBox, wordsPool]);
+
+  const handleSelectVocabSuggestion = (item: { word: string; pinyin: string; meaning: string }) => {
+    const chars = item.word.split("").filter((c) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(c));
+    const newBoxChars = chars.length > 0 ? chars : [item.word];
+    setBoxChars(newBoxChars);
+    setBoxCandidates(new Array(newBoxChars.length).fill([]));
+    setHideSuggestions(true);
+    onSelectCharacter(item.word);
+  };
+
+  const assembledWord = boxChars.filter(Boolean).join("");
+  const activeCandidates = boxCandidates[activeBox] || [];
+
   return (
     <View style={styles.container}>
-      {/* Khung vẽ Canvas */}
+      {/* 1. THANH TỔ HỢP TỪ GHÉP 3 Ô TRỰC QUAN (Viết ở bất kỳ ô nào) */}
+      <View
+        style={[
+          styles.assemblyBar,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <View style={styles.boxesRow}>
+          {boxChars.map((char, idx) => {
+            const isActive = activeBox === idx;
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.boxChip,
+                  {
+                    backgroundColor: isActive
+                      ? isDark ? "#1E3A8A" : "#DBEAFE"
+                      : isDark ? "#1E293B" : "#F1F5F9",
+                    borderColor: isActive ? colors.indigo : colors.border,
+                  },
+                ]}
+                onPress={() => handleChangeActiveBox(idx)}
+              >
+                <Text
+                  style={[
+                    styles.boxChipIndex,
+                    { color: isActive ? colors.indigo : colors.textMuted },
+                  ]}
+                >
+                  Ô {idx + 1}
+                </Text>
+                <Text
+                  style={[
+                    styles.boxChipChar,
+                    { color: char ? (isActive ? colors.indigo : colors.text) : colors.textMuted },
+                  ]}
+                >
+                  {char || "+"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+
+          {/* Nút + Thêm ô vẽ linh hoạt */}
+          <TouchableOpacity
+            style={[
+              styles.btnAddBox,
+              {
+                backgroundColor: isDark ? "#1E293B" : "#F8FAFC",
+                borderColor: colors.indigo,
+              },
+            ]}
+            onPress={addBox}
+          >
+            <MaterialIcons name="add-circle-outline" size={20} color={colors.indigo} />
+            <Text style={[styles.btnAddBoxText, { color: colors.indigo }]}>+ Thêm ô</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Nút tra cứu tổng hợp */}
+        <TouchableOpacity
+          style={[
+            styles.btnSearchAssembled,
+            {
+              backgroundColor: assembledWord ? colors.indigo : isDark ? "#334155" : "#E2E8F0",
+            },
+          ]}
+          onPress={() => {
+            if (assembledWord) {
+              setHideSuggestions(true);
+              onSelectCharacter(assembledWord);
+            }
+          }}
+          disabled={!assembledWord}
+        >
+          <MaterialIcons
+            name="search"
+            size={20}
+            color={assembledWord ? "#FFFFFF" : colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.btnSearchAssembledText,
+              { color: assembledWord ? "#FFFFFF" : colors.textMuted },
+            ]}
+          >
+            {assembledWord ? `Tra cứu: "${assembledWord}"` : "Vẽ từ để tra"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 2. CHỈ DẪN Ô ĐANG VẼ */}
+      <View style={styles.activeBoxIndicator}>
+        <Text style={[styles.activeBoxText, { color: colors.indigo }]}>
+          ✏️ Đang vẽ cho <Text style={{ fontWeight: "900" }}>Ô SỐ {activeBox + 1}</Text> (bạn có thể bấm chọn vẽ ô bất kỳ ở trên)
+        </Text>
+      </View>
+
+      {/* 3. KHUNG VẼ CANVAS */}
       <View style={[styles.canvasBox, { width, height, borderColor: colors.border }]}>
         {Platform.OS === "web" ? (
           <iframe
@@ -313,22 +606,32 @@ export default function HandwritingCanvas({
         )}
       </View>
 
-      {/* Control Buttons */}
+      {/* 4. THANH ĐIỀU KHIỂN NÉT VẼ */}
       <View style={styles.controlsRow}>
         <TouchableOpacity
           style={[styles.btnAction, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}
           onPress={undoStroke}
         >
-          <MaterialIcons name="undo" size={18} color={colors.text} />
-          <Text style={[styles.btnActionText, { color: colors.text }]}>Lùi 1 nét</Text>
+          <MaterialIcons name="undo" size={16} color={colors.text} />
+          <Text style={[styles.btnActionText, { color: colors.text }]}>Lùi nét</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.btnAction, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}
-          onPress={clearCanvas}
+          onPress={clearCurrentCanvas}
         >
-          <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
-          <Text style={[styles.btnActionText, { color: "#EF4444" }]}>Xóa vẽ lại</Text>
+          <MaterialIcons name="clear" size={16} color="#EF4444" />
+          <Text style={[styles.btnActionText, { color: "#EF4444" }]}>Xóa ô này</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.btnAction, { backgroundColor: isDark ? "#334155" : "#E2E8F0" }]}
+          onPress={clearAllBoxes}
+        >
+          <MaterialIcons name="delete-sweep" size={16} color="#EF4444" />
+          <Text style={[styles.btnActionText, { color: "#EF4444" }]}>
+            Xóa cả {boxChars.length} ô
+          </Text>
         </TouchableOpacity>
 
         {recognizing && (
@@ -339,36 +642,120 @@ export default function HandwritingCanvas({
         )}
       </View>
 
-      {/* Candidates (Gợi ý chữ Hán Phồn Thể nhận diện được) */}
-      <View style={styles.candidatesWrapper}>
-        <Text style={[styles.candidatesTitle, { color: colors.textMuted }]}>
-          {candidates.length > 0 ? "👉 Chạm vào chữ để tra cứu:" : "✏️ Hãy viết chữ Hán vào ô trên..."}
-        </Text>
-        <View style={styles.candidatesList}>
-          {candidates.map((char, idx) => (
-            <TouchableOpacity
-              key={`${char}-${idx}`}
-              style={[
-                styles.candidateBtn,
-                {
-                  backgroundColor: idx === 0 ? (isDark ? "#1E3A8A" : "#DBEAFE") : (isDark ? "#1E293B" : "#F1F5F9"),
-                  borderColor: idx === 0 ? colors.indigo : colors.border,
-                },
-              ]}
-              onPress={() => onSelectCharacter(char)}
-            >
-              <Text
-                style={[
-                  styles.candidateChar,
-                  { color: idx === 0 ? colors.indigo : colors.text },
-                ]}
-              >
-                {char}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* 5. GỢI Ý CHỮ HÁN NHẬN DIỆN CHO Ô ĐANG VẼ */}
+      {activeCandidates.length > 0 && (
+        <View style={styles.candidatesWrapper}>
+          <Text style={[styles.candidatesTitle, { color: colors.textMuted }]}>
+            👉 Chạm chữ nhận diện cho Ô {activeBox + 1}:
+          </Text>
+          <View style={styles.candidatesList}>
+            {activeCandidates.map((char, idx) => {
+              const isSelected = boxChars[activeBox] === char;
+              const isMultiChar = char.length > 1;
+              return (
+                <TouchableOpacity
+                  key={`${char}-${idx}`}
+                  style={[
+                    styles.candidateBtn,
+                    {
+                      width: isMultiChar ? "auto" : 44,
+                      paddingHorizontal: isMultiChar ? 10 : 0,
+                      backgroundColor: isSelected
+                        ? isDark ? "#1E3A8A" : "#DBEAFE"
+                        : isDark ? "#1E293B" : "#F1F5F9",
+                      borderColor: isSelected ? colors.indigo : colors.border,
+                      transform: [{ scale: isSelected ? 1.05 : 1 }],
+                    },
+                  ]}
+                  onPress={() => handleSelectCandidate(char)}
+                >
+                  <Text
+                    style={[
+                      styles.candidateChar,
+                      { color: isSelected ? colors.indigo : colors.text },
+                    ]}
+                  >
+                    {char}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      )}
+
+      {/* 6. 🌟 TỰ ĐỘNG HIỆN CÁC TỪ TRONG KHO CHỨA CHỮ NÀY (VD: 陳月美, 李明華, ...) */}
+      {!hideSuggestions && matchedVocabSuggestions.length > 0 && (
+        <View
+          style={[
+            styles.suggestionsWrapper,
+            {
+              borderColor: colors.indigo,
+              backgroundColor: isDark ? "#131C2E" : "#F0F7FF",
+            },
+          ]}
+        >
+          <View style={styles.suggestionsHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+              <Ionicons name="sparkles" size={16} color={colors.amber} />
+              <Text style={[styles.suggestionsTitle, { color: colors.indigo }]}>
+                Từ vựng liên quan trong từ điển ({matchedVocabSuggestions.length} từ):
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setHideSuggestions(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons name="close" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.suggestionsSub, { color: colors.textMuted }]}>
+            👉 Chạm vào bất kỳ từ nào để tự động điền & xem chi tiết phân tích:
+          </Text>
+
+          <View style={styles.suggestionsGrid}>
+            {matchedVocabSuggestions.map((item, idx) => (
+              <TouchableOpacity
+                key={`${item.word}-${idx}`}
+                style={[
+                  styles.suggestionCard,
+                  {
+                    backgroundColor: isDark ? "#1E293B" : "#FFFFFF",
+                    borderColor: isDark ? "#334155" : "#BFDBFE",
+                  },
+                ]}
+                onPress={() => handleSelectVocabSuggestion(item)}
+              >
+                <View style={styles.suggestionWordRow}>
+                  <Text style={[styles.suggestionWord, { color: colors.indigo }]}>
+                    {item.word}
+                  </Text>
+                  {!hidePinyin && item.pinyin ? (
+                    <View style={styles.pinyinBadge}>
+                      <Text style={[styles.suggestionPinyin, { color: colors.amber }]}>
+                        {item.pinyin}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {item.matchedChar ? (
+                    <View style={styles.matchedTag}>
+                      <Text style={styles.matchedTagText}>
+                        {item.isExactPrefix ? "Khớp cụm" : `Chứa "${item.matchedChar}"`}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text
+                  style={[styles.suggestionMeaning, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {item.meaning}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -376,75 +763,212 @@ export default function HandwritingCanvas({
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
-    marginVertical: 10,
+    marginVertical: 4,
     width: "100%",
   },
-  canvasBox: {
-    borderRadius: 14,
-    overflow: "hidden",
+  assemblyBar: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 12,
     borderWidth: 1,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    padding: 8,
+    marginBottom: 6,
   },
-  controlsRow: {
+  boxesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 6,
+    justifyContent: "flex-start",
+  },
+  boxChip: {
+    minWidth: 46,
+    flexGrow: 1,
+    maxWidth: 75,
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  btnAddBox: {
+    minWidth: 46,
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    gap: 1,
+  },
+  btnAddBoxText: {
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  boxChipIndex: {
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  boxChipChar: {
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 1,
+  },
+  btnSearchAssembled: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    maxWidth: 320,
-    marginTop: 10,
-    paddingHorizontal: 4,
-  },
-  btnAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
+    justifyContent: "center",
     paddingVertical: 7,
     borderRadius: 8,
     gap: 4,
   },
+  btnSearchAssembledText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  activeBoxIndicator: {
+    marginBottom: 4,
+  },
+  activeBoxText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  canvasBox: {
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 320,
+    marginTop: 6,
+    gap: 4,
+    flexWrap: "wrap",
+  },
+  btnAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 3,
+  },
   btnActionText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "600",
   },
   recognizingBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    marginLeft: 4,
   },
   recognizingText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
   },
   candidatesWrapper: {
     width: "100%",
-    maxWidth: 340,
-    marginTop: 12,
+    maxWidth: 360,
+    marginTop: 6,
   },
   candidatesTitle: {
-    fontSize: 13,
-    marginBottom: 8,
+    fontSize: 11,
+    marginBottom: 4,
     textAlign: "center",
   },
   candidatesList: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    gap: 8,
+    gap: 4,
   },
   candidateBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 10,
+    height: 36,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   candidateChar: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: "700",
+  },
+  suggestionsWrapper: {
+    width: "100%",
+    maxWidth: 360,
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 8,
+  },
+  suggestionsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 6,
+  },
+  suggestionsTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  suggestionsSub: {
+    fontSize: 10,
+    marginBottom: 6,
+  },
+  suggestionsGrid: {
+    gap: 6,
+  },
+  suggestionCard: {
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  suggestionWordRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
+    flexWrap: "wrap",
+  },
+  suggestionWord: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  pinyinBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+  },
+  suggestionPinyin: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  matchedTag: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: "rgba(99, 102, 241, 0.12)",
+    marginLeft: "auto",
+  },
+  matchedTagText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#4F46E5",
+  },
+  suggestionMeaning: {
+    fontSize: 11,
+    fontWeight: "500",
   },
 });

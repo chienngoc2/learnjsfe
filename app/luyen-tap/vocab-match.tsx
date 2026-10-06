@@ -12,11 +12,13 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Speech from "expo-speech";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
+import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { parseWord } from "../../src/utils/wordParser";
 
@@ -24,29 +26,50 @@ const { width } = Dimensions.get("window");
 
 interface MatchCard {
   id: string;
-  type: "jp" | "vn";
+  type: "hanzi" | "target";
   text: string;
+  subText?: string;
+  speechText: string;
   pairId: number;
   matched: boolean;
 }
 
+interface RawWord {
+  word: string;
+  pinyin?: string;
+  meaning: string;
+}
+
+type MatchMode = "hanzi_vn" | "hanzi_pinyin" | "hanzi_pinyin_vn";
+type SourceType = "db" | "master" | "custom_json";
+
 export default function VocabMatchScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { hidePinyin } = usePinyin();
   const params = useLocalSearchParams<{ topicId?: string; listId?: string }>();
   
   // Cultivation store rewards
   const { addTuVi, addXP } = useCultivationStore();
 
-  // States
-  const [isPlaying, setIsPlaying] = useState(false);
+  // Settings states
+  const [sourceType, setSourceType] = useState<SourceType>("db");
+  const [matchMode, setMatchMode] = useState<MatchMode>("hanzi_vn");
+  const [pairLimit, setPairLimit] = useState<number>(6); // 4, 6, 8
+  
+  // Data lists
   const [vocabLists, setVocabLists] = useState<any[]>([]);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
+  const [masterVocab, setMasterVocab] = useState<RawWord[]>([]);
+  const [customJsonWords, setCustomJsonWords] = useState<RawWord[]>([]);
+  const [customJsonFileName, setCustomJsonFileName] = useState<string>("");
+  
   const [loadingLists, setLoadingLists] = useState(true);
   const PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Active match phase state
+  // Active game phase state
+  const [isPlaying, setIsPlaying] = useState(false);
   const [cards, setCards] = useState<MatchCard[]>([]);
   const [selectedCard, setSelectedCard] = useState<MatchCard | null>(null);
   const [errorIds, setErrorIds] = useState<string[]>([]);
@@ -55,13 +78,17 @@ export default function VocabMatchScreen() {
   const [isFinished, setIsFinished] = useState(false);
   const [totalPairs, setTotalPairs] = useState(0);
 
+  // 1. Fetch DB vocab lists & Master JSON on mount
   useEffect(() => {
     setLoadingLists(true);
     
-    api.get("/api/vocab/lists")
-      .then((res) => {
-        if (res.data.success && res.data.data) {
-          const data = res.data.data;
+    Promise.all([
+      api.get("/api/vocab/lists").catch(() => ({ data: { success: false, data: [] } })),
+      api.get("/api/vocab/master").catch(() => ({ data: { success: false, data: null } })),
+    ])
+      .then(([dbRes, masterRes]) => {
+        if (dbRes.data && dbRes.data.success && dbRes.data.data) {
+          const data = dbRes.data.data;
           setVocabLists(data);
           
           const targetId = params.topicId || params.listId;
@@ -76,25 +103,45 @@ export default function VocabMatchScreen() {
             setSelectedListIds([data[0]._id]);
           }
         }
+
+        if (masterRes.data && masterRes.data.success && masterRes.data.data) {
+          const words = masterRes.data.data.words || [];
+          setMasterVocab(words);
+        }
+      })
+      .finally(() => {
         setLoadingLists(false);
         setVisibleCount(PAGE_SIZE);
-      })
-      .catch((err) => {
-        console.error("Lỗi lấy danh sách:", err);
-        setLoadingLists(false);
       });
   }, [params.topicId, params.listId]);
 
-  // Auto start if listId or topicId param exists
+  // Auto start if listId/topicId param is given
   useEffect(() => {
     const targetId = params.topicId || params.listId;
     if (targetId && vocabLists.length > 0 && selectedListIds.length > 0 && !isPlaying) {
       const matched = vocabLists.find((l: any) => l._id.toString() === targetId.toString());
       if (matched && selectedListIds.includes(matched._id)) {
-        startMatchGame([matched]);
+        startMatchGameFromWords(extractWordsFromDecks([matched]));
       }
     }
   }, [vocabLists, selectedListIds, params.topicId, params.listId]);
+
+  const extractWordsFromDecks = (decks: any[]): RawWord[] => {
+    const list: RawWord[] = [];
+    decks.forEach((deck) => {
+      if (deck.words && deck.words.length > 0) {
+        deck.words.forEach((w: any) => {
+          const parsed = parseWord(w.term, w.def);
+          list.push({
+            word: parsed.word,
+            pinyin: parsed.pinyin || parsed.reading || "",
+            meaning: parsed.meaning,
+          });
+        });
+      }
+    });
+    return list;
+  };
 
   const handleToggleList = (id: string) => {
     setSelectedListIds((prev) =>
@@ -102,52 +149,92 @@ export default function VocabMatchScreen() {
     );
   };
 
-  const handleStartMatch = () => {
-    if (selectedListIds.length === 0) return;
-    const selectedDecks = vocabLists.filter((list) =>
-      selectedListIds.includes(list._id)
-    );
-    startMatchGame(selectedDecks);
+  // Upload Custom JSON file on Web / Device
+  const handleCustomJsonUpload = (event: any) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    setCustomJsonFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const parsed = JSON.parse(text);
+        const rawList = Array.isArray(parsed) ? parsed : (parsed.words || [parsed]);
+        const cleanedList: RawWord[] = rawList.map((item: any) => ({
+          word: item.word || item.term || "",
+          pinyin: item.pinyin || item.reading || "",
+          meaning: typeof item.meaning === "string" ? item.meaning : (item.def || ""),
+        })).filter((w: RawWord) => w.word && w.meaning);
+
+        if (cleanedList.length === 0) {
+          alert("File JSON không chứa từ vựng hợp lệ (cần có word và meaning).");
+          return;
+        }
+
+        setCustomJsonWords(cleanedList);
+        setSourceType("custom_json");
+      } catch (err) {
+        alert("File JSON bị lỗi định dạng.");
+      }
+    };
+    reader.readAsText(file);
   };
 
-  const startMatchGame = (selectedDecks: any[]) => {
-    // Collect all words from selected lists
-    const allWords: any[] = [];
-    selectedDecks.forEach((deck) => {
-      if (deck.words && deck.words.length > 0) {
-        deck.words.forEach((w: any) => {
-          const parsed = parseWord(w.term, w.def);
-          allWords.push({
-            word: parsed.word,
-            reading: parsed.reading || parsed.word,
-            meaning: parsed.meaning,
-          });
-        });
-      }
-    });
+  const handleStartGame = () => {
+    let sourceWords: RawWord[] = [];
+    if (sourceType === "db") {
+      const selectedDecks = vocabLists.filter((list) => selectedListIds.includes(list._id));
+      sourceWords = extractWordsFromDecks(selectedDecks);
+    } else if (sourceType === "master") {
+      sourceWords = masterVocab;
+    } else if (sourceType === "custom_json") {
+      sourceWords = customJsonWords;
+    }
 
-    if (allWords.length === 0) {
-      alert("Bài học được chọn chưa có từ vựng nào bạn nhé!");
+    if (sourceWords.length === 0) {
+      alert("Chưa có từ vựng nào trong nguồn đã chọn!");
       return;
     }
 
-    // Pick 6 random words for matching (12 cards total)
-    const selectedPairs = allWords.sort(() => Math.random() - 0.5).slice(0, 6);
+    startMatchGameFromWords(sourceWords);
+  };
+
+  const startMatchGameFromWords = (allWords: RawWord[]) => {
+    // Pick random words for matching
+    const sampleLimit = Math.min(pairLimit, allWords.length);
+    const selectedPairs = allWords.sort(() => Math.random() - 0.5).slice(0, sampleLimit);
     setTotalPairs(selectedPairs.length);
 
     const listCards: MatchCard[] = [];
     selectedPairs.forEach((pair, i) => {
+      // 1. Thẻ Chữ Hán
+      let hanziCardText = pair.word;
+      let hanziSubText = undefined;
+      if (matchMode === "hanzi_pinyin_vn" && pair.pinyin) {
+        hanziSubText = pair.pinyin;
+      }
+
       listCards.push({
-        id: `jp-${i}`,
-        type: "jp",
-        text: pair.word,
+        id: `hanzi-${i}`,
+        type: "hanzi",
+        text: hanziCardText,
+        subText: hanziSubText,
+        speechText: pair.word,
         pairId: i,
         matched: false,
       });
+
+      // 2. Thẻ Đích (Nghĩa hoặc Pinyin)
+      let targetCardText = pair.meaning;
+      if (matchMode === "hanzi_pinyin") {
+        targetCardText = pair.pinyin || pair.meaning;
+      }
+
       listCards.push({
-        id: `vn-${i}`,
-        type: "vn",
-        text: pair.meaning,
+        id: `target-${i}`,
+        type: "target",
+        text: targetCardText,
+        speechText: pair.word,
         pairId: i,
         matched: false,
       });
@@ -172,11 +259,13 @@ export default function VocabMatchScreen() {
 
     if (!selectedCard) {
       setSelectedCard(card);
+      speak(card.speechText);
       return;
     }
 
     if (selectedCard.type === card.type) {
       setSelectedCard(card);
+      speak(card.speechText);
       return;
     }
 
@@ -191,9 +280,8 @@ export default function VocabMatchScreen() {
       );
       setSelectedCard(null);
       
-      // Pronounce Japanese word
-      const jpText = c1.type === "jp" ? c1.text : c2.text;
-      speak(jpText);
+      // Pronounce Chinese word with zh-TW
+      speak(c1.speechText);
 
       setScore((s) => {
         const next = s + 1;
@@ -213,7 +301,7 @@ export default function VocabMatchScreen() {
       setTimeout(() => {
         setErrorIds([]);
         setSelectedCard(null);
-      }, 800);
+      }, 700);
     }
   };
 
@@ -233,7 +321,7 @@ export default function VocabMatchScreen() {
     );
   }
 
-  // 1. SETTINGS / CONFIG PHASE RENDER
+  // 1. CONFIGURATION & SETTINGS PHASE
   if (!isPlaying) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: bgColors[0] }]}>
@@ -256,26 +344,114 @@ export default function VocabMatchScreen() {
               <Feather name="chevron-left" size={20} color={colors.text} />
             </Pressable>
             <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Game Ghép Từ Vựng</Text>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>🎴 Game Ghép Thẻ Từ Vựng</Text>
               <Text style={[styles.headerSub, { color: colors.textMuted }]}>CẤU HÌNH THỬ THÁCH</Text>
             </View>
-            <View style={{ width: 42 }} />
+            <PinyinCheckbox compact />
           </View>
 
           <ScrollView
             style={{ flex: 1, paddingHorizontal: 20 }}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={{ paddingBottom: 50 }}
             showsVerticalScrollIndicator={false}
           >
-            {/* Choose Lessons Section */}
+            {/* SOURCE SELECTOR */}
             <View style={styles.sectionContainer}>
-              <Text style={[styles.sectionHeading, { color: colors.indigo }]}>CHỌN BÀI LUYỆN TẬP</Text>
-              {vocabLists.length === 0 ? (
-                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                  Chưa có bài học nào. Bạn cần tạo bài trước nha!
-                </Text>
-              ) : (
-                <View style={styles.listGrid}>
+              <Text style={[styles.sectionHeading, { color: colors.indigo }]}>1. NGUỒN TỪ VỰNG</Text>
+              <View style={styles.sourceTabsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.sourceTabBtn,
+                    {
+                      backgroundColor: sourceType === "db" ? colors.indigo : colors.surface,
+                      borderColor: sourceType === "db" ? colors.indigo : colors.border,
+                    },
+                  ]}
+                  onPress={() => setSourceType("db")}
+                >
+                  <MaterialIcons
+                    name="folder"
+                    size={16}
+                    color={sourceType === "db" ? "#FFFFFF" : colors.text}
+                  />
+                  <Text
+                    style={[
+                      styles.sourceTabText,
+                      { color: sourceType === "db" ? "#FFFFFF" : colors.text },
+                    ]}
+                  >
+                    Kho bài học ({vocabLists.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.sourceTabBtn,
+                    {
+                      backgroundColor: sourceType === "master" ? colors.indigo : colors.surface,
+                      borderColor: sourceType === "master" ? colors.indigo : colors.border,
+                    },
+                  ]}
+                  onPress={() => setSourceType("master")}
+                >
+                  <MaterialIcons
+                    name="auto-stories"
+                    size={16}
+                    color={sourceType === "master" ? "#FFFFFF" : colors.text}
+                  />
+                  <Text
+                    style={[
+                      styles.sourceTabText,
+                      { color: sourceType === "master" ? "#FFFFFF" : colors.text },
+                    ]}
+                  >
+                    Kho Master ({masterVocab.length || 533})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.sourceTabBtn,
+                    {
+                      backgroundColor: sourceType === "custom_json" ? colors.indigo : colors.surface,
+                      borderColor: sourceType === "custom_json" ? colors.indigo : colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    if (Platform.OS === "web") {
+                      document.getElementById("match-json-upload")?.click();
+                    }
+                  }}
+                >
+                  <MaterialIcons
+                    name="upload-file"
+                    size={16}
+                    color={sourceType === "custom_json" ? "#FFFFFF" : colors.text}
+                  />
+                  <Text
+                    style={[
+                      styles.sourceTabText,
+                      { color: sourceType === "custom_json" ? "#FFFFFF" : colors.text },
+                    ]}
+                  >
+                    {customJsonWords.length > 0 ? `File (${customJsonWords.length})` : "Tải JSON lên"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {Platform.OS === "web" && (
+                <input
+                  id="match-json-upload"
+                  type="file"
+                  accept=".json"
+                  onChange={handleCustomJsonUpload}
+                  style={{ display: "none" }}
+                />
+              )}
+
+              {/* Detail selection when sourceType is db */}
+              {sourceType === "db" && (
+                <View style={[styles.listGrid, { marginTop: 12 }]}>
                   {vocabLists.slice(0, visibleCount).map((list) => {
                     const isSelected = selectedListIds.includes(list._id);
                     return (
@@ -285,7 +461,7 @@ export default function VocabMatchScreen() {
                         style={({ pressed }) => [
                           styles.listCardItem,
                           {
-                            backgroundColor: isSelected ? colors.indigoLight : colors.surface,
+                            backgroundColor: isSelected ? (isDark ? "#1E293B" : "#EFF6FF") : colors.surface,
                             borderColor: isSelected ? colors.indigo : colors.border,
                             transform: [{ scale: pressed ? 0.98 : 1 }],
                           },
@@ -303,7 +479,7 @@ export default function VocabMatchScreen() {
                               style={[
                                 styles.listCardTitle,
                                 { color: colors.text },
-                                isSelected && { color: colors.indigo },
+                                isSelected && { color: colors.indigo, fontWeight: "700" },
                               ]}
                               numberOfLines={1}
                             >
@@ -317,7 +493,6 @@ export default function VocabMatchScreen() {
                       </Pressable>
                     );
                   })}
-
                   {visibleCount < vocabLists.length && (
                     <TouchableOpacity
                       style={[
@@ -325,34 +500,138 @@ export default function VocabMatchScreen() {
                         { backgroundColor: colors.surface, borderColor: colors.border },
                       ]}
                       onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                      activeOpacity={0.75}
                     >
                       <Text style={[styles.loadMoreText, { color: colors.indigo }]}>
-                        Xem thêm ({vocabLists.length - visibleCount} bài học còn lại)
+                        Xem thêm ({vocabLists.length - visibleCount} bài còn lại)
                       </Text>
-                      <Feather name="chevron-down" size={20} color={colors.indigo} />
                     </TouchableOpacity>
                   )}
                 </View>
               )}
+
+              {sourceType === "master" && (
+                <View style={[styles.infoBanner, { backgroundColor: isDark ? "#1E293B" : "#F0FDF4", borderColor: "#10B981" }]}>
+                  <MaterialIcons name="verified" size={20} color="#10B981" />
+                  <Text style={[styles.infoBannerText, { color: isDark ? "#6EE7B7" : "#065F46" }]}>
+                    Đang sử dụng kho từ vựng chuẩn Giáo trình Đương Đại ({masterVocab.length || 533} từ). Mỗi ván sẽ chọn ngẫu nhiên các từ để thử thách bạn!
+                  </Text>
+                </View>
+              )}
+
+              {sourceType === "custom_json" && (
+                <View style={[styles.infoBanner, { backgroundColor: isDark ? "#1E293B" : "#EFF6FF", borderColor: colors.indigo }]}>
+                  <MaterialIcons name="file-present" size={20} color={colors.indigo} />
+                  <Text style={[styles.infoBannerText, { color: colors.indigo }]}>
+                    {customJsonWords.length > 0
+                      ? `Đã nạp file "${customJsonFileName || 'JSON'}" với ${customJsonWords.length} từ vựng.`
+                      : "Chưa chọn file JSON nào. Hãy bấm 'Tải JSON lên' để chọn file."}
+                  </Text>
+                </View>
+              )}
             </View>
 
-            {/* Start Button */}
+            {/* 2. MATCH MODE SELECTOR */}
+            <View style={styles.sectionContainer}>
+              <Text style={[styles.sectionHeading, { color: colors.indigo }]}>2. CHẾ ĐỘ GHÉP THẺ</Text>
+              <View style={styles.modeGrid}>
+                <TouchableOpacity
+                  style={[
+                    styles.modeCard,
+                    {
+                      backgroundColor: matchMode === "hanzi_vn" ? (isDark ? "#1E293B" : "#EFF6FF") : colors.surface,
+                      borderColor: matchMode === "hanzi_vn" ? colors.indigo : colors.border,
+                    },
+                  ]}
+                  onPress={() => setMatchMode("hanzi_vn")}
+                >
+                  <Text style={[styles.modeCardTitle, { color: matchMode === "hanzi_vn" ? colors.indigo : colors.text }]}>
+                    🔤 Hán tự ↔ Nghĩa Việt
+                  </Text>
+                  <Text style={[styles.modeCardDesc, { color: colors.textMuted }]}>
+                    Ví dụ: 謝謝 ↔ Cảm ơn
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.modeCard,
+                    {
+                      backgroundColor: matchMode === "hanzi_pinyin" ? (isDark ? "#1E293B" : "#EFF6FF") : colors.surface,
+                      borderColor: matchMode === "hanzi_pinyin" ? colors.indigo : colors.border,
+                    },
+                  ]}
+                  onPress={() => setMatchMode("hanzi_pinyin")}
+                >
+                  <Text style={[styles.modeCardTitle, { color: matchMode === "hanzi_pinyin" ? colors.indigo : colors.text }]}>
+                    🗣️ Hán tự ↔ Pinyin
+                  </Text>
+                  <Text style={[styles.modeCardDesc, { color: colors.textMuted }]}>
+                    Ví dụ: 謝謝 ↔ xièxiè
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.modeCard,
+                    {
+                      backgroundColor: matchMode === "hanzi_pinyin_vn" ? (isDark ? "#1E293B" : "#EFF6FF") : colors.surface,
+                      borderColor: matchMode === "hanzi_pinyin_vn" ? colors.indigo : colors.border,
+                    },
+                  ]}
+                  onPress={() => setMatchMode("hanzi_pinyin_vn")}
+                >
+                  <Text style={[styles.modeCardTitle, { color: matchMode === "hanzi_pinyin_vn" ? colors.indigo : colors.text }]}>
+                    💡 Hán tự + Pinyin ↔ Nghĩa
+                  </Text>
+                  <Text style={[styles.modeCardDesc, { color: colors.textMuted }]}>
+                    Dành cho người mới học
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 3. PAIR LIMIT SELECTOR */}
+            <View style={styles.sectionContainer}>
+              <Text style={[styles.sectionHeading, { color: colors.indigo }]}>3. SỐ CẶP THẺ MỖI VÁN</Text>
+              <View style={styles.limitRow}>
+                {[4, 6, 8, 10].map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={[
+                      styles.limitBtn,
+                      {
+                        backgroundColor: pairLimit === num ? colors.indigo : colors.surface,
+                        borderColor: pairLimit === num ? colors.indigo : colors.border,
+                      },
+                    ]}
+                    onPress={() => setPairLimit(num)}
+                  >
+                    <Text
+                      style={[
+                        styles.limitBtnText,
+                        { color: pairLimit === num ? "#FFFFFF" : colors.text },
+                      ]}
+                    >
+                      {num} Cặp ({num * 2} Thẻ)
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* START BUTTON */}
             <Pressable
-              onPress={handleStartMatch}
-              disabled={selectedListIds.length === 0}
+              onPress={handleStartGame}
               style={({ pressed }) => [
                 styles.btnStart,
                 {
-                  backgroundColor: "#000000",
-                  borderColor: "#8C5C38",
-                  borderWidth: 2,
-                  opacity: selectedListIds.length === 0 ? 0.5 : 1,
+                  backgroundColor: colors.indigo,
                   transform: [{ scale: pressed ? 0.98 : 1 }],
                 },
               ]}
             >
-              <Text style={[styles.btnStartText, { color: colors.indigo }]}>BẮT ĐẦU LUYỆN TẬP</Text>
+              <Ionicons name="play" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.btnStartText}>BẮT ĐẦU VÁN GHÉP</Text>
             </Pressable>
           </ScrollView>
         </LinearGradient>
@@ -383,12 +662,12 @@ export default function VocabMatchScreen() {
               <Feather name="x" size={20} color={colors.text} />
             </Pressable>
             <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Luyện Ghép Từ Vựng</Text>
-              <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-                ĐÃ GHÉP: {score} <Text style={{ color: colors.textMuted }}>/</Text> {totalPairs} | MOVES: {moves}
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Ghép Thẻ Từ Vựng</Text>
+              <Text style={[styles.headerSub, { color: colors.indigo }]}>
+                GHÉP ĐÚNG: {score}/{totalPairs}  •  LƯỢT THỬ: {moves}
               </Text>
             </View>
-            <View style={{ width: 42 }} />
+            <PinyinCheckbox compact />
           </View>
 
           <View style={styles.gameArea}>
@@ -397,24 +676,26 @@ export default function VocabMatchScreen() {
                 const isSelected = selectedCard?.id === c.id;
                 const isError = errorIds.includes(c.id);
 
-                let cardBg = "#000000";
-                let cardBorder = "#8C5C38";
-                let cardText = "#F7E5C4";
+                let cardBg = isDark ? "#1E293B" : "#FFFFFF";
+                let cardBorder = isDark ? "#334155" : "#E2E8F0";
+                let cardTextColor = colors.text;
 
                 if (c.matched) {
-                  // Hide or make fully transparent/non-interactive
-                  return <View key={c.id} style={[styles.cardItem, { opacity: 0 }]} />;
+                  return <View key={c.id} style={[styles.cardItem, { opacity: 0, pointerEvents: "none" }]} />;
                 }
 
                 if (isSelected) {
-                  cardBg = "#2C1A10";
-                  cardBorder = "#CFAC62";
-                  cardText = "#CFAC62";
+                  cardBg = isDark ? "#1E3A8A" : "#DBEAFE";
+                  cardBorder = colors.indigo;
+                  cardTextColor = colors.indigo;
                 } else if (isError) {
-                  cardBg = "rgba(239, 68, 68, 0.15)";
-                  cardBorder = "#ef4444";
-                  cardText = "#ef4444";
+                  cardBg = isDark ? "#451A1A" : "#FEE2E2";
+                  cardBorder = "#EF4444";
+                  cardTextColor = "#EF4444";
                 }
+
+                const isChinese = c.type === "hanzi";
+                const isLongText = c.text.length > 8;
 
                 return (
                   <Pressable
@@ -432,12 +713,21 @@ export default function VocabMatchScreen() {
                     <Text
                       style={[
                         styles.cardItemText,
-                        { color: cardText, fontSize: c.type === "jp" ? 20 : 16 },
+                        {
+                          color: cardTextColor,
+                          fontSize: isChinese ? 22 : isLongText ? 13 : 15,
+                          fontWeight: isChinese ? "800" : "600",
+                        },
                       ]}
                       numberOfLines={3}
                     >
                       {c.text}
                     </Text>
+                    {!hidePinyin && c.subText ? (
+                      <Text style={[styles.cardSubText, { color: isSelected ? colors.indigo : colors.textMuted }]}>
+                        {c.subText}
+                      </Text>
+                    ) : null}
                   </Pressable>
                 );
               })}
@@ -448,9 +738,10 @@ export default function VocabMatchScreen() {
     );
   }
 
-  // 3. RESULTS DISPLAY
+  // 3. RESULTS & VICTORY PHASE
   if (isFinished) {
     const rewardTuViGained = totalPairs * 5;
+    const rewardXPGained = totalPairs * 10;
 
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: bgColors[0] }]}>
@@ -458,71 +749,60 @@ export default function VocabMatchScreen() {
           <Stack.Screen options={{ headerShown: false }} />
 
           <View style={[styles.center, { paddingHorizontal: 24 }]}>
-            {/* Success Emblem Banner */}
-            <View style={[styles.emblemIconCircle, { backgroundColor: colors.indigoLight }]}>
-              <Ionicons name="sparkles-outline" size={50} color={colors.indigo} />
+            {/* Victory Badge */}
+            <View style={[styles.emblemIconCircle, { backgroundColor: isDark ? "#1E3A8A" : "#DBEAFE" }]}>
+              <Ionicons name="trophy" size={54} color={colors.indigo} />
             </View>
 
-            <Text style={[styles.resultTitle, { color: colors.text }]}>BÀI TẬP HOÀN THÀNH</Text>
+            <Text style={[styles.resultTitle, { color: colors.text }]}>HOÀN THÀNH XUẤT SẮC!</Text>
             <Text style={[styles.resultSubtitle, { color: colors.textMuted }]}>
-              Chúc mừng bạn đã ghép chính xác toàn bộ thẻ từ vựng!
+              Bạn đã ghép chính xác toàn bộ {totalPairs} cặp từ vựng!
             </Text>
 
             {/* Score Bento Box */}
             <View style={[styles.resultBentoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.resultBentoItem}>
-                <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>SỐ LƯỢT GHÉP</Text>
+                <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>SỐ LƯỢT THỬ</Text>
                 <Text style={[styles.bentoBVal, { color: colors.indigo }]}>{moves}</Text>
               </View>
 
               <View style={[styles.resultBentoDivider, { backgroundColor: colors.border }]} />
 
               <View style={styles.resultBentoItem}>
-                <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>CẶP TỪ VỰNG</Text>
+                <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>CẶP GHÉP ĐÚNG</Text>
                 <Text style={[styles.bentoBVal, { color: colors.indigo }]}>{totalPairs}</Text>
               </View>
             </View>
 
             {/* Rewards Card */}
-            {rewardTuViGained > 0 ? (
-              <View style={[styles.rewardCard, { backgroundColor: colors.surface, borderColor: colors.indigo }]}>
-                <Ionicons name="sparkles" size={18} color={colors.indigo} style={{ marginRight: 8 }} />
-                <Text style={[styles.rewardCardText, { color: colors.text }]}>
-                  Điểm tích lũy: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained}</Text> XP và +{totalPairs * 10} kinh nghiệm!
-                </Text>
-              </View>
-            ) : null}
+            <View style={[styles.rewardCard, { backgroundColor: colors.surface, borderColor: colors.indigo }]}>
+              <Ionicons name="sparkles" size={20} color={colors.indigo} style={{ marginRight: 8 }} />
+              <Text style={[styles.rewardCardText, { color: colors.text }]}>
+                Phần thưởng: <Text style={{ color: colors.indigo, fontWeight: "900" }}>+{rewardTuViGained} Tu vi</Text> và +{rewardXPGained} XP!
+              </Text>
+            </View>
 
             {/* Action Buttons */}
             <View style={styles.resultActions}>
               <Pressable
-                onPress={() => startMatchGame(vocabLists.filter((list) => selectedListIds.includes(list._id)))}
+                onPress={handleStartGame}
                 style={({ pressed }) => [
-                  styles.btnResultAction,
-                  {
-                    backgroundColor: "#000000",
-                    borderColor: "#8C5C38",
-                    borderWidth: 2,
-                    transform: [{ scale: pressed ? 0.98 : 1 }],
-                  },
+                  styles.btnResultPrimary,
+                  { backgroundColor: colors.indigo, transform: [{ scale: pressed ? 0.98 : 1 }] },
                 ]}
               >
-                <Text style={[styles.btnResultText, { color: colors.indigo }]}>THỬ THÁCH LẠI</Text>
+                <Ionicons name="reload" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.btnResultPrimaryText}>Chơi lại ván mới</Text>
               </Pressable>
 
               <Pressable
                 onPress={() => setIsPlaying(false)}
                 style={({ pressed }) => [
-                  styles.btnResultActionSecondary,
-                  {
-                    backgroundColor: "#000000",
-                    borderColor: "#8C5C38",
-                    borderWidth: 2,
-                    transform: [{ scale: pressed ? 0.98 : 1 }],
-                  },
+                  styles.btnResultSecondary,
+                  { backgroundColor: colors.surface, borderColor: colors.border, transform: [{ scale: pressed ? 0.98 : 1 }] },
                 ]}
               >
-                <Text style={[styles.btnResultTextSecondary, { color: colors.indigo }]}>VỀ TRANG CHỦ</Text>
+                <Text style={[styles.btnResultSecondaryText, { color: colors.text }]}>Đổi cấu hình</Text>
               </Pressable>
             </View>
           </View>
@@ -535,239 +815,297 @@ export default function VocabMatchScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  container: { flex: 1 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "android" ? 50 : 20,
-    paddingBottom: 15,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   btnIconHeader: {
     width: 42,
     height: 42,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
   headerTitleWrap: {
-    flex: 1,
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    fontSize: 17,
+    fontWeight: "800",
   },
   headerSub: {
-    fontSize: 10,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "700",
     marginTop: 2,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   sectionContainer: {
-    marginTop: 20,
+    marginTop: 18,
   },
   sectionHeading: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
-    letterSpacing: 1,
-    marginBottom: 12,
+    letterSpacing: 0.8,
+    marginBottom: 10,
   },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 20,
+  sourceTabsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  sourceTabBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  sourceTabText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   listGrid: {
-    gap: 12,
+    gap: 8,
   },
   listCardItem: {
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   listCardLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
   },
   listCardTitle: {
     fontSize: 14,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   listCardCount: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
     marginTop: 2,
   },
-  btnStart: {
-    paddingVertical: 16,
-    borderRadius: 18,
+  loadMoreBtn: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  loadMoreText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  infoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
+    gap: 8,
+  },
+  infoBannerText: {
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
+  },
+  modeGrid: {
+    gap: 8,
+  },
+  modeCard: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  modeCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  modeCardDesc: {
+    fontSize: 12,
+    marginTop: 3,
+  },
+  limitRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  limitBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 35,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+  },
+  limitBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  btnStart: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 24,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   btnStartText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#050814",
-    letterSpacing: 1,
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   gameArea: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     justifyContent: "center",
   },
   gridCards: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent: "center",
     gap: 10,
+    maxWidth: 600,
+    alignSelf: "center",
+    width: "100%",
   },
   cardItem: {
-    width: (width - 32 - 10) / 2, // 2 columns layout
-    minHeight: 86,
-    borderRadius: 16,
-    borderWidth: 2,
+    width: "46%",
+    minHeight: 88,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    marginVertical: 4,
     elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowRadius: 3,
   },
   cardItemText: {
-    fontWeight: "800",
     textAlign: "center",
-    lineHeight: 22,
+  },
+  cardSubText: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 3,
   },
   emblemIconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    justifyContent: "center",
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: "center",
-    marginBottom: 20,
+    justifyContent: "center",
+    marginBottom: 16,
   },
   resultTitle: {
     fontSize: 22,
     fontWeight: "900",
-    letterSpacing: 1,
     textAlign: "center",
   },
   resultSubtitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 6,
+    fontSize: 14,
     textAlign: "center",
-    marginBottom: 30,
+    marginTop: 6,
+    marginBottom: 20,
   },
   resultBentoBox: {
-    width: "100%",
-    borderRadius: 24,
-    borderWidth: 1.5,
     flexDirection: "row",
-    paddingVertical: 20,
-    marginBottom: 20,
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 16,
+    marginBottom: 14,
   },
   resultBentoItem: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
   },
   resultBentoDivider: {
-    width: 1.5,
-    height: "100%",
+    width: 1,
   },
   bentoBLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1,
-    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: "700",
   },
   bentoBVal: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "900",
+    marginTop: 4,
   },
   rewardCard: {
-    width: "100%",
-    borderRadius: 20,
-    borderWidth: 1.5,
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    marginBottom: 35,
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 320,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 24,
   },
   rewardCardText: {
     fontSize: 13,
-    fontWeight: "700",
-    flex: 1,
+    fontWeight: "600",
   },
   resultActions: {
     width: "100%",
-    gap: 12,
+    maxWidth: 320,
+    gap: 10,
   },
-  btnResultAction: {
-    width: "100%",
-    paddingVertical: 16,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnResultText: {
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-  },
-  btnResultActionSecondary: {
-    width: "100%",
-    paddingVertical: 16,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnResultTextSecondary: {
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-  },
-  loadMoreBtn: {
+  btnResultPrimary: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 10,
-    gap: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.02,
-        shadowRadius: 4,
-      },
-      android: { elevation: 1 },
-    }),
+    paddingVertical: 13,
+    borderRadius: 12,
   },
-  loadMoreText: {
+  btnResultPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  btnResultSecondary: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  btnResultSecondaryText: {
     fontSize: 14,
     fontWeight: "700",
   },

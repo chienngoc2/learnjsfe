@@ -197,6 +197,17 @@ export default function TopicListScreen() {
                       <MaterialIcons name="keyboard" size={17} color={accentColor} />
                     </TouchableOpacity>
                     <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: isDark ? "#064E3B" : "#ECFDF5" }]}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/study/kanji-search",
+                          params: { topicId: item._id, title: item.title },
+                        })
+                      }
+                    >
+                      <MaterialIcons name="draw" size={17} color={colors.emerald} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: isDark ? colors.surfaceAlt : "#F1F5F9" }]}
                       onPress={() => router.push(`/study/grammar-viewer?topicId=${item._id}&title=${encodeURIComponent(item.title)}` as any)}
                     >

@@ -16,6 +16,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
+import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -28,6 +30,7 @@ const { height } = Dimensions.get("window");
 
 export default function CardViewer() {
   const { colors, isDark } = useTheme();
+  const { hidePinyin } = usePinyin();
   const { topicId, title } = useLocalSearchParams();
   const router = useRouter();
   const [words, setWords] = useState<any[]>([]);
@@ -203,19 +206,45 @@ export default function CardViewer() {
             </Text>
           </View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.btnIconHeader,
-              { 
-                backgroundColor: colors.surface, 
-                borderColor: colors.border,
-                transform: [{ scale: pressed ? 0.95 : 1 }]
-              },
-            ]}
-            onPress={() => speak(parsed.word)}
-          >
-            <Feather name="volume-2" size={20} color={colors.indigo} />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <PinyinCheckbox compact />
+            <Pressable
+              style={({ pressed }) => [
+                styles.btnIconHeader,
+                { 
+                  backgroundColor: colors.surface, 
+                  borderColor: colors.border,
+                  transform: [{ scale: pressed ? 0.95 : 1 }]
+                },
+              ]}
+              onPress={() =>
+                router.push({
+                  pathname: "/study/kanji-search",
+                  params: {
+                    topicId: String(topicId),
+                    title: String(title),
+                    word: parsed.word,
+                  },
+                })
+              }
+            >
+              <Feather name="edit-3" size={18} color={colors.emerald} />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.btnIconHeader,
+                { 
+                  backgroundColor: colors.surface, 
+                  borderColor: colors.border,
+                  transform: [{ scale: pressed ? 0.95 : 1 }]
+                },
+              ]}
+              onPress={() => speak(parsed.word)}
+            >
+              <Feather name="volume-2" size={20} color={colors.indigo} />
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
@@ -288,7 +317,7 @@ export default function CardViewer() {
                       <Text style={[styles.cardTextSolid, { color: colors.indigo }]}>
                         {parsed.word}
                       </Text>
-                      {parsed.pinyin ? (
+                      {!hidePinyin && (parsed.pinyin ? (
                         <Text style={[styles.readingText, { color: colors.indigo }]}>
                           {parsed.pinyin}
                         </Text>
@@ -296,8 +325,8 @@ export default function CardViewer() {
                         <Text style={[styles.readingText, { color: colors.textMuted }]}>
                           {parsed.reading}
                         </Text>
-                      ) : null}
-                      {parsed.zhuyin ? (
+                      ) : null)}
+                      {!hidePinyin && parsed.zhuyin ? (
                         <Text style={[{ fontSize: 13, color: colors.amber, marginTop: 2, fontWeight: "600" }]}>
                           ({parsed.zhuyin})
                         </Text>
@@ -318,7 +347,7 @@ export default function CardViewer() {
                             <Text style={[styles.exampleJp, { color: colors.text }]}>
                               {ex.cn || ex.jp}
                             </Text>
-                            {ex.pinyin ? (
+                            {!hidePinyin && ex.pinyin ? (
                               <Text style={{ fontSize: 12, color: colors.indigo, marginTop: 2 }}>
                                 {ex.pinyin}
                               </Text>

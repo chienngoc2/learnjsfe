@@ -163,48 +163,97 @@ export default function AddVocabScreen() {
     if (!trimmed) return [];
     try {
       const parsed = JSON.parse(trimmed);
-      const list = Array.isArray(parsed) ? parsed : [parsed];
+      let list: any[] = [];
+      if (Array.isArray(parsed)) {
+        list = parsed;
+      } else if (parsed && Array.isArray(parsed.words)) {
+        list = parsed.words;
+      } else if (parsed && typeof parsed === "object") {
+        list = [parsed];
+      }
+
       return list.map((item: any) => {
         if (item.word !== undefined) {
+          const pinyinVal = item.pinyin || item.reading || "";
           return {
             term: String(item.word),
-            def: typeof item.meaning === "string" ? item.meaning : String(item.meaning || ""),
-            reading: item.reading || item.word || "",
+            def: typeof item.meaning === "string" ? item.meaning : String(item.meaning || item.def || ""),
+            reading: pinyinVal || item.word || "",
             type: item.type || "noun",
             jlpt: item.level || item.jlpt || "TOCFL A1",
             examples: item.examples || [],
             audio: item.audio || "",
             tags: item.tags || [],
             notes: item.notes || "",
-            te: item.te || item.conjugations?.te || "",
-            ta: item.ta || item.conjugations?.ta || "",
-            nai: item.nai || item.conjugations?.nai || "",
-            ru: item.ru || item.conjugations?.ru || "",
-            masu: item.masu || item.conjugations?.masu || "",
+            te: item.te || "",
+            ta: item.ta || "",
+            nai: item.nai || "",
+            ru: item.ru || "",
+            masu: item.masu || "",
           };
         }
         if (item.term !== undefined && item.def !== undefined) {
           return {
             term: String(item.term),
             def: typeof item.def === "object" ? JSON.stringify(item.def) : String(item.def),
-            reading: item.reading,
+            reading: item.reading || item.pinyin,
             type: item.type,
-            jlpt: item.jlpt,
+            jlpt: item.jlpt || item.level,
             examples: item.examples,
             audio: item.audio,
             tags: item.tags,
             notes: item.notes,
-            te: item.te || item.conjugations?.te || "",
-            ta: item.ta || item.conjugations?.ta || "",
-            nai: item.nai || item.conjugations?.nai || "",
-            ru: item.ru || item.conjugations?.ru || "",
-            masu: item.masu || item.conjugations?.masu || "",
+            te: item.te || "",
+            ta: item.ta || "",
+            nai: item.nai || "",
+            ru: item.ru || "",
+            masu: item.masu || "",
           };
         }
         return null;
       }).filter((w: any) => w !== null && w.term) as WordItem[];
     } catch (e) {
       return [];
+    }
+  };
+
+  const handleFileUpload = (event: any) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (parsed.title && !title) {
+          setTitle(parsed.title);
+        }
+        const wordsList = Array.isArray(parsed) ? parsed : (parsed.words || [parsed]);
+        setJsonText(JSON.stringify(wordsList, null, 2));
+        setActiveTab("json");
+        triggerToast("success", `🎉 Đã đọc thành công ${wordsList.length} từ từ file JSON!`);
+      } catch (err) {
+        triggerToast("error", "File JSON không hợp lệ.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleLoadMasterVocab = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/vocab/master");
+      if (res.data.success && res.data.data) {
+        const master = res.data.data;
+        setTitle(master.title || "Kho Từ Vựng Chung (Đương Đại 1)");
+        setJsonText(JSON.stringify(master.words || master, null, 2));
+        setActiveTab("json");
+        triggerToast("success", `🎉 Đã tải ${master.words?.length || 0} từ từ Kho Master!`);
+      }
+    } catch (err) {
+      triggerToast("error", "Lỗi tải kho từ vựng master.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -634,6 +683,71 @@ export default function AddVocabScreen() {
 
         {activeTab === "json" && (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            {/* Quick Actions Bar */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              {Platform.OS === "web" && (
+                <input
+                  id="json-file-input"
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  style={{ display: "none" }}
+                />
+              )}
+              
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  minWidth: 140,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isDark ? "#1E293B" : "#EFF6FF",
+                  borderColor: colors.indigo,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  gap: 6,
+                }}
+                onPress={() => {
+                  if (Platform.OS === "web") {
+                    document.getElementById("json-file-input")?.click();
+                  } else {
+                    triggerToast("error", "Vui lòng dùng tính năng dán JSON trên thiết bị này hoặc qua web.");
+                  }
+                }}
+              >
+                <MaterialIcons name="upload-file" size={20} color={colors.indigo} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.indigo }}>
+                  Tải file .JSON lên
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  minWidth: 140,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isDark ? "#2C1A10" : "#FFFBEB",
+                  borderColor: colors.amber,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  gap: 6,
+                }}
+                onPress={handleLoadMasterVocab}
+              >
+                <MaterialIcons name="auto-stories" size={20} color={colors.amber} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.amber }}>
+                  Nạp Kho Master (533 từ)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <View
               style={[
                 styles.hintBox,
@@ -649,7 +763,7 @@ export default function AddVocabScreen() {
                   { color: isDark ? "#C7D2FE" : "#5B21B6" },
                 ]}
               >
-                Dán chuỗi mảng JSON từ vựng đúng định dạng chứa word, reading, meaning.
+                {"💡 Tải file .JSON từ máy hoặc dán chuỗi JSON chứa word, pinyin, meaning (Hỗ trợ cả mảng [ ] và đối tượng { title, words })."}
               </Text>
             </View>
             <TextInput
@@ -659,11 +773,12 @@ export default function AddVocabScreen() {
                   backgroundColor: colors.background,
                   borderColor: colors.border,
                   color: colors.text,
+                  minHeight: 180,
                 },
               ]}
               value={jsonText}
               onChangeText={setJsonText}
-              placeholder='[\n  {\n    "word": "食べる",\n    "reading": "たべる",\n    "meaning": "ăn",\n    "type": "verb",\n    "te": "食べて",\n    "ta": "食べた",\n    "nai": "食べない",\n    "ru": "食べる",\n    "masu": "食べます",\n    "examples": [\n      {\n        "jp": "りんごを食べる。",\n        "vn": "Ăn quả táo."\n      }\n    ]\n  }\n]'
+              placeholder='[\n  {\n    "word": "你好",\n    "pinyin": "nǐ hǎo",\n    "meaning": "Xin chào",\n    "level": "TOCFL A1"\n  }\n]'
               placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={10}

@@ -22,6 +22,8 @@ import api from "../../services/api";
 import Toast from "../../components/ui/Toast";
 import Header from "../../components/ui/Header";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
+import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 
 const { width } = Dimensions.get("window");
 const ExpoWebView = WebView as any;
@@ -80,6 +82,7 @@ const LEVEL_COLORS: Record<string, { bg: string; bgDark: string; text: string; t
 
 export default function KanjiLessonScreen() {
   const { colors, isDark } = useTheme();
+  const { hidePinyin } = usePinyin();
   const router = useRouter();
   const { group } = useLocalSearchParams<{ group: string }>();
 
@@ -325,6 +328,7 @@ export default function KanjiLessonScreen() {
         </View>
 
         <View style={styles.topBarRight}>
+          <PinyinCheckbox compact style={{ marginRight: 8 }} />
           <TouchableOpacity
             style={[styles.topBarBtn, { backgroundColor: colors.surface + "80", marginRight: 10 }]}
             onPress={() => currentKanji && openEditModal(currentKanji)}
@@ -437,12 +441,14 @@ export default function KanjiLessonScreen() {
 
                 {/* Pinyin & Zhuyin */}
                 <View style={styles.backYomiBlock}>
-                  <View style={[styles.yomiRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-                    <View style={[styles.yomiLabelBadge, { backgroundColor: isDark ? "#1A2E1A" : "#F0FDF4" }]}>
-                      <Text style={[styles.yomiLabelText, { color: isDark ? "#86EFAC" : "#166534" }]}>Pinyin</Text>
+                  {!hidePinyin && (
+                    <View style={[styles.yomiRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                      <View style={[styles.yomiLabelBadge, { backgroundColor: isDark ? "#1A2E1A" : "#F0FDF4" }]}>
+                        <Text style={[styles.yomiLabelText, { color: isDark ? "#86EFAC" : "#166534" }]}>Pinyin</Text>
+                      </View>
+                      <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.pinyin || currentKanji.onyomi || "—"}</Text>
                     </View>
-                    <Text style={[styles.yomiValue, { color: colors.text }]}>{currentKanji.pinyin || currentKanji.onyomi || "—"}</Text>
-                  </View>
+                  )}
                   <View style={styles.yomiRow}>
                     <View style={[styles.yomiLabelBadge, { backgroundColor: isDark ? "#1A2035" : "#F5F3FF" }]}>
                       <Text style={[styles.yomiLabelText, { color: isDark ? "#C4B5FD" : "#7C3AED" }]}>Zhuyin</Text>

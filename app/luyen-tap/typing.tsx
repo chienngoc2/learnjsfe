@@ -16,6 +16,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import api from "../../services/api";
 import { useTheme } from "../../src/context/ThemeContext";
+import { usePinyin } from "../../src/context/PinyinContext";
+import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import { parseWord } from "../../src/utils/wordParser";
 
 interface WordItem {
@@ -26,6 +28,7 @@ interface WordItem {
 
 export default function PracticeTypingScreen() {
   const { colors, isDark } = useTheme();
+  const { hidePinyin } = usePinyin();
   const { topicId, title } = useLocalSearchParams<{ topicId: string; title: string }>();
   const router = useRouter();
 
@@ -287,8 +290,8 @@ export default function PracticeTypingScreen() {
         </Text>
       </View>
 
-      {/* SWAP MODE BUTTON */}
-      <View style={{ alignItems: "center", marginTop: 10 }}>
+      {/* SWAP MODE BUTTON & PINYIN CHECKBOX */}
+      <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
         <TouchableOpacity
           style={[styles.toggleModeBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => {
@@ -303,6 +306,7 @@ export default function PracticeTypingScreen() {
             {isReverseMode ? "Chế độ: Nhật ➔ Việt" : "Chế độ: Việt ➔ Nhật"}
           </Text>
         </TouchableOpacity>
+        <PinyinCheckbox compact />
       </View>
 
       {/* MAIN QUESTION CARD */}
@@ -315,7 +319,7 @@ export default function PracticeTypingScreen() {
           {currentQuestion}
         </Text>
         
-        {isReverseMode && parsed.reading && parsed.reading !== parsed.word && (
+        {!hidePinyin && isReverseMode && parsed.reading && parsed.reading !== parsed.word && (
           <Text style={[styles.readingHint, { color: colors.textMuted }]}>
             Cách đọc: {parsed.reading}
           </Text>

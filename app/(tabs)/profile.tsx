@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePinyin } from "@/src/context/PinyinContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { useIsFocused } from "@react-navigation/native";
@@ -22,6 +23,7 @@ import { useIsFocused } from "@react-navigation/native";
 export default function ProfileScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { hidePinyin, toggleHidePinyin } = usePinyin();
   const insets = useSafeAreaInsets();
 
   const {
@@ -231,6 +233,20 @@ export default function ProfileScreen() {
             onValueChange={toggleSound}
             trackColor={{ false: "#CBD5E1", true: colors.indigo + "80" }}
             thumbColor={soundEnabled ? colors.indigo : "#F1F5F9"}
+          />
+        </View>
+
+        {/* Toggle Hide Pinyin */}
+        <View style={styles.settingItem}>
+          <View style={styles.settingLabelContainer}>
+            <MaterialIcons name="subtitles-off" size={22} color={hidePinyin ? colors.amber : colors.textMuted} />
+            <Text style={[styles.settingText, { color: colors.text }]}>Ẩn Pinyin khi học & chơi game</Text>
+          </View>
+          <Switch
+            value={hidePinyin}
+            onValueChange={toggleHidePinyin}
+            trackColor={{ false: "#CBD5E1", true: colors.amber + "80" }}
+            thumbColor={hidePinyin ? colors.amber : "#F1F5F9"}
           />
         </View>
 
