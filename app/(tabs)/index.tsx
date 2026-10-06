@@ -10,12 +10,14 @@ import {
   Platform,
   Dimensions,
   StatusBar,
+  Alert,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useAuth } from "@/src/context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   FadeIn,
@@ -51,6 +53,7 @@ const CHINESE_IMAGES = [
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { logout } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
@@ -166,10 +169,25 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem("token");
-    await AsyncStorage.removeItem("user");
-    router.replace("/login" as any);
+  const handleLogout = () => {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("Bạn có chắc chắn muốn đăng xuất không?")) {
+        logout();
+      }
+    } else {
+      Alert.alert(
+        "Đăng Xuất",
+        "Bạn có chắc chắn muốn đăng xuất không?",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Đăng Xuất",
+            style: "destructive",
+            onPress: () => logout(),
+          },
+        ]
+      );
+    }
   };
 
   const mapTitle = (title: string) => {

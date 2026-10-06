@@ -16,12 +16,14 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter, Stack } from "expo-router";
 import { useTheme } from "@/src/context/ThemeContext";
 import { usePinyin } from "@/src/context/PinyinContext";
+import { useAuth } from "@/src/context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { useIsFocused } from "@react-navigation/native";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { logout } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
   const { hidePinyin, toggleHidePinyin } = usePinyin();
   const insets = useSafeAreaInsets();
@@ -101,42 +103,56 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      "Đăng Xuất",
-      "Bạn có chắc chắn muốn đăng xuất không?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Đăng Xuất",
-          style: "destructive",
-          onPress: async () => {
-            await AsyncStorage.removeItem("token");
-            await AsyncStorage.removeItem("user");
-            router.replace("/login");
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("Bạn có chắc chắn muốn đăng xuất không?")) {
+        logout();
+      }
+    } else {
+      Alert.alert(
+        "Đăng Xuất",
+        "Bạn có chắc chắn muốn đăng xuất không?",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Đăng Xuất",
+            style: "destructive",
+            onPress: () => {
+              logout();
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleResetData = () => {
-    Alert.alert(
-      "CẢNH BÁO NGUY HIỂM",
-      "Hành động này sẽ xóa sạch kinh nghiệm tích lũy (clear storage) và thiết lập lại hệ thống. Tiếp tục?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Đặt lại",
-          style: "destructive",
-          onPress: async () => {
-            await AsyncStorage.clear();
-            clearTokens();
-            Alert.alert("Đã reset", "Tiến trình học tập đã được đặt lại thành công.");
-            router.replace("/login");
+    const doReset = async () => {
+      await AsyncStorage.clear();
+      clearTokens();
+      if (Platform.OS !== "web") {
+        Alert.alert("Đã reset", "Tiến trình học tập đã được đặt lại thành công.");
+      }
+      logout();
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("CẢNH BÁO NGUY HIỂM: Hành động này sẽ xóa sạch kinh nghiệm tích lũy (clear storage) và thiết lập lại hệ thống. Tiếp tục?")) {
+        doReset();
+      }
+    } else {
+      Alert.alert(
+        "CẢNH BÁO NGUY HIỂM",
+        "Hành động này sẽ xóa sạch kinh nghiệm tích lũy (clear storage) và thiết lập lại hệ thống. Tiếp tục?",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Đặt lại",
+            style: "destructive",
+            onPress: doReset,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   return (

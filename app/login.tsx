@@ -15,10 +15,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
 import api from "../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useAuth } from "@/src/context/AuthContext";
 import { Feather, Ionicons } from "@expo/vector-icons";
 
 export default function LoginScreen() {
   const { colors } = useTheme();
+  const { login } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -61,8 +63,7 @@ export default function LoginScreen() {
       const res = await api.post(endpoint, payload);
 
       if (res.data && res.data.success) {
-        await AsyncStorage.setItem("token", res.data.token);
-        await AsyncStorage.setItem("user", JSON.stringify(res.data.user));
+        await login(res.data.token, res.data.user);
         router.replace("/(tabs)");
       } else {
         setError(res.data.message || "Xác thực không thành công.");
