@@ -97,6 +97,23 @@ export default function CardViewer() {
   const togglePriority = async (wordObj: any) => {
     const term = wordObj.word || wordObj.term;
     if (!term) return;
+
+    const wasPriority = prioritySet.has(term);
+    const willBePriority = !wasPriority;
+
+    // ⚡ Optimistic UI update tức thì (0ms lag, cực kỳ mượt mà)
+    setPrioritySet((prev) => {
+      const next = new Set(prev);
+      if (willBePriority) {
+        next.add(term);
+        showToast(`⭐ Đã thêm "${term}" vào Ưu Tiên Ôn Tập`);
+      } else {
+        next.delete(term);
+        showToast(`Đã bỏ ưu tiên cho "${term}"`);
+      }
+      return next;
+    });
+
     try {
       const res = await api.post("/api/vocab/priority/toggle", {
         term: term,
@@ -105,21 +122,26 @@ export default function CardViewer() {
         topicTitle: String(title || "Khác"),
         topicId: topicId ? String(topicId) : undefined,
       });
-      if (res.data.success) {
-        setPrioritySet((prev) => {
-          const next = new Set(prev);
-          if (res.data.isPriority) {
-            next.add(term);
-            showToast(`⭐ Đã thêm "${term}" vào Ưu Tiên Ôn Tập`);
-          } else {
-            next.delete(term);
-            showToast(`Đã bỏ ưu tiên cho "${term}"`);
-          }
-          return next;
-        });
+
+      if (res.data && res.data.success) {
+        if (res.data.isPriority !== willBePriority) {
+          setPrioritySet((prev) => {
+            const next = new Set(prev);
+            if (res.data.isPriority) next.add(term);
+            else next.delete(term);
+            return next;
+          });
+        }
       }
     } catch (e) {
-      console.error("Lỗi toggle priority:", e);
+      // Revert if error
+      setPrioritySet((prev) => {
+        const next = new Set(prev);
+        if (wasPriority) next.add(term);
+        else next.delete(term);
+        return next;
+      });
+      showToast(`⚠️ Không thể cập nhật trạng thái cho "${term}"`);
     }
   };
 
@@ -795,14 +817,44 @@ export default function CardViewer() {
                       #{idx + 1}
                     </Text>
                     <View style={styles.vocabItemActionGroup}>
-                      {/* Speak Button */}
+                      {/* ⭐ Nút Lưu Ưu Tiên (Cảm giác bấm nhanh, mượt mà) */}
+                      <Pressable
+                        onPress={() => togglePriority(wordParsed)}
+                        style={({ pressed }) => [
+                          styles.vocabItemActionBtn,
+                          {
+                            backgroundColor: prioritySet.has(wordParsed.word)
+                              ? (isDark ? "rgba(245, 158, 11, 0.22)" : "#FEF3C7")
+                              : (isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.04)"),
+                            borderColor: prioritySet.has(wordParsed.word)
+                              ? "#F59E0B"
+                              : (isDark ? "#334155" : "#E2E8F0"),
+                            borderWidth: 1,
+                            transform: [{ scale: pressed ? 0.88 : 1 }],
+                          },
+                        ]}
+                        hitSlop={6}
+                      >
+                        <Ionicons
+                          name={prioritySet.has(wordParsed.word) ? "star" : "star-outline"}
+                          size={17}
+                          color={prioritySet.has(wordParsed.word) ? "#F59E0B" : colors.textMuted}
+                        />
+                      </Pressable>
+
+                      {/* Nút Loa Phát Âm */}
                       <Pressable
                         onPress={() => speak(wordParsed.word)}
                         style={({ pressed }) => [
                           styles.vocabItemActionBtn,
-                          { backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.04)" },
-                          pressed && { opacity: 0.7 }
+                          {
+                            backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.04)",
+                            borderColor: isDark ? "#334155" : "#E2E8F0",
+                            borderWidth: 1,
+                            transform: [{ scale: pressed ? 0.88 : 1 }],
+                          },
                         ]}
+                        hitSlop={6}
                       >
                         <Feather name="volume-2" size={16} color={colors.indigo} />
                       </Pressable>
@@ -816,11 +868,15 @@ export default function CardViewer() {
                       <Text style={[styles.vocabWordText, { color: colors.indigo }]}>
                         {wordParsed.word}
                       </Text>
-                      {wordParsed.reading && wordParsed.reading !== wordParsed.word && (
+                      {!hidePinyin && (wordParsed.pinyin ? (
+                        <Text style={[styles.vocabReadingText, { color: colors.amber }]}>
+                          {wordParsed.pinyin}
+                        </Text>
+                      ) : wordParsed.reading && wordParsed.reading !== wordParsed.word ? (
                         <Text style={[styles.vocabReadingText, { color: colors.textMuted }]}>
                           {wordParsed.reading}
                         </Text>
-                      )}
+                      ) : null)}
                       {wordParsed.jlpt && (
                         <View style={[styles.vocabJlptBadge, { borderColor: "rgba(124, 92, 255, 0.2)" }]}>
                           <Text style={[styles.vocabJlptText, { color: colors.purple }]}>
@@ -1331,9 +1387,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   vocabItemActionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
