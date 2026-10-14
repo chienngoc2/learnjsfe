@@ -31,11 +31,19 @@ const { height } = Dimensions.get("window");
 export default function CardViewer() {
   const { colors, isDark } = useTheme();
   const { hidePinyin } = usePinyin();
-  const { topicId, title } = useLocalSearchParams();
+  const { topicId, title, mode } = useLocalSearchParams<{ topicId?: string; title?: string; mode?: string }>();
   const router = useRouter();
   const [words, setWords] = useState<any[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // ⭐ Priority review support
+  const isPriorityMode = mode === "priority" || title === "Ưu Tiên Ôn Tập";
+  const [allPriorityWords, setAllPriorityWords] = useState<any[]>([]);
+  const [priorityTopics, setPriorityTopics] = useState<string[]>([]);
+  const [selectedFilterTopic, setSelectedFilterTopic] = useState<string>("all");
+  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Reanimated Y-axis flip value (0 for front, 180 for back)
   const rotate = useSharedValue(0);
@@ -43,15 +51,88 @@ export default function CardViewer() {
   const scale = useSharedValue(1);
 
   useEffect(() => {
-    api
-      .get("/api/vocab/lists")
-      .then((res) => {
-        const list = res.data.data.find((l: any) => l._id === topicId);
-        if (list && list.words) setWords(list.words);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [topicId]);
+    setLoading(true);
+    if (isPriorityMode) {
+      api
+        .get("/api/vocab/priority/list")
+        .then((res) => {
+          if (res.data.success) {
+            const list = res.data.words || [];
+            setAllPriorityWords(list);
+            setPriorityTopics(res.data.topics || []);
+            setWords(list);
+            const pSet = new Set<string>();
+            list.forEach((w: any) => pSet.add(w.term));
+            setPrioritySet(pSet);
+          }
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    } else {
+      const fetchList = api.get("/api/vocab/lists");
+      const fetchPriority = api.get("/api/vocab/priority/list").catch(() => ({ data: { success: false, words: [] } }));
+
+      Promise.all([fetchList, fetchPriority])
+        .then(([listRes, pRes]) => {
+          if (listRes.data.success) {
+            const list = listRes.data.data.find((l: any) => l._id === topicId);
+            if (list && list.words) setWords(list.words);
+          }
+          if (pRes.data && pRes.data.success && pRes.data.words) {
+            const pSet = new Set<string>();
+            pRes.data.words.forEach((w: any) => pSet.add(w.term));
+            setPrioritySet(pSet);
+          }
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    }
+  }, [topicId, isPriorityMode]);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2500);
+  };
+
+  const togglePriority = async (wordObj: any) => {
+    const term = wordObj.word || wordObj.term;
+    if (!term) return;
+    try {
+      const res = await api.post("/api/vocab/priority/toggle", {
+        term: term,
+        reading: wordObj.reading || wordObj.pinyin,
+        meaning: wordObj.meaning,
+        topicTitle: String(title || "Khác"),
+        topicId: topicId ? String(topicId) : undefined,
+      });
+      if (res.data.success) {
+        setPrioritySet((prev) => {
+          const next = new Set(prev);
+          if (res.data.isPriority) {
+            next.add(term);
+            showToast(`⭐ Đã thêm "${term}" vào Ưu Tiên Ôn Tập`);
+          } else {
+            next.delete(term);
+            showToast(`Đã bỏ ưu tiên cho "${term}"`);
+          }
+          return next;
+        });
+      }
+    } catch (e) {
+      console.error("Lỗi toggle priority:", e);
+    }
+  };
+
+  const handleFilterTopic = (t: string) => {
+    setSelectedFilterTopic(t);
+    setIndex(0);
+    rotate.value = 0;
+    if (t === "all") {
+      setWords(allPriorityWords);
+    } else {
+      setWords(allPriorityWords.filter((w) => (w.topicTitle || "Khác") === t));
+    }
+  };
 
   const handleFlip = () => {
     rotate.value = withTiming(rotate.value === 0 ? 180 : 0, { duration: 400 });
@@ -247,66 +328,177 @@ export default function CardViewer() {
           </View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
-          {/* 2. PROGRESS BAR */}
-          <View style={styles.progressSection}>
-            <View style={styles.progressHeader}>
-              <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
-                TIẾN TRÌNH LUYỆN TẬP
-              </Text>
-              <Text style={[styles.progressCounter, { color: colors.indigo }]}>
-                {String(index + 1).padStart(2, "0")} <Text style={{ color: colors.textMuted }}>/</Text> {String(words.length).padStart(2, "0")}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.progressBarBg,
-                { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" },
-              ]}
-            >
-              <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${progressPercent}%`, backgroundColor: colors.indigo },
-                ]}
-              />
-            </View>
+        {/* TOAST MESSAGE */}
+        {toastMsg && (
+          <View style={[styles.toastBanner, { backgroundColor: isDark ? "#1E293B" : "#FEF3C7", borderColor: "#F59E0B" }]}>
+            <Ionicons name="sparkles" size={16} color="#F59E0B" />
+            <Text style={[styles.toastText, { color: isDark ? "#FDE68A" : "#92400E" }]}>
+              {toastMsg}
+            </Text>
           </View>
+        )}
 
-          {/* 3. FLASHCARD CONTAINER */}
-          <View style={styles.cardWrapper}>
-            <Pressable
-              onPressIn={onPressIn}
-              onPressOut={onPressOut}
-              onPress={handleFlip}
-              style={styles.flipTouchable}
-            >
-              <View style={{ flex: 1, position: "relative" }}>
-                {/* MẶT TRƯỚC: TIẾNG NHẬT - KANJI, READING, VÍ DỤ */}
-                <Animated.View
+        {/* 📚 BỘ LỌC THEO BÀI HỌC CHO MỤC ƯU TIÊN */}
+        {isPriorityMode && (
+          <View style={styles.filterSection}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+              <Pressable
+                style={[
+                  styles.filterChip,
+                  selectedFilterTopic === "all"
+                    ? { backgroundColor: "#F59E0B", borderColor: "#F59E0B" }
+                    : { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+                onPress={() => handleFilterTopic("all")}
+              >
+                <Text
                   style={[
-                    styles.flashcardBox,
-                    frontAnimatedStyle,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: isDark ? "rgba(245, 199, 107, 0.2)" : "rgba(176, 130, 46, 0.25)",
-                    },
+                    styles.filterChipText,
+                    { color: selectedFilterTopic === "all" ? "#FFFFFF" : colors.text },
                   ]}
                 >
-                  <View style={styles.cardHeader}>
-                    <View style={styles.badgeRow}>
-                      <View style={[styles.badge, { borderColor: "rgba(124, 92, 255, 0.3)" }]}>
-                        <Text style={[styles.badgeText, { color: colors.purple }]}>
-                          {parsed.level || parsed.jlpt || "TOCFL A1"}
-                        </Text>
+                  Tất cả ({allPriorityWords.length})
+                </Text>
+              </Pressable>
+              {priorityTopics.map((top) => {
+                const count = allPriorityWords.filter((w) => (w.topicTitle || "Khác") === top).length;
+                const isSel = selectedFilterTopic === top;
+                return (
+                  <Pressable
+                    key={top}
+                    style={[
+                      styles.filterChip,
+                      isSel
+                        ? { backgroundColor: "#F59E0B", borderColor: "#F59E0B" }
+                        : { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
+                    onPress={() => handleFilterTopic(top)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        { color: isSel ? "#FFFFFF" : colors.text },
+                      ]}
+                    >
+                      {top} ({count})
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {words.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: isDark ? "#1E293B" : "#FEF3C7" }]}>
+              <Ionicons name="star" size={42} color="#F59E0B" />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              Chưa có từ vựng ưu tiên nào
+            </Text>
+            <Text style={[styles.emptyDesc, { color: colors.textMuted }]}>
+              Khi làm bài trắc nghiệm ghi nhớ hoặc xem flashcard, hãy tích ⭐ hoặc trả lời sai để từ tự động vào đây ôn tập nhé!
+            </Text>
+            <Pressable
+              style={[styles.btnEmptyBack, { backgroundColor: colors.indigo }]}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.btnEmptyBackText}>Quay lại</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+            {/* 2. PROGRESS BAR */}
+            <View style={styles.progressSection}>
+              <View style={styles.progressHeader}>
+                <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
+                  TIẾN TRÌNH LUYỆN TẬP
+                </Text>
+                <Text style={[styles.progressCounter, { color: colors.indigo }]}>
+                  {String(index + 1).padStart(2, "0")} <Text style={{ color: colors.textMuted }}>/</Text> {String(words.length).padStart(2, "0")}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.progressBarBg,
+                  { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${progressPercent}%`, backgroundColor: colors.indigo },
+                  ]}
+                />
+              </View>
+            </View>
+
+            {/* 3. FLASHCARD CONTAINER */}
+            <View style={styles.cardWrapper}>
+              <Pressable
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                onPress={handleFlip}
+                style={styles.flipTouchable}
+              >
+                <View style={{ flex: 1, position: "relative" }}>
+                  {/* MẶT TRƯỚC: TIẾNG NHẬT - KANJI, READING, VÍ DỤ */}
+                  <Animated.View
+                    style={[
+                      styles.flashcardBox,
+                      frontAnimatedStyle,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: isDark ? "rgba(245, 199, 107, 0.2)" : "rgba(176, 130, 46, 0.25)",
+                      },
+                    ]}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={styles.badgeRow}>
+                        <View style={[styles.badge, { borderColor: "rgba(124, 92, 255, 0.3)" }]}>
+                          <Text style={[styles.badgeText, { color: colors.purple }]}>
+                            {parsed.level || parsed.jlpt || "TOCFL A1"}
+                          </Text>
+                        </View>
+                        <View style={[styles.badge, { borderColor: "rgba(77, 168, 255, 0.3)" }]}>
+                          <Text style={[styles.badgeText, { color: colors.blue }]}>
+                            {getWordTypeLabel(parsed.type).toUpperCase()}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={[styles.badge, { borderColor: "rgba(77, 168, 255, 0.3)" }]}>
-                        <Text style={[styles.badgeText, { color: colors.blue }]}>
-                          {getWordTypeLabel(parsed.type).toUpperCase()}
+
+                      {/* ⭐ NÚT ĐÁNH DẤU ƯU TIÊN */}
+                      <Pressable
+                        style={[
+                          styles.priorityStarBtn,
+                          {
+                            backgroundColor: prioritySet.has(parsed.word)
+                              ? (isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7")
+                              : (isDark ? "#1E293B" : "#F1F5F9"),
+                            borderColor: prioritySet.has(parsed.word) ? "#F59E0B" : colors.border,
+                          },
+                        ]}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          togglePriority(parsed);
+                        }}
+                      >
+                        <Ionicons
+                          name={prioritySet.has(parsed.word) ? "star" : "star-outline"}
+                          size={15}
+                          color={prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted}
+                        />
+                        <Text
+                          style={[
+                            styles.priorityStarBtnText,
+                            { color: prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted },
+                          ]}
+                        >
+                          {prioritySet.has(parsed.word) ? "Ưu tiên" : "Lưu ưu tiên"}
                         </Text>
-                      </View>
+                      </Pressable>
                     </View>
-                  </View>
 
                   <ScrollView
                     contentContainerStyle={styles.cardFrontScroll}
@@ -384,6 +576,37 @@ export default function CardViewer() {
                     <Text style={[styles.cardHeaderTag, { color: colors.indigo }]}>
                       Ý NGHĨA TIẾNG VIỆT
                     </Text>
+
+                    {/* ⭐ NÚT ĐÁNH DẤU ƯU TIÊN */}
+                    <Pressable
+                      style={[
+                        styles.priorityStarBtn,
+                        {
+                          backgroundColor: prioritySet.has(parsed.word)
+                            ? (isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7")
+                            : (isDark ? "#1E293B" : "#F1F5F9"),
+                          borderColor: prioritySet.has(parsed.word) ? "#F59E0B" : colors.border,
+                        },
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        togglePriority(parsed);
+                      }}
+                    >
+                      <Ionicons
+                        name={prioritySet.has(parsed.word) ? "star" : "star-outline"}
+                        size={15}
+                        color={prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted}
+                      />
+                      <Text
+                        style={[
+                          styles.priorityStarBtnText,
+                          { color: prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted },
+                        ]}
+                      >
+                        {prioritySet.has(parsed.word) ? "Ưu tiên" : "Lưu ưu tiên"}
+                      </Text>
+                    </Pressable>
                   </View>
 
                   <ScrollView
@@ -673,12 +896,96 @@ export default function CardViewer() {
             })}
           </View>
         </ScrollView>
+      )}
       </LinearGradient>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  toastBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  toastText: {
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+  filterSection: {
+    marginVertical: 8,
+  },
+  filterScroll: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  priorityStarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  priorityStarBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+  },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  emptyDesc: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  btnEmptyBack: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  btnEmptyBackText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
   safeArea: { flex: 1 },
   container: { flex: 1 },
   loadingContainer: {

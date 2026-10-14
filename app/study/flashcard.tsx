@@ -29,6 +29,7 @@ function SkeletonCard({ colors }: { colors: any }) {
 export default function TopicListScreen() {
   const { colors, isDark } = useTheme();
   const [topics, setTopics] = useState<any[]>([]);
+  const [priorityInfo, setPriorityInfo] = useState<{ count: number; words: any[]; topics: string[]; listId?: string }>({ count: 0, words: [], topics: [] });
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const router = useRouter();
@@ -39,16 +40,22 @@ export default function TopicListScreen() {
       let isActive = true;
       setLoading(true);
       setVisibleCount(PAGE_SIZE); // Reset pagination on focus
-      api
-        .get("/api/vocab/lists")
-        .then((res) => {
-          if (res.data.success && isActive) {
-            const sorted = [...res.data.data].sort((a, b) => {
+
+      const fetchLists = api.get("/api/vocab/lists");
+      const fetchPriority = api.get("/api/vocab/priority/list").catch(() => ({ data: { success: false, count: 0, words: [], topics: [] } }));
+
+      Promise.all([fetchLists, fetchPriority])
+        .then(([resLists, resP]) => {
+          if (resLists.data.success && isActive) {
+            const sorted = [...resLists.data.data].sort((a, b) => {
               if (a.title === "Cần ôn tập") return -1;
               if (b.title === "Cần ôn tập") return 1;
               return 0;
             });
             setTopics(sorted);
+          }
+          if (resP.data && resP.data.success && isActive) {
+            setPriorityInfo(resP.data);
           }
           if (isActive) setLoading(false);
         })
@@ -145,6 +152,102 @@ export default function TopicListScreen() {
           keyExtractor={(item) => item._id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          ListHeaderComponent={
+            <View style={styles.pinnedHeaderContainer}>
+              {/* ⭐ PINNED PRIORITY CARD */}
+              <View
+                style={[
+                  styles.priorityPinnedCard,
+                  {
+                    backgroundColor: isDark ? "#1C1917" : "#FFFBEB",
+                    borderColor: isDark ? "#78350F" : "#FDE68A",
+                  },
+                ]}
+              >
+                <View style={styles.priorityCardTop}>
+                  <View style={[styles.priorityIconBadge, { backgroundColor: isDark ? "#78350F" : "#FEF3C7" }]}>
+                    <MaterialIcons name="star" size={24} color="#F59E0B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={[styles.priorityCardTitle, { color: isDark ? "#FDE68A" : "#92400E" }]}>
+                        Ưu Tiên Ôn Tập
+                      </Text>
+                      <View style={[styles.priorityCountBadge, { backgroundColor: "#F59E0B" }]}>
+                        <Text style={styles.priorityCountText}>{priorityInfo.count} từ</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.priorityCardSub, { color: isDark ? "#D6D3D1" : "#78350F" }]}>
+                      {priorityInfo.topics.length > 0
+                        ? `Trích từ ${priorityInfo.topics.length} bài học · Tự động ghi nhận khi làm sai`
+                        : "Tự động ghi nhận khi làm sai hoặc tích dấu ⭐"}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* 2 Quick action buttons */}
+                <View style={styles.priorityActionRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.btnPriorityAction,
+                      {
+                        backgroundColor: "#F59E0B",
+                        opacity: priorityInfo.count === 0 ? 0.6 : 1,
+                      },
+                    ]}
+                    onPress={() => {
+                      if (priorityInfo.count === 0) {
+                        alert("Chưa có từ nào trong mục ưu tiên ôn tập. Sếp hãy chơi trắc nghiệm hoặc đánh dấu ⭐ trong flashcard nhé!");
+                        return;
+                      }
+                      router.push({
+                        pathname: "/study/card-viewer",
+                        params: { mode: "priority", title: "Ưu Tiên Ôn Tập" },
+                      });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="style" size={17} color="#FFFFFF" />
+                    <Text style={styles.btnPriorityActionText}>Luyện Flashcard</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.btnPriorityAction,
+                      {
+                        backgroundColor: isDark ? "#292524" : "#FEF3C7",
+                        borderColor: isDark ? "#78350F" : "#F59E0B",
+                        borderWidth: 1,
+                        opacity: priorityInfo.count === 0 ? 0.6 : 1,
+                      },
+                    ]}
+                    onPress={() => {
+                      if (priorityInfo.count === 0) {
+                        alert("Chưa có từ nào trong mục ưu tiên ôn tập. Sếp hãy chơi trắc nghiệm hoặc đánh dấu ⭐ trong flashcard nhé!");
+                        return;
+                      }
+                      router.push({
+                        pathname: "/luyen-tap/quiz",
+                        params: { mode: "priority" },
+                      });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="quiz" size={17} color={isDark ? "#FDE68A" : "#B45309"} />
+                    <Text style={[styles.btnPriorityActionText, { color: isDark ? "#FDE68A" : "#B45309" }]}>
+                      Trắc nghiệm
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.sectionDividerRow}>
+                <Text style={[styles.sectionDividerText, { color: colors.textMuted }]}>
+                  DANH SÁCH BÀI HỌC ({topics.length})
+                </Text>
+              </View>
+            </View>
+          }
           renderItem={({ item, index }) => {
             const isReview = item.title === "Cần ôn tập";
             const wordCount = item.words?.length || 0;
@@ -331,4 +434,79 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24, paddingVertical: 13, borderRadius: 14,
   },
   emptyBtnText: { color: "#FFF", fontSize: 15, fontWeight: "800" },
+
+  // PINNED PRIORITY CARD
+  pinnedHeaderContainer: {
+    marginBottom: 14,
+  },
+  priorityPinnedCard: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: 16,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: { shadowColor: "#F59E0B", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10 },
+      android: { elevation: 3 },
+    }),
+  },
+  priorityCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  priorityIconBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  priorityCardTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  priorityCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  priorityCountText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  priorityCardSub: {
+    fontSize: 12,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  priorityActionRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  btnPriorityAction: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  btnPriorityActionText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  sectionDividerRow: {
+    paddingTop: 8,
+    paddingBottom: 4,
+    paddingHorizontal: 4,
+  },
+  sectionDividerText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
 });

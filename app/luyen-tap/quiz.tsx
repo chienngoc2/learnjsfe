@@ -65,6 +65,18 @@ export default function PracticeQuizScreen() {
   const PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  // ⭐ Priority review state
+  const [priorityInfo, setPriorityInfo] = useState<{
+    count: number;
+    words: any[];
+    topics: string[];
+    listId?: string;
+  }>({ count: 0, words: [], topics: [] });
+  const [isPriorityModeSelected, setIsPriorityModeSelected] = useState<boolean>(params.mode === "priority");
+  const [selectedPriorityTopic, setSelectedPriorityTopic] = useState<string>("all");
+  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
   // Active quiz phase state
   const [quizWords, setQuizWords] = useState<WordDetail[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -89,9 +101,10 @@ export default function PracticeQuizScreen() {
     
     const fetchLists = api.get("/api/vocab/lists");
     const fetchGrammars = api.get("/api/vocab/all-grammar-points").catch(() => ({ data: { success: false, data: [] } }));
+    const fetchPriority = api.get("/api/vocab/priority/list").catch(() => ({ data: { success: false, count: 0, words: [], topics: [] } }));
 
-    Promise.all([fetchLists, fetchGrammars])
-      .then(([listsRes, grammarsRes]) => {
+    Promise.all([fetchLists, fetchGrammars, fetchPriority])
+      .then(([listsRes, grammarsRes, priorityRes]) => {
         if (listsRes.data.success && listsRes.data.data) {
           const data = listsRes.data.data;
           setVocabLists(data);
@@ -104,12 +117,18 @@ export default function PracticeQuizScreen() {
             } else if (data.length > 0) {
               setSelectedListIds([data[0]._id]);
             }
-          } else if (data.length > 0) {
+          } else if (data.length > 0 && params.mode !== "priority") {
             setSelectedListIds([data[0]._id]);
           }
         }
         if (grammarsRes.data.success && grammarsRes.data.data) {
           setAllGrammarPoints(grammarsRes.data.data);
+        }
+        if (priorityRes.data && priorityRes.data.success) {
+          setPriorityInfo(priorityRes.data);
+          const pSet = new Set<string>();
+          (priorityRes.data.words || []).forEach((w: any) => pSet.add(w.term));
+          setPrioritySet(pSet);
         }
         setLoadingLists(false);
         setVisibleCount(PAGE_SIZE);
@@ -118,7 +137,7 @@ export default function PracticeQuizScreen() {
         console.error("Lỗi lấy danh sách:", err);
         setLoadingLists(false);
       });
-  }, [params.topicId, params.listId]);
+  }, [params.topicId, params.listId, params.mode]);
 
   const generateGrammarQuestions = (selectedDecks: any[]) => {
     const deckIds = selectedDecks.map((d) => d._id.toString());
@@ -295,12 +314,91 @@ export default function PracticeQuizScreen() {
   }, [vocabLists, selectedListIds, params.topicId, params.listId, params.mode, allGrammarPoints]);
 
   const handleToggleList = (id: string) => {
+    setIsPriorityModeSelected(false);
     setSelectedListIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
+  const startQuizWithWords = (allWords: WordDetail[]) => {
+    if (allWords.length === 0) return;
+
+    // Shuffle and slice according to count settings
+    const shuffledWords = [...allWords].sort(() => Math.random() - 0.5);
+    const limit = questionCount === "all" 
+      ? shuffledWords.length 
+      : (typeof questionCount === "number" ? questionCount : 10);
+    const finalWords = shuffledWords.slice(0, limit);
+
+    // Get meaning pool for plausible distractors
+    const poolMeanings = vocabLists.flatMap(l => (l.words || []).map((w: any) => {
+      const p = parseWord(w.term, w.def);
+      return p.meaning;
+    })).filter(Boolean);
+
+    // Prepare questions with 4 multiple choice options
+    const quizQuestions: Question[] = finalWords.map((word) => {
+      const correctAns = word.meaning;
+      const otherMeanings = [...allWords.map(w => w.meaning), ...poolMeanings]
+        .filter((m) => m && m !== correctAns);
+        
+      const uniqueWrong = Array.from(new Set(otherMeanings));
+      const shuffledWrong = uniqueWrong.sort(() => Math.random() - 0.5);
+      
+      const fallbackOptions = ["Ăn", "Uống", "Trường học", "Nhà"];
+      const finalWrongOptions = shuffledWrong.length >= 3 
+        ? shuffledWrong.slice(0, 3) 
+        : [...shuffledWrong, ...fallbackOptions].slice(0, 3);
+
+      const options = [correctAns, ...finalWrongOptions].sort(
+        () => Math.random() - 0.5
+      );
+
+      return {
+        questionWord: word,
+        options,
+        correctAnswer: correctAns,
+      };
+    });
+
+    setQuizWords(finalWords);
+    setQuestions(quizQuestions);
+    setCurrentIdx(0);
+    setScore(0);
+    setIsAnswered(false);
+    setSelectedAnswer(null);
+    setIsFinished(false);
+    setIsPlaying(true);
+  };
+
   const handleStartQuiz = () => {
+    if (isPriorityModeSelected) {
+      if (!priorityInfo.words || priorityInfo.words.length === 0) {
+        alert("Chưa có từ vựng nào trong danh sách ưu tiên ôn tập bạn nhé!");
+        return;
+      }
+      const filtered = selectedPriorityTopic === "all"
+        ? priorityInfo.words
+        : priorityInfo.words.filter(w => (w.topicTitle || "Khác") === selectedPriorityTopic);
+
+      if (filtered.length === 0) {
+        alert(`Chưa có từ vựng ưu tiên nào trong bài "${selectedPriorityTopic}"!`);
+        return;
+      }
+
+      const allWords: WordDetail[] = filtered.map((w: any) => {
+        const parsed = parseWord(w.term, w.def);
+        return {
+          word: parsed.word,
+          reading: parsed.reading || parsed.word,
+          meaning: parsed.meaning,
+        };
+      });
+
+      startQuizWithWords(allWords);
+      return;
+    }
+
     if (selectedListIds.length === 0) return;
 
     // Collect all words from selected lists
@@ -341,46 +439,37 @@ export default function PracticeQuizScreen() {
       return;
     }
 
-    // Shuffle and slice according to count settings
-    const shuffledWords = [...allWords].sort(() => Math.random() - 0.5);
-    const finalWords = questionCount === "all" 
-      ? shuffledWords 
-      : shuffledWords.slice(0, questionCount);
+    startQuizWithWords(allWords);
+  };
 
-    // Prepare questions with 4 multiple choice options
-    const quizQuestions: Question[] = finalWords.map((word) => {
-      const correctAns = word.meaning;
-      const otherMeanings = allWords
-        .filter((w) => w.meaning !== correctAns)
-        .map((w) => w.meaning);
-        
-      const uniqueWrong = Array.from(new Set(otherMeanings));
-      const shuffledWrong = uniqueWrong.sort(() => Math.random() - 0.5);
-      
-      const fallbackOptions = ["Ăn", "Uống", "Trường học", "Nhà"];
-      const finalWrongOptions = shuffledWrong.length >= 3 
-        ? shuffledWrong.slice(0, 3) 
-        : [...shuffledWrong, ...fallbackOptions].slice(0, 3);
-
-      const options = [correctAns, ...finalWrongOptions].sort(
-        () => Math.random() - 0.5
-      );
-
-      return {
-        questionWord: word,
-        options,
-        correctAnswer: correctAns,
-      };
-    });
-
-    setQuizWords(finalWords);
-    setQuestions(quizQuestions);
-    setCurrentIdx(0);
-    setScore(0);
-    setIsAnswered(false);
-    setSelectedAnswer(null);
-    setIsFinished(false);
-    setIsPlaying(true);
+  const toggleCurrentQuestionPriority = async () => {
+    const currentQuestion = questions[currentIdx];
+    if (!currentQuestion) return;
+    const word = currentQuestion.questionWord.word;
+    try {
+      const res = await api.post("/api/vocab/priority/toggle", {
+        word: word,
+        reading: currentQuestion.questionWord.reading,
+        meaning: currentQuestion.questionWord.meaning,
+        topicTitle: isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : "Khác") : "Trắc nghiệm",
+      });
+      if (res.data.success) {
+        setPrioritySet((prev) => {
+          const next = new Set(prev);
+          if (res.data.isPriority) {
+            next.add(word);
+            setToastMsg(`⭐ Đã thêm "${word}" vào Ưu Tiên Ôn Tập`);
+          } else {
+            next.delete(word);
+            setToastMsg(`Đã bỏ ưu tiên cho "${word}"`);
+          }
+          return next;
+        });
+        setTimeout(() => setToastMsg(null), 2500);
+      }
+    } catch (e) {
+      console.log("Lỗi toggle priority:", e);
+    }
   };
 
   const handleAnswerSelect = (option: string) => {
@@ -394,6 +483,20 @@ export default function PracticeQuizScreen() {
 
     if (isCorrect) {
       setScore((prev) => prev + 1);
+    } else {
+      // ⭐ AUTO-FLAG ON WRONG ANSWER!
+      const word = currentQuestion.questionWord.word;
+      api.post("/api/vocab/priority/add", {
+        word: word,
+        reading: currentQuestion.questionWord.reading,
+        meaning: currentQuestion.questionWord.meaning,
+        topicTitle: isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : "Khác") : "Trắc nghiệm",
+      }).then(() => {
+        setPrioritySet((prev) => new Set(prev).add(word));
+      }).catch((e) => console.log("Lỗi auto add priority:", e));
+
+      setToastMsg("⚠️ Trả lời sai! Đã tự động thêm vào 'Ưu Tiên Ôn Tập' ⭐");
+      setTimeout(() => setToastMsg(null), 2500);
     }
 
     // TTS pronunciation of the Japanese word
@@ -472,6 +575,107 @@ export default function PracticeQuizScreen() {
             {/* Choose Lessons Section */}
             <View style={styles.sectionContainer}>
               <Text style={[styles.sectionHeading, { color: colors.indigo }]}>1. CHỌN BÀI LUYỆN TẬP</Text>
+
+              {/* ⭐ PINNED PRIORITY CARD AT TOP OF LISTS */}
+              <Pressable
+                onPress={() => {
+                  setIsPriorityModeSelected((prev) => !prev);
+                  if (!isPriorityModeSelected) {
+                    setSelectedListIds([]);
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.prioritySectionCard,
+                  {
+                    backgroundColor: isPriorityModeSelected
+                      ? (isDark ? "#292524" : "#FEF3C7")
+                      : (isDark ? "#1C1917" : "#FFFBEB"),
+                    borderColor: isPriorityModeSelected ? "#F59E0B" : (isDark ? "#78350F" : "#FDE68A"),
+                    borderWidth: isPriorityModeSelected ? 2 : 1.5,
+                    transform: [{ scale: pressed ? 0.98 : 1 }],
+                  },
+                ]}
+              >
+                <View style={styles.priorityCardHeaderRow}>
+                  <View style={styles.priorityCardLeft}>
+                    <Ionicons
+                      name={isPriorityModeSelected ? "checkbox" : "square-outline"}
+                      size={22}
+                      color="#F59E0B"
+                      style={{ marginRight: 10 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={[styles.prioritySectionTitle, { color: isDark ? "#FDE68A" : "#92400E" }]}>
+                          ⭐ Ưu Tiên Ôn Tập
+                        </Text>
+                        <View style={[styles.priorityBadgeSmall, { backgroundColor: "#F59E0B" }]}>
+                          <Text style={styles.priorityBadgeText}>{priorityInfo.count} từ</Text>
+                        </View>
+                      </View>
+                      <Text style={[styles.prioritySectionSub, { color: isDark ? "#D6D3D1" : "#78350F" }]}>
+                        Các từ bị trả lời sai hoặc được tích dấu ⭐
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Sub-filters by lesson when priority is selected */}
+                {isPriorityModeSelected && priorityInfo.topics.length > 0 && (
+                  <View style={styles.prioritySubFilterWrap}>
+                    <Text style={[styles.prioritySubFilterLabel, { color: isDark ? "#FDE68A" : "#92400E" }]}>
+                      Phân chia theo bài học gốc:
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.priorityChipsScroll}>
+                      <Pressable
+                        style={[
+                          styles.prioritySubChip,
+                          selectedPriorityTopic === "all"
+                            ? { backgroundColor: "#F59E0B", borderColor: "#F59E0B" }
+                            : { backgroundColor: colors.surface, borderColor: colors.border },
+                        ]}
+                        onPress={() => setSelectedPriorityTopic("all")}
+                      >
+                        <Text
+                          style={[
+                            styles.prioritySubChipText,
+                            { color: selectedPriorityTopic === "all" ? "#FFFFFF" : colors.text },
+                          ]}
+                        >
+                          Tất cả ({priorityInfo.count})
+                        </Text>
+                      </Pressable>
+
+                      {priorityInfo.topics.map((t) => {
+                        const count = priorityInfo.words.filter(w => (w.topicTitle || "Khác") === t).length;
+                        const isSel = selectedPriorityTopic === t;
+                        return (
+                          <Pressable
+                            key={t}
+                            style={[
+                              styles.prioritySubChip,
+                              isSel
+                                ? { backgroundColor: "#F59E0B", borderColor: "#F59E0B" }
+                                : { backgroundColor: colors.surface, borderColor: colors.border },
+                            ]}
+                            onPress={() => setSelectedPriorityTopic(t)}
+                          >
+                            <Text
+                              style={[
+                                styles.prioritySubChipText,
+                                { color: isSel ? "#FFFFFF" : colors.text },
+                              ]}
+                            >
+                              {t} ({count})
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+              </Pressable>
+
               {vocabLists.length === 0 ? (
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                   Chưa có bài học nào. Bạn cần tạo bài trước nha!
@@ -575,14 +779,14 @@ export default function PracticeQuizScreen() {
             {/* Start Button */}
             <Pressable
               onPress={handleStartQuiz}
-              disabled={selectedListIds.length === 0}
+              disabled={selectedListIds.length === 0 && !isPriorityModeSelected}
               style={({ pressed }) => [
                 styles.btnStart,
                 {
                   backgroundColor: "#000000",
                   borderColor: "#8C5C38",
                   borderWidth: 2,
-                  opacity: selectedListIds.length === 0 ? 0.5 : 1,
+                  opacity: selectedListIds.length === 0 && !isPriorityModeSelected ? 0.5 : 1,
                   transform: [{ scale: pressed ? 0.98 : 1 }],
                 },
               ]}
@@ -661,6 +865,16 @@ export default function PracticeQuizScreen() {
             </View>
           </View>
 
+          {/* Toast Notification */}
+          {toastMsg && (
+            <View style={[styles.toastBanner, { backgroundColor: isDark ? "#1E293B" : "#FEF3C7", borderColor: "#F59E0B" }]}>
+              <Ionicons name="sparkles" size={15} color="#F59E0B" />
+              <Text style={[styles.toastText, { color: isDark ? "#FDE68A" : "#92400E" }]}>
+                {toastMsg}
+              </Text>
+            </View>
+          )}
+
           <View style={{ flex: 1, paddingHorizontal: 20, justifyContent: "center" }}>
             {/* Question Card */}
             <View
@@ -672,11 +886,44 @@ export default function PracticeQuizScreen() {
                 },
               ]}
             >
-              {(!hidePinyin || currentQuestion.questionWord.reading.startsWith("CHỌN") || currentQuestion.questionWord.reading.startsWith("CẤU TRÚC")) && currentQuestion.questionWord.reading ? (
-                <Text style={[styles.questionReading, { color: colors.textMuted }]}>
-                  {currentQuestion.questionWord.reading}
-                </Text>
-              ) : null}
+              {/* Top row with reading & priority checkbox */}
+              <View style={styles.questionCardTopRow}>
+                {(!hidePinyin || currentQuestion.questionWord.reading.startsWith("CHỌN") || currentQuestion.questionWord.reading.startsWith("CẤU TRÚC")) && currentQuestion.questionWord.reading ? (
+                  <Text style={[styles.questionReading, { color: colors.textMuted }]}>
+                    {currentQuestion.questionWord.reading}
+                  </Text>
+                ) : <View style={{ flex: 1 }} />}
+
+                {/* ⭐ Checkbox ưu tiên học lại */}
+                <Pressable
+                  style={[
+                    styles.quizPriorityBtn,
+                    prioritySet.has(currentQuestion.questionWord.word) && styles.quizPriorityBtnActive,
+                    {
+                      backgroundColor: prioritySet.has(currentQuestion.questionWord.word)
+                        ? (isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7")
+                        : (isDark ? "#1E293B" : "#F1F5F9"),
+                      borderColor: prioritySet.has(currentQuestion.questionWord.word) ? "#F59E0B" : colors.border,
+                    },
+                  ]}
+                  onPress={toggleCurrentQuestionPriority}
+                >
+                  <Ionicons
+                    name={prioritySet.has(currentQuestion.questionWord.word) ? "star" : "star-outline"}
+                    size={15}
+                    color={prioritySet.has(currentQuestion.questionWord.word) ? "#F59E0B" : colors.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.quizPriorityBtnText,
+                      { color: prioritySet.has(currentQuestion.questionWord.word) ? "#F59E0B" : colors.textMuted },
+                    ]}
+                  >
+                    {prioritySet.has(currentQuestion.questionWord.word) ? "Ưu tiên ôn" : "Ưu tiên"}
+                  </Text>
+                </Pressable>
+              </View>
+
               <Text style={[styles.questionWordText, { color: colors.indigo, fontSize: getQuestionFontSize(currentQuestion.questionWord.word) }]}>
                 {currentQuestion.questionWord.word}
               </Text>
@@ -1103,6 +1350,111 @@ const styles = StyleSheet.create({
   },
   loadMoreText: {
     fontSize: 14,
+    fontWeight: "700",
+  },
+
+  // ⭐ Priority Section in Selection Screen
+  prioritySectionCard: {
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 14,
+    ...Platform.select({
+      ios: { shadowColor: "#F59E0B", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8 },
+      android: { elevation: 2 },
+    }),
+  },
+  priorityCardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  priorityCardLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  prioritySectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  priorityBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  priorityBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  prioritySectionSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  prioritySubFilterWrap: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(245, 158, 11, 0.2)",
+  },
+  prioritySubFilterLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  priorityChipsScroll: {
+    gap: 8,
+  },
+  prioritySubChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  prioritySubChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // ⭐ Priority Button & Toast in Active Quiz
+  toastBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  toastText: {
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+  questionCardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginBottom: 8,
+  },
+  quizPriorityBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  quizPriorityBtnActive: {
+    borderColor: "#F59E0B",
+  },
+  quizPriorityBtnText: {
+    fontSize: 11,
     fontWeight: "700",
   },
 });

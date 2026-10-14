@@ -573,6 +573,7 @@ export default function KanjiSearchScreen() {
           if (!prev) return serverData;
           return {
             ...serverData,
+            pinyin: serverData.pinyin || prev.pinyin,
             meaning:
               serverData.meaning && serverData.meaning !== "Từ vựng tiếng Trung Phồn Thể"
                 ? serverData.meaning
@@ -738,6 +739,19 @@ export default function KanjiSearchScreen() {
                   >
                     {idx + 1}. {item.word}
                   </Text>
+                  {!hidePinyin && item.pinyin ? (
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: isActive ? "#FEF08A" : (isDark ? "#34D399" : "#059669"),
+                        fontWeight: "700",
+                        textAlign: "center",
+                        marginTop: 1,
+                      }}
+                    >
+                      {item.pinyin}
+                    </Text>
+                  ) : null}
                 </TouchableOpacity>
               );
             })}
@@ -1017,8 +1031,11 @@ export default function KanjiSearchScreen() {
                   : [selectedKanji.character]
                 ).map((ch, idx) => {
                   const charInfo = SINO_VIETNAMESE_DICT[ch];
+                  const pinyinSyllables = (selectedKanji.pinyin || "").split(/\s+/).filter(Boolean);
+                  const syllablePinyin = pinyinSyllables[idx] || "";
                   const displayPinyin =
                     charInfo?.pinyin ||
+                    syllablePinyin ||
                     (selectedKanji.characters?.length === 1 ? selectedKanji.pinyin : "");
                   const displayHanviet =
                     charInfo?.hanviet ||
@@ -1055,7 +1072,7 @@ export default function KanjiSearchScreen() {
                           <Text style={styles.charNumberText}>{idx + 1}</Text>
                         </View>
                         <Text style={[styles.charBadgeTitle, { color: colors.indigo }]}>
-                          Chữ {ch} {displayHanviet ? `(${displayHanviet})` : ""}
+                          Chữ {ch} {!hidePinyin && displayPinyin ? `[${displayPinyin}] ` : ""}{displayHanviet ? `(${displayHanviet})` : ""}
                         </Text>
                       </View>
 
