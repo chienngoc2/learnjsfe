@@ -19,6 +19,11 @@ import api from "@/services/api";
 import HandwritingCanvas from "../../components/HandwritingCanvas";
 import StrokeOrderPractice from "../../components/StrokeOrderPractice";
 import masterData from "@/assets/data/vocab_master.json";
+import {
+  cleanPinyinForMatching,
+  PINYIN_TONE_GROUPS,
+  PINYIN_INITIALS,
+} from "@/src/utils/pinyinUtils";
 
 interface ExampleWord {
   word: string;
@@ -48,6 +53,7 @@ interface KanjiData {
   examples?: ExampleSentence[];
   story?: string;
   components?: string[];
+  pinyin_matches?: Array<{ word: string; pinyin?: string; meaning: string; level?: string }>;
 }
 
 const masterWords: Array<{
@@ -224,11 +230,16 @@ export default function KanjiSearchScreen() {
     topicId?: string;
     title?: string;
     word?: string;
+    mode?: string;
   }>();
 
   const [searchQuery, setSearchQuery] = useState(routeParams.word || "");
   const [hideKeyboardSuggestions, setHideKeyboardSuggestions] = useState(false);
-  const [inputMode, setInputMode] = useState<"keyboard" | "handwriting">("handwriting");
+  const [inputMode, setInputMode] = useState<"keyboard" | "handwriting" | "pinyin">(
+    routeParams.mode === "pinyin" ? "pinyin" : "handwriting"
+  );
+  const [selectedInitial, setSelectedInitial] = useState<string>("Tất cả");
+  const [pinyinQuery, setPinyinQuery] = useState<string>("");
   const [selectedKanji, setSelectedKanji] = useState<KanjiData | null>(null);
   const [activePracticeChar, setActivePracticeChar] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -418,12 +429,13 @@ export default function KanjiSearchScreen() {
     }
   }, [routeParams.word]);
 
-  // 🌟 Gợi ý từ vựng trực tiếp khi nhập bàn phím (ngay cả khi chỉ gõ 1 chữ)
+  // 🌟 Gợi ý từ vựng trực tiếp khi nhập bàn phím (ngay cả khi chỉ gõ 1 chữ hoặc gõ Pinyin)
   const liveKeyboardSuggestions = useMemo(() => {
     const q = searchQuery.trim();
     if (!q) return [];
 
     const qLower = q.toLowerCase();
+    const qClean = cleanPinyinForMatching(q);
     const hanziChars = q.split("").filter((ch) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch));
 
     const matched: Array<{
@@ -438,21 +450,24 @@ export default function KanjiSearchScreen() {
       const wordLower = item.word.toLowerCase();
       const pinyinLower = (item.pinyin || "").toLowerCase();
       const meaningLower = (item.meaning || "").toLowerCase();
+      const itemPinyinClean = cleanPinyinForMatching(item.pinyin || "");
 
       const exactWord = wordLower === qLower;
       const containsWord = wordLower.includes(qLower);
       const containsChar =
         hanziChars.length > 0 && hanziChars.some((ch) => item.word.includes(ch));
-      const containsPinyin = pinyinLower.includes(qLower);
+      const exactPinyin = qClean && itemPinyinClean === qClean;
+      const containsPinyin = pinyinLower.includes(qLower) || (qClean && (itemPinyinClean.startsWith(qClean) || itemPinyinClean.includes(qClean)));
       const containsMeaning = meaningLower.includes(qLower);
 
       if (
-        (exactWord || containsWord || containsChar || containsPinyin || containsMeaning) &&
+        (exactWord || containsWord || containsChar || exactPinyin || containsPinyin || containsMeaning) &&
         !seen.has(item.word)
       ) {
         seen.add(item.word);
         let matchType = "Gợi ý";
         if (exactWord) matchType = "Khớp từ";
+        else if (exactPinyin) matchType = "Khớp Pinyin";
         else if (containsWord) matchType = "Khớp cụm";
         else if (containsChar) {
           const ch = hanziChars.find((c) => item.word.includes(c));
@@ -472,6 +487,59 @@ export default function KanjiSearchScreen() {
     return matched.slice(0, 16);
   }, [searchQuery, allWords]);
 
+  // 🌟 Danh sách từ vựng tra cứu theo Pinyin (kết hợp lọc theo Thanh Mẫu & từ khóa)
+  const pinyinFilteredWords = useMemo(() => {
+    const rawQ = pinyinQuery.trim();
+    const cleanQ = cleanPinyinForMatching(rawQ);
+
+    let list = allWords;
+
+    // Lọc theo Thanh mẫu nếu được chọn
+    if (selectedInitial && selectedInitial !== "Tất cả") {
+      const initLower = selectedInitial.toLowerCase();
+      list = list.filter((item) => {
+        const itemClean = cleanPinyinForMatching(item.pinyin || "");
+        return itemClean.startsWith(initLower);
+      });
+    }
+
+    if (!cleanQ) {
+      if (selectedInitial && selectedInitial !== "Tất cả") {
+        return list.slice(0, 60);
+      }
+      return allWords.slice(0, 25);
+    }
+
+    const scored: Array<{
+      item: (typeof allWords)[0];
+      score: number;
+    }> = [];
+
+    list.forEach((item) => {
+      const itemPinyin = (item.pinyin || "").toLowerCase();
+      const itemClean = cleanPinyinForMatching(itemPinyin);
+      if (!itemClean) return;
+
+      const exactTone = itemPinyin === rawQ.toLowerCase();
+      const exactClean = itemClean === cleanQ;
+      const startsWith = itemClean.startsWith(cleanQ);
+      const includes = itemClean.includes(cleanQ);
+
+      if (exactTone || exactClean || startsWith || includes) {
+        let score = 0;
+        if (exactTone) score = 100;
+        else if (exactClean) score = 80;
+        else if (startsWith) score = 60;
+        else score = 40;
+
+        scored.push({ item, score });
+      }
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((s) => s.item).slice(0, 60);
+  }, [pinyinQuery, selectedInitial, allWords]);
+
   // Cập nhật chữ đang được chọn để múa nét khi kết quả tra cứu thay đổi
   useEffect(() => {
     if (selectedKanji) {
@@ -488,6 +556,8 @@ export default function KanjiSearchScreen() {
     const q = queryText.trim();
     if (!q) return null;
 
+    const qClean = cleanPinyinForMatching(q);
+
     const singleChars = q
       .split("")
       .filter((ch) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch));
@@ -497,17 +567,23 @@ export default function KanjiSearchScreen() {
       (w) => w.word === q || w.word.toLowerCase() === q.toLowerCase()
     );
 
-    // 2. Tìm mờ nếu không thấy chính xác
-    const fuzzyMaster = !exactMaster
+    // 2. Tìm theo Pinyin khớp tuyệt đối
+    const pinyinExactMaster = !exactMaster && qClean
+      ? allWords.find((w) => cleanPinyinForMatching(w.pinyin || "") === qClean)
+      : null;
+
+    // 3. Tìm mờ nếu không thấy chính xác
+    const fuzzyMaster = !exactMaster && !pinyinExactMaster
       ? allWords.find(
           (w) =>
             w.word.includes(q) ||
             (w.pinyin && w.pinyin.toLowerCase().includes(q.toLowerCase())) ||
+            (qClean && cleanPinyinForMatching(w.pinyin || "").includes(qClean)) ||
             (w.meaning && w.meaning.toLowerCase().includes(q.toLowerCase()))
         )
       : null;
 
-    const targetMaster = exactMaster || fuzzyMaster;
+    const targetMaster = exactMaster || pinyinExactMaster || fuzzyMaster;
     const targetWordStr = targetMaster?.word || q;
     const targetChars = targetWordStr
       .split("")
@@ -589,6 +665,13 @@ export default function KanjiSearchScreen() {
       }
     }
 
+    const pinyinMatches = qClean && qClean.length >= 1
+      ? allWords.filter((w) => {
+          const wp = cleanPinyinForMatching(w.pinyin || "");
+          return wp === qClean || wp.startsWith(qClean) || (qClean.length >= 2 && wp.includes(qClean));
+        }).slice(0, 50)
+      : [];
+
     return {
       character: targetWordStr,
       characters: effectiveChars.length > 0 ? effectiveChars : [targetWordStr[0] || targetWordStr],
@@ -598,6 +681,7 @@ export default function KanjiSearchScreen() {
       level: targetMaster?.level || "TOCFL A1",
       example_words: relatedWords,
       examples: sampleExamples,
+      pinyin_matches: pinyinMatches,
     };
   };
 
@@ -645,6 +729,10 @@ export default function KanjiSearchScreen() {
               serverData.examples && serverData.examples.length > 0
                 ? serverData.examples
                 : prev.examples,
+            pinyin_matches:
+              serverData.pinyin_matches && serverData.pinyin_matches.length > 0
+                ? serverData.pinyin_matches
+                : prev.pinyin_matches,
           };
         });
       }
@@ -673,6 +761,8 @@ export default function KanjiSearchScreen() {
         title={
           isLessonPracticeMode
             ? `✍️ Luyện viết: ${lessonTitle || "Bài học"}`
+            : inputMode === "pinyin"
+            ? "🔊 Tra cứu Pinyin & Từ vựng"
             : "✍️ Tra cứu & Luyện viết"
         }
       />
@@ -832,7 +922,7 @@ export default function KanjiSearchScreen() {
           >
             <MaterialIcons
               name="gesture"
-              size={18}
+              size={17}
               color={inputMode === "handwriting" ? "#FFFFFF" : colors.text}
             />
             <Text
@@ -841,7 +931,7 @@ export default function KanjiSearchScreen() {
                 { color: inputMode === "handwriting" ? "#FFFFFF" : colors.text },
               ]}
             >
-              Viết tay 3 ô nhận diện
+              Viết tay
             </Text>
           </TouchableOpacity>
 
@@ -861,7 +951,7 @@ export default function KanjiSearchScreen() {
           >
             <MaterialIcons
               name="keyboard"
-              size={18}
+              size={17}
               color={inputMode === "keyboard" ? "#FFFFFF" : colors.text}
             />
             <Text
@@ -870,7 +960,36 @@ export default function KanjiSearchScreen() {
                 { color: inputMode === "keyboard" ? "#FFFFFF" : colors.text },
               ]}
             >
-              Nhập bàn phím
+              Bàn phím
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.modeTab,
+              inputMode === "pinyin" && {
+                backgroundColor: colors.indigo,
+                borderColor: colors.indigo,
+              },
+              inputMode !== "pinyin" && {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => setInputMode("pinyin")}
+          >
+            <MaterialIcons
+              name="record-voice-over"
+              size={17}
+              color={inputMode === "pinyin" ? "#FFFFFF" : colors.text}
+            />
+            <Text
+              style={[
+                styles.modeTabText,
+                { color: inputMode === "pinyin" ? "#FFFFFF" : colors.text },
+              ]}
+            >
+              Tra Pinyin
             </Text>
           </TouchableOpacity>
         </View>
@@ -880,7 +999,7 @@ export default function KanjiSearchScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 60 }}
       >
-        {/* INPUT: BÀN PHÍM HOẶC VIẾT TAY (Chỉ hiện khi ở chế độ tra cứu tự do) */}
+        {/* INPUT: BÀN PHÍM, TRA PINYIN HOẶC VIẾT TAY (Chỉ hiện khi ở chế độ tra cứu tự do) */}
         {!isLessonPracticeMode &&
           (inputMode === "keyboard" ? (
             <View style={styles.searchSection}>
@@ -899,7 +1018,7 @@ export default function KanjiSearchScreen() {
                   />
                   <TextInput
                     style={[styles.searchInput, { color: colors.text }]}
-                    placeholder="Nhập 1 chữ bất kỳ (vd: 月, 陳, 美, 李...)"
+                    placeholder="Nhập chữ Hán, Pinyin, nghĩa (vd: 月, nihao, bạn...)"
                     placeholderTextColor={colors.textMuted}
                     value={searchQuery}
                     onChangeText={(text) => {
@@ -997,6 +1116,277 @@ export default function KanjiSearchScreen() {
                   </View>
                 </View>
               )}
+            </View>
+          ) : inputMode === "pinyin" ? (
+            /* INPUT: TRA CỨU THEO PINYIN */
+            <View style={styles.pinyinSearchSection}>
+              {/* Thanh tìm kiếm Pinyin */}
+              <View style={styles.searchBarRow}>
+                <View
+                  style={[
+                    styles.searchContainer,
+                    { backgroundColor: colors.surface, borderColor: colors.indigo },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="record-voice-over"
+                    size={20}
+                    color={colors.indigo}
+                    style={styles.searchIcon}
+                  />
+                  <TextInput
+                    style={[styles.searchInput, { color: colors.text }]}
+                    placeholder="Gõ Pinyin (vd: ni, hao, xiexie, laoshi...)"
+                    placeholderTextColor={colors.textMuted}
+                    value={pinyinQuery}
+                    onChangeText={(text) => {
+                      setPinyinQuery(text);
+                    }}
+                    onSubmitEditing={() => {
+                      if (pinyinQuery.trim()) {
+                        performSearch(pinyinQuery.trim());
+                      }
+                    }}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {pinyinQuery.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setPinyinQuery("");
+                      }}
+                    >
+                      <MaterialIcons name="clear" size={20} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={[styles.btnSearch, { backgroundColor: colors.indigo }]}
+                  onPress={() => {
+                    if (pinyinQuery.trim()) {
+                      performSearch(pinyinQuery.trim());
+                    }
+                  }}
+                >
+                  <Text style={styles.btnSearchText}>Tìm</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Thanh chèn dấu thanh Pinyin nhanh */}
+              <View
+                style={[
+                  styles.pinyinToneToolbar,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.pinyinToneLabel, { color: colors.textMuted }]}>
+                  Thanh điệu:
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pinyinToneScroll}
+                >
+                  {PINYIN_TONE_GROUPS.map((grp) => (
+                    <View key={grp.base} style={styles.pinyinToneGroup}>
+                      {grp.chars.map((char) => (
+                        <TouchableOpacity
+                          key={char}
+                          style={[
+                            styles.pinyinToneBtn,
+                            {
+                              backgroundColor: isDark ? "#1E293B" : "#F1F5F9",
+                              borderColor: isDark ? "#334155" : "#E2E8F0",
+                            },
+                          ]}
+                          onPress={() => {
+                            setPinyinQuery((prev) => prev + char);
+                          }}
+                        >
+                          <Text style={[styles.pinyinToneBtnText, { color: colors.indigo }]}>
+                            {char}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Thanh lọc theo Thanh Mẫu (Initials) */}
+              <View style={{ marginTop: 8 }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 6, paddingVertical: 4 }}
+                >
+                  {PINYIN_INITIALS.map((init) => {
+                    const isSelected = selectedInitial === init;
+                    return (
+                      <TouchableOpacity
+                        key={init}
+                        style={[
+                          styles.initialChip,
+                          {
+                            backgroundColor: isSelected ? colors.indigo : colors.surface,
+                            borderColor: isSelected ? colors.indigo : colors.border,
+                          },
+                        ]}
+                        onPress={() => {
+                          setSelectedInitial(init);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.initialChipText,
+                            { color: isSelected ? "#FFFFFF" : colors.text },
+                          ]}
+                        >
+                          {init}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Danh sách kết quả tra cứu Pinyin */}
+              <View style={styles.pinyinResultsWrap}>
+                <View style={styles.pinyinResultsHeader}>
+                  <Ionicons name="list" size={16} color={colors.indigo} />
+                  <Text style={[styles.pinyinResultsCount, { color: colors.indigo }]}>
+                    {pinyinQuery.trim()
+                      ? `Kết quả Pinyin cho "${pinyinQuery.trim()}" (${pinyinFilteredWords.length} từ):`
+                      : selectedInitial !== "Tất cả"
+                      ? `Từ vựng âm đầu "${selectedInitial}" (${pinyinFilteredWords.length} từ):`
+                      : `Từ vựng Pinyin thông dụng (${pinyinFilteredWords.length} từ):`}
+                  </Text>
+                </View>
+
+                {pinyinFilteredWords.length === 0 ? (
+                  <View
+                    style={[
+                      styles.pinyinEmptyBox,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
+                  >
+                    <MaterialIcons name="search-off" size={32} color={colors.textMuted} />
+                    <Text style={[styles.pinyinEmptyText, { color: colors.textMuted }]}>
+                      Không tìm thấy từ vựng nào khớp với Pinyin "{pinyinQuery}".
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 4 }}>
+                      Hãy thử gõ không dấu (vd: "ni", "hao", "xiexie") hoặc chọn Thanh Mẫu khác.
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.pinyinGrid}>
+                    {pinyinFilteredWords.map((item, idx) => {
+                      const isItemPriority = prioritySet.has(item.word);
+                      const isCurrentActive = selectedKanji?.character === item.word;
+                      return (
+                        <View
+                          key={`${item.word}-${idx}`}
+                          style={[
+                            styles.pinyinCardItem,
+                            {
+                              backgroundColor: isCurrentActive
+                                ? (isDark ? "#1E2A4A" : "#EFF6FF")
+                                : colors.surface,
+                              borderColor: isCurrentActive ? colors.indigo : colors.border,
+                            },
+                          ]}
+                        >
+                          <TouchableOpacity
+                            style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
+                            onPress={() => {
+                              performSearch(item.word);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.pinyinCardLeft}>
+                              <Text style={[styles.pinyinCardHanzi, { color: colors.indigo }]}>
+                                {item.word}
+                              </Text>
+                            </View>
+                            <View style={styles.pinyinCardCenter}>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                <Text style={[styles.pinyinCardReading, { color: "#D97706" }]}>
+                                  {item.pinyin || ""}
+                                </Text>
+                                {item.level ? (
+                                  <View
+                                    style={[
+                                      styles.pinyinLevelBadge,
+                                      { backgroundColor: isDark ? "#334155" : "#E2E8F0" },
+                                    ]}
+                                  >
+                                    <Text style={[styles.pinyinLevelText, { color: colors.textMuted }]}>
+                                      {item.level}
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                              <Text
+                                style={[styles.pinyinCardMeaning, { color: colors.text }]}
+                                numberOfLines={2}
+                              >
+                                {item.meaning}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+
+                          <View style={styles.pinyinCardActions}>
+                            <TouchableOpacity
+                              style={[
+                                styles.pinyinActionBtn,
+                                { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
+                              ]}
+                              onPress={() => {
+                                Speech.speak(item.word, { language: "zh-TW", rate: 0.85 });
+                              }}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                              <MaterialIcons name="volume-up" size={18} color={colors.indigo} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={[
+                                styles.pinyinActionBtn,
+                                { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
+                              ]}
+                              onPress={() => {
+                                togglePriorityForKanji({
+                                  character: item.word,
+                                  pinyin: item.pinyin,
+                                  meaning: item.meaning,
+                                  vietnamese_reading: item.pinyin || "",
+                                  level: item.level || "TOCFL A1",
+                                });
+                              }}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                              <Ionicons
+                                name={isItemPriority ? "star" : "star-outline"}
+                                size={18}
+                                color={isItemPriority ? "#F59E0B" : colors.textMuted}
+                              />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={[styles.pinyinBtnPractice, { backgroundColor: colors.indigo }]}
+                              onPress={() => {
+                                performSearch(item.word);
+                              }}
+                            >
+                              <Text style={styles.pinyinBtnPracticeText}>Chi tiết</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
             </View>
           ) : (
             /* INPUT: VIẾT TAY 3 Ô NHẬN DIỆN */
@@ -1665,5 +2055,153 @@ const styles = StyleSheet.create({
   },
   lessonChipText: {
     fontSize: 11,
+  },
+  pinyinSearchSection: {
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  pinyinToneToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  pinyinToneLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  pinyinToneScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  pinyinToneGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  pinyinToneBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinyinToneBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  initialChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  initialChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  pinyinResultsWrap: {
+    marginTop: 12,
+  },
+  pinyinResultsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  pinyinResultsCount: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  pinyinEmptyBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  pinyinEmptyText: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  pinyinGrid: {
+    gap: 8,
+  },
+  pinyinCardItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  pinyinCardLeft: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  pinyinCardHanzi: {
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  pinyinCardCenter: {
+    flex: 1,
+  },
+  pinyinCardReading: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  pinyinLevelBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  pinyinLevelText: {
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  pinyinCardMeaning: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  pinyinCardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  pinyinActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinyinBtnPractice: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinyinBtnPracticeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
   },
 });

@@ -76,6 +76,16 @@ export default function StudyMenuScreen() {
           lightColor: colors.amberLight,
           route: "/study/kanji-search",
         },
+        {
+          id: "pinyin_search",
+          title: "Tra cứu Pinyin (Bính Âm)",
+          desc: "Tra cứu âm điệu, chữ Hán đồng âm, thanh mẫu, vận mẫu & nghe phát âm",
+          icon: "record-voice-over",
+          color: colors.indigo,
+          lightColor: colors.indigoLight,
+          route: "/study/kanji-search",
+          params: { mode: "pinyin" },
+        },
       ],
     },
     {
