@@ -10,7 +10,6 @@ import { WebView } from "react-native-webview";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Speech from "expo-speech";
 import { useTheme } from "@/src/context/ThemeContext";
-import { usePinyin } from "@/src/context/PinyinContext";
 
 interface StrokeOrderPracticeProps {
   character: string;
@@ -30,7 +29,6 @@ export default function StrokeOrderPractice({
   size = 140,
 }: StrokeOrderPracticeProps) {
   const { colors, isDark } = useTheme();
-  const { hidePinyin } = usePinyin();
   const [practiceMode, setPracticeMode] = useState<"quiz" | "animate">("quiz");
   const [statusMessage, setStatusMessage] = useState<string>("Tô theo nét mờ");
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
@@ -262,13 +260,13 @@ export default function StrokeOrderPractice({
   return (
     <View style={styles.container}>
       {/* Header Info (Pinyin, Âm Hán Việt) */}
-      {((!hidePinyin && pinyin) || vietnameseReading) ? (
+      {(pinyin || vietnameseReading) ? (
         <View style={styles.headerInfo}>
           <View style={styles.charInfoRow}>
-            {!hidePinyin && pinyin ? <Text style={[styles.pinyinText, { color: colors.amber }]}>[{pinyin}]</Text> : null}
+            {pinyin ? <Text style={[styles.pinyinText, { color: colors.amber }]}>[{pinyin}]</Text> : null}
             {vietnameseReading ? (
               <Text style={[styles.hanvietText, { color: colors.textMuted }]}>
-                {!hidePinyin && pinyin ? "• " : ""}<Text style={{ color: colors.text, fontWeight: "700" }}>{vietnameseReading}</Text>
+                {pinyin ? "• " : ""}<Text style={{ color: colors.text, fontWeight: "700" }}>{vietnameseReading}</Text>
               </Text>
             ) : null}
           </View>

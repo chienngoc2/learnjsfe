@@ -118,9 +118,8 @@ export default function CardViewer() {
       const res = await api.post("/api/vocab/priority/toggle", {
         term: term,
         reading: wordObj.reading || wordObj.pinyin,
-        meaning: wordObj.meaning,
-        topicTitle: String(title || "Khác"),
-        topicId: topicId ? String(topicId) : undefined,
+        topicTitle: isPriorityMode ? (wordObj.topicTitle || undefined) : (title && title !== "Ưu Tiên Ôn Tập" ? String(title) : undefined),
+        topicId: isPriorityMode ? (wordObj.topicId || undefined) : (topicId ? String(topicId) : undefined),
       });
 
       if (res.data && res.data.success) {

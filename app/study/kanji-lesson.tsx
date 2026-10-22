@@ -94,7 +94,7 @@ export default function KanjiLessonScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [animationKey, setAnimationKey] = useState(0);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
 
   // MODAL EDIT
   const [editModal, setEditModal] = useState(false);
@@ -118,6 +118,60 @@ export default function KanjiLessonScreen() {
     }, 3500);
   };
 
+  // Tải danh sách từ ưu tiên từ server
+  useEffect(() => {
+    api.get("/api/vocab/priority/list")
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.words)) {
+          setPrioritySet(new Set(res.data.words.map((w: any) => w.term)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleTogglePriority = async (kanji: KanjiItem) => {
+    if (!kanji || !kanji.character) return;
+    const char = kanji.character;
+    const wasPriority = prioritySet.has(char);
+    const willBePriority = !wasPriority;
+
+    // Cập nhật UI ngay lập tức
+    setPrioritySet((prev) => {
+      const next = new Set(prev);
+      if (willBePriority) next.add(char);
+      else next.delete(char);
+      return next;
+    });
+
+    try {
+      const lessonTitle = kanji.lessonGroup || displayTitle;
+      const res = await api.post("/api/vocab/priority/toggle", {
+        term: char,
+        reading: kanji.pinyin || kanji.vietnamese_reading,
+        meaning: kanji.meaning,
+        topicTitle: lessonTitle && lessonTitle !== "Chưa phân loại" ? lessonTitle : undefined,
+      });
+
+      if (res.data && res.data.success) {
+        const resolvedTopic = res.data.topicTitle || lessonTitle;
+        if (res.data.isPriority) {
+          triggerToast("success", `⭐ Đã thêm "${char}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
+        } else {
+          triggerToast("success", `Đã gỡ ưu tiên cho "${char}"`);
+        }
+      }
+    } catch {
+      // Hoàn tác nếu lỗi
+      setPrioritySet((prev) => {
+        const next = new Set(prev);
+        if (wasPriority) next.add(char);
+        else next.delete(char);
+        return next;
+      });
+      triggerToast("error", `Không thể cập nhật trạng thái cho "${char}"`);
+    }
+  };
+
   const fetchKanji = useCallback(async () => {
     setLoading(true);
     try {
@@ -133,7 +187,6 @@ export default function KanjiLessonScreen() {
         setKanjiList(res.data.data);
         setPagination(res.data.pagination);
         setCurrentIndex(0);
-        setIsBookmarked(false);
         setAnimationKey((k) => k + 1);
       }
     } catch {
@@ -381,11 +434,11 @@ export default function KanjiLessonScreen() {
                 <View style={[styles.levelBadge, { backgroundColor: isDark ? lc.bgDark : lc.bg }]}>
                   <Text style={[styles.levelBadgeText, { color: isDark ? lc.textDark : lc.text }]}>Cấp độ: {currentKanji.level}</Text>
                 </View>
-                <TouchableOpacity onPress={() => setIsBookmarked(!isBookmarked)} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => handleTogglePriority(currentKanji)} activeOpacity={0.7}>
                   <MaterialIcons
-                    name={isBookmarked ? "star" : "star-border"}
+                    name={prioritySet.has(currentKanji.character) ? "star" : "star-border"}
                     size={26}
-                    color={isBookmarked ? "#F59E0B" : colors.textMuted}
+                    color={prioritySet.has(currentKanji.character) ? "#F59E0B" : colors.textMuted}
                   />
                 </TouchableOpacity>
               </View>

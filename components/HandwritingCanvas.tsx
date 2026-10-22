@@ -11,7 +11,6 @@ import {
 import { WebView } from "react-native-webview";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/src/context/ThemeContext";
-import { usePinyin } from "@/src/context/PinyinContext";
 import masterData from "@/assets/data/vocab_master.json";
 
 interface HandwritingCanvasProps {
@@ -31,7 +30,6 @@ export default function HandwritingCanvas({
   vocabList,
 }: HandwritingCanvasProps) {
   const { colors, isDark } = useTheme();
-  const { hidePinyin } = usePinyin();
 
   const wordsPool = useMemo(() => {
     return vocabList && vocabList.length > 0 ? vocabList : masterWords;
@@ -730,7 +728,7 @@ export default function HandwritingCanvas({
                   <Text style={[styles.suggestionWord, { color: colors.indigo }]}>
                     {item.word}
                   </Text>
-                  {!hidePinyin && item.pinyin ? (
+                  {item.pinyin ? (
                     <View style={styles.pinyinBadge}>
                       <Text style={[styles.suggestionPinyin, { color: colors.amber }]}>
                         {item.pinyin}

@@ -14,8 +14,6 @@ import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams } from "expo-router";
 import * as Speech from "expo-speech";
 import { useTheme } from "@/src/context/ThemeContext";
-import { usePinyin } from "@/src/context/PinyinContext";
-import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import Header from "../../components/ui/Header";
 import api from "@/services/api";
 import HandwritingCanvas from "../../components/HandwritingCanvas";
@@ -222,7 +220,6 @@ export const SINO_VIETNAMESE_DICT: Record<
 
 export default function KanjiSearchScreen() {
   const { colors, isDark } = useTheme();
-  const { hidePinyin } = usePinyin();
   const routeParams = useLocalSearchParams<{
     topicId?: string;
     title?: string;
@@ -242,6 +239,58 @@ export default function KanjiSearchScreen() {
     Array<{ word: string; pinyin?: string; meaning: string }>
   >([]);
   const [currentLessonIdx, setCurrentLessonIdx] = useState(0);
+  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
+
+  // Tải danh sách từ ưu tiên
+  useEffect(() => {
+    api.get("/api/vocab/priority/list")
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.words)) {
+          setPrioritySet(new Set(res.data.words.map((w: any) => w.term)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const togglePriorityForKanji = async (kanji: KanjiData) => {
+    if (!kanji || !kanji.character) return;
+    const char = kanji.character;
+    const wasPriority = prioritySet.has(char);
+    const willBePriority = !wasPriority;
+
+    setPrioritySet((prev) => {
+      const next = new Set(prev);
+      if (willBePriority) next.add(char);
+      else next.delete(char);
+      return next;
+    });
+
+    try {
+      const res = await api.post("/api/vocab/priority/toggle", {
+        term: char,
+        reading: kanji.pinyin || kanji.vietnamese_reading,
+        meaning: kanji.meaning,
+        topicTitle: lessonTitle && lessonTitle !== "Tra cứu" ? lessonTitle : undefined,
+      });
+
+      if (res.data?.success) {
+        const resolvedTopic = res.data.topicTitle || "Bài học";
+        if (res.data.isPriority) {
+          alert(`⭐ Đã thêm "${char}" vào mục Ưu Tiên Ôn Tập (${resolvedTopic})!`);
+        } else {
+          alert(`Đã gỡ ưu tiên cho "${char}"`);
+        }
+      }
+    } catch {
+      setPrioritySet((prev) => {
+        const next = new Set(prev);
+        if (wasPriority) next.add(char);
+        else next.delete(char);
+        return next;
+      });
+      alert(`Không thể cập nhật trạng thái ưu tiên cho "${char}"`);
+    }
+  };
 
   // 🌟 Tổng kho từ vựng hợp nhất (Gồm 533 từ Master + TẤT CẢ từ trong các bảng bài học & Kanji)
   const [allWords, setAllWords] = useState<
@@ -273,15 +322,17 @@ export default function KanjiSearchScreen() {
             (list.words || []).forEach((w: any) => {
               if (w.term) {
                 let meaning = w.meaning || w.def || "";
+                let pinyin = w.pinyin || w.reading || "";
                 if (typeof meaning === "string" && meaning.startsWith("{")) {
                   try {
                     const parsed = JSON.parse(meaning);
                     meaning = parsed.meaning || parsed.def || meaning;
+                    pinyin = pinyin || parsed.pinyin || parsed.reading || "";
                   } catch (e) {}
                 }
                 const wordItem = {
                   word: w.term,
-                  pinyin: w.pinyin || w.reading || "",
+                  pinyin: pinyin,
                   meaning: String(meaning || ""),
                   level: list.title || w.level || "Bài học",
                 };
@@ -470,9 +521,13 @@ export default function KanjiSearchScreen() {
     const charMeanings = effectiveChars.map(
       (ch) => SINO_VIETNAMESE_DICT[ch]?.meaning || ""
     );
-    const charPinyins = effectiveChars.map(
-      (ch) => SINO_VIETNAMESE_DICT[ch]?.pinyin || ""
-    );
+    const charPinyins = effectiveChars.map((ch) => {
+      if (SINO_VIETNAMESE_DICT[ch]?.pinyin) {
+        return SINO_VIETNAMESE_DICT[ch].pinyin;
+      }
+      const foundInAll = allWords.find((w) => w.word === ch && w.pinyin);
+      return foundInAll?.pinyin || "";
+    });
 
     let hanviet =
       targetMaster?.meaning && targetMaster.meaning.length <= 25 && effectiveChars.length > 1
@@ -495,7 +550,7 @@ export default function KanjiSearchScreen() {
     let pinyin =
       targetMaster?.pinyin ||
       SINO_VIETNAMESE_DICT[q]?.pinyin ||
-      charPinyins.filter(Boolean).join(" ");
+      (charPinyins.some(Boolean) ? charPinyins.filter(Boolean).join(" ") : "");
 
     // 4. Quét tìm tất cả các từ ghép / từ liên quan trong toàn bộ kho chứa các chữ này
     const searchChs = effectiveChars.length > 0 ? effectiveChars : [q];
@@ -573,7 +628,7 @@ export default function KanjiSearchScreen() {
           if (!prev) return serverData;
           return {
             ...serverData,
-            pinyin: serverData.pinyin || prev.pinyin,
+            pinyin: serverData.pinyin || prev.pinyin || localResult?.pinyin,
             meaning:
               serverData.meaning && serverData.meaning !== "Từ vựng tiếng Trung Phồn Thể"
                 ? serverData.meaning
@@ -620,7 +675,6 @@ export default function KanjiSearchScreen() {
             ? `✍️ Luyện viết: ${lessonTitle || "Bài học"}`
             : "✍️ Tra cứu & Luyện viết"
         }
-        rightAction={<PinyinCheckbox compact />}
       />
 
       {/* 📚 THANH ĐIỀU HƯỚNG BÀI HỌC (KHI MỞ TRONG MỤC LUYỆN VIẾT BÀI HỌC) */}
@@ -739,7 +793,7 @@ export default function KanjiSearchScreen() {
                   >
                     {idx + 1}. {item.word}
                   </Text>
-                  {!hidePinyin && item.pinyin ? (
+                  {item.pinyin ? (
                     <Text
                       style={{
                         fontSize: 10,
@@ -921,7 +975,7 @@ export default function KanjiSearchScreen() {
                           <Text style={[styles.keyboardSuggestionWord, { color: colors.indigo }]}>
                             {item.word}
                           </Text>
-                          {!hidePinyin && item.pinyin ? (
+                          {item.pinyin ? (
                             <View style={styles.pinyinBadgeSmall}>
                               <Text style={[styles.keyboardSuggestionPinyin, { color: colors.amber }]}>
                                 {item.pinyin}
@@ -990,14 +1044,14 @@ export default function KanjiSearchScreen() {
 
                 {/* Âm Hán Việt & Pinyin */}
                 <View style={styles.readingRow}>
-                  {!hidePinyin && selectedKanji.pinyin ? (
+                  {selectedKanji.pinyin ? (
                     <Text style={[styles.pinyinHeader, { color: colors.amber }]}>
                       [{selectedKanji.pinyin}]
                     </Text>
                   ) : null}
                   {selectedKanji.vietnamese_reading ? (
                     <Text style={[styles.hanvietHeader, { color: colors.textMuted }]}>
-                      {!hidePinyin && selectedKanji.pinyin ? "• " : ""}Hán Việt: <Text style={{ color: colors.text, fontWeight: "700" }}>{selectedKanji.vietnamese_reading}</Text>
+                      {selectedKanji.pinyin ? "• " : ""}Hán Việt: <Text style={{ color: colors.text, fontWeight: "700" }}>{selectedKanji.vietnamese_reading}</Text>
                     </Text>
                   ) : null}
                 </View>
@@ -1008,12 +1062,32 @@ export default function KanjiSearchScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity
-                style={[styles.audioBtn, { backgroundColor: isDark ? "#1E293B" : "#EFF6FF" }]}
-                onPress={() => playPronunciation(selectedKanji.character)}
-              >
-                <MaterialIcons name="volume-up" size={26} color={colors.indigo} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.audioBtn,
+                    {
+                      backgroundColor: prioritySet.has(selectedKanji.character)
+                        ? (isDark ? "#78350F" : "#FEF3C7")
+                        : (isDark ? "#1E293B" : "#F8FAFC"),
+                    },
+                  ]}
+                  onPress={() => togglePriorityForKanji(selectedKanji)}
+                >
+                  <MaterialIcons
+                    name={prioritySet.has(selectedKanji.character) ? "star" : "star-border"}
+                    size={24}
+                    color={prioritySet.has(selectedKanji.character) ? "#F59E0B" : colors.textMuted}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.audioBtn, { backgroundColor: isDark ? "#1E293B" : "#EFF6FF" }]}
+                  onPress={() => playPronunciation(selectedKanji.character)}
+                >
+                  <MaterialIcons name="volume-up" size={26} color={colors.indigo} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* 2. Khối Luyện viết theo nét mờ trực quan (Hiển thị cùng lúc TẤT CẢ các ô theo chiều ngang & tự động xuống dòng) */}
@@ -1033,9 +1107,11 @@ export default function KanjiSearchScreen() {
                   const charInfo = SINO_VIETNAMESE_DICT[ch];
                   const pinyinSyllables = (selectedKanji.pinyin || "").split(/\s+/).filter(Boolean);
                   const syllablePinyin = pinyinSyllables[idx] || "";
+                  const foundCharPinyin = allWords.find((w) => w.word === ch && w.pinyin)?.pinyin || "";
                   const displayPinyin =
                     charInfo?.pinyin ||
                     syllablePinyin ||
+                    foundCharPinyin ||
                     (selectedKanji.characters?.length === 1 ? selectedKanji.pinyin : "");
                   const displayHanviet =
                     charInfo?.hanviet ||
@@ -1072,7 +1148,7 @@ export default function KanjiSearchScreen() {
                           <Text style={styles.charNumberText}>{idx + 1}</Text>
                         </View>
                         <Text style={[styles.charBadgeTitle, { color: colors.indigo }]}>
-                          Chữ {ch} {!hidePinyin && displayPinyin ? `[${displayPinyin}] ` : ""}{displayHanviet ? `(${displayHanviet})` : ""}
+                          Chữ {ch} {displayPinyin ? `[${displayPinyin}] ` : ""}{displayHanviet ? `(${displayHanviet})` : ""}
                         </Text>
                       </View>
 
@@ -1118,7 +1194,7 @@ export default function KanjiSearchScreen() {
                       <Text style={[styles.sentenceCn, { color: colors.text }]}>
                         {ex.cn}
                       </Text>
-                      {!hidePinyin && ex.pinyin ? (
+                      {ex.pinyin ? (
                         <Text style={[styles.sentencePinyin, { color: colors.indigo }]}>
                           {ex.pinyin}
                         </Text>
@@ -1166,7 +1242,7 @@ export default function KanjiSearchScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {!hidePinyin && ex.reading ? (
+                      {ex.reading ? (
                         <Text style={[styles.compoundPinyin, { color: colors.amber }]}>
                           [{ex.reading}]
                         </Text>

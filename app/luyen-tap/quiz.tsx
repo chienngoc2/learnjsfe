@@ -28,12 +28,15 @@ interface WordDetail {
   word: string;
   reading: string;
   meaning: string;
+  topicTitle?: string;
+  topicId?: string;
 }
 
 interface Question {
   questionWord: WordDetail;
   options: string[];
   correctAnswer: string;
+  isRetry?: boolean;
 }
 
 const getQuestionFontSize = (text: string) => {
@@ -80,6 +83,9 @@ export default function PracticeQuizScreen() {
   // Active quiz phase state
   const [quizWords, setQuizWords] = useState<WordDetail[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const questionsRef = useRef<Question[]>([]);
+  const initialTotalRef = useRef<number>(0);
+  const [masteredRetryCount, setMasteredRetryCount] = useState<number>(0);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
@@ -87,6 +93,19 @@ export default function PracticeQuizScreen() {
   // Results
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+
+  const initQuizSession = (quizQuestions: Question[]) => {
+    questionsRef.current = quizQuestions;
+    setQuestions(quizQuestions);
+    initialTotalRef.current = quizQuestions.length;
+    setMasteredRetryCount(0);
+    setCurrentIdx(0);
+    setScore(0);
+    setIsAnswered(false);
+    setSelectedAnswer(null);
+    setIsFinished(false);
+    setIsPlaying(true);
+  };
 
   useEffect(() => {
     if (params.mode === "grammar") {
@@ -258,13 +277,7 @@ export default function PracticeQuizScreen() {
           if (allGrammarPoints.length > 0) {
             const quizQuestions = generateGrammarQuestions([matched]);
             if (quizQuestions && quizQuestions.length > 0) {
-              setQuestions(quizQuestions);
-              setCurrentIdx(0);
-              setScore(0);
-              setIsAnswered(false);
-              setSelectedAnswer(null);
-              setIsFinished(false);
-              setIsPlaying(true);
+              initQuizSession(quizQuestions);
             }
           }
         } else {
@@ -277,6 +290,8 @@ export default function PracticeQuizScreen() {
                 word: parsed.word,
                 reading: parsed.reading || parsed.word,
                 meaning: parsed.meaning,
+                topicTitle: matched.title,
+                topicId: matched._id,
               });
             });
           }
@@ -300,13 +315,7 @@ export default function PracticeQuizScreen() {
             });
             
             setQuizWords(finalWords);
-            setQuestions(quizQuestions);
-            setCurrentIdx(0);
-            setScore(0);
-            setIsAnswered(false);
-            setSelectedAnswer(null);
-            setIsFinished(false);
-            setIsPlaying(true);
+            initQuizSession(quizQuestions);
           }
         }
       }
@@ -362,13 +371,7 @@ export default function PracticeQuizScreen() {
     });
 
     setQuizWords(finalWords);
-    setQuestions(quizQuestions);
-    setCurrentIdx(0);
-    setScore(0);
-    setIsAnswered(false);
-    setSelectedAnswer(null);
-    setIsFinished(false);
-    setIsPlaying(true);
+    initQuizSession(quizQuestions);
   };
 
   const handleStartQuiz = () => {
@@ -392,6 +395,8 @@ export default function PracticeQuizScreen() {
           word: parsed.word,
           reading: parsed.reading || parsed.word,
           meaning: parsed.meaning,
+          topicTitle: w.topicTitle,
+          topicId: w.topicId,
         };
       });
 
@@ -409,13 +414,7 @@ export default function PracticeQuizScreen() {
     if (quizMode === "grammar") {
       const quizQuestions = generateGrammarQuestions(selectedDecks);
       if (quizQuestions && quizQuestions.length > 0) {
-        setQuestions(quizQuestions);
-        setCurrentIdx(0);
-        setScore(0);
-        setIsAnswered(false);
-        setSelectedAnswer(null);
-        setIsFinished(false);
-        setIsPlaying(true);
+        initQuizSession(quizQuestions);
       }
       return;
     }
@@ -429,6 +428,8 @@ export default function PracticeQuizScreen() {
             word: parsed.word,
             reading: parsed.reading || parsed.word,
             meaning: parsed.meaning,
+            topicTitle: deck.title,
+            topicId: deck._id,
           });
         });
       }
@@ -446,19 +447,25 @@ export default function PracticeQuizScreen() {
     const currentQuestion = questions[currentIdx];
     if (!currentQuestion) return;
     const word = currentQuestion.questionWord.word;
+    const lessonTitle = currentQuestion.questionWord.topicTitle || (isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : undefined) : undefined);
+    const lessonId = currentQuestion.questionWord.topicId;
+
     try {
       const res = await api.post("/api/vocab/priority/toggle", {
         word: word,
+        term: word,
         reading: currentQuestion.questionWord.reading,
         meaning: currentQuestion.questionWord.meaning,
-        topicTitle: isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : "Khác") : "Trắc nghiệm",
+        topicTitle: lessonTitle,
+        topicId: lessonId,
       });
       if (res.data.success) {
+        const resolvedTopic = res.data.topicTitle || lessonTitle || "Bài học";
         setPrioritySet((prev) => {
           const next = new Set(prev);
           if (res.data.isPriority) {
             next.add(word);
-            setToastMsg(`⭐ Đã thêm "${word}" vào Ưu Tiên Ôn Tập`);
+            setToastMsg(`⭐ Đã thêm "${word}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
           } else {
             next.delete(word);
             setToastMsg(`Đã bỏ ưu tiên cho "${word}"`);
@@ -482,20 +489,42 @@ export default function PracticeQuizScreen() {
     const isCorrect = option === currentQuestion.correctAnswer;
 
     if (isCorrect) {
-      setScore((prev) => prev + 1);
+      if (currentQuestion.isRetry) {
+        setMasteredRetryCount((prev) => prev + 1);
+        setToastMsg(`✨ Làm lại chính xác! Đã làm chủ từ "${currentQuestion.questionWord.word}"`);
+        setTimeout(() => setToastMsg(null), 2000);
+      } else {
+        setScore((prev) => prev + 1);
+      }
     } else {
+      // 🔁 ĐƯA CÂU SAI VỀ CUỐI BÀI CHO LÀM LẠI
+      const retryQ: Question = {
+        ...currentQuestion,
+        options: [...currentQuestion.options].sort(() => Math.random() - 0.5),
+        isRetry: true,
+      };
+      const updated = [...questionsRef.current, retryQ];
+      questionsRef.current = updated;
+      setQuestions(updated);
+
       // ⭐ AUTO-FLAG ON WRONG ANSWER!
       const word = currentQuestion.questionWord.word;
+      const lessonTitle = currentQuestion.questionWord.topicTitle || (isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : undefined) : undefined);
+      const lessonId = currentQuestion.questionWord.topicId;
+
       api.post("/api/vocab/priority/add", {
         word: word,
+        term: word,
         reading: currentQuestion.questionWord.reading,
         meaning: currentQuestion.questionWord.meaning,
-        topicTitle: isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : "Khác") : "Trắc nghiệm",
-      }).then(() => {
+        topicTitle: lessonTitle,
+        topicId: lessonId,
+      }).then((res) => {
         setPrioritySet((prev) => new Set(prev).add(word));
+        const resolvedLesson = res.data?.topicTitle || lessonTitle || "Bài học";
+        setToastMsg(`⚠️ Trả lời sai! Đã lưu "${word}" vào Ưu Tiên (${resolvedLesson}) & chuyển về cuối làm lại 🔁`);
       }).catch((e) => console.log("Lỗi auto add priority:", e));
 
-      setToastMsg("⚠️ Trả lời sai! Đã tự động thêm vào 'Ưu Tiên Ôn Tập' ⭐");
       setTimeout(() => setToastMsg(null), 2500);
     }
 
@@ -504,13 +533,13 @@ export default function PracticeQuizScreen() {
 
     // Wait 1.5 seconds and move to next or finish
     setTimeout(() => {
-      if (currentIdx < questions.length - 1) {
+      if (currentIdx < questionsRef.current.length - 1) {
         setCurrentIdx((prev) => prev + 1);
         setIsAnswered(false);
         setSelectedAnswer(null);
       } else {
         // Calculate and reward Tu Vi
-        const finalScore = isCorrect ? score + 1 : score;
+        const finalScore = isCorrect && !currentQuestion.isRetry ? score + 1 : score;
         const rewardTuViAmount = finalScore * 10;
         const rewardXPAmount = finalScore * 5;
         if (rewardTuViAmount > 0) {
@@ -826,9 +855,17 @@ export default function PracticeQuizScreen() {
             </Pressable>
             <View style={styles.headerTitleWrap}>
               <Text style={[styles.headerTitle, { color: colors.text }]}>Trắc Nghiệm Ghi Nhớ</Text>
-              <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-                {String(currentIdx + 1).padStart(2, "0")} <Text style={{ color: colors.textMuted }}>/</Text> {String(questions.length).padStart(2, "0")}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                <Text style={[styles.headerSub, { color: colors.textMuted }]}>
+                  {String(currentIdx + 1).padStart(2, "0")} <Text style={{ color: colors.textMuted }}>/</Text> {String(questions.length).padStart(2, "0")}
+                </Text>
+                {currentQuestion.isRetry && (
+                  <View style={[styles.retryBadge, { backgroundColor: "#F59E0B" }]}>
+                    <Ionicons name="refresh" size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+                    <Text style={styles.retryBadgeText}>LÀM LẠI TỪ SAI</Text>
+                  </View>
+                )}
+              </View>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <PinyinCheckbox compact />
@@ -990,7 +1027,8 @@ export default function PracticeQuizScreen() {
 
   // 3. RESULTS DISPLAY
   if (isFinished) {
-    const accuracy = Math.round((score / questions.length) * 100);
+    const baseCount = initialTotalRef.current || questions.length;
+    const accuracy = Math.round((score / baseCount) * 100);
     const rewardTuViGained = score * 10;
 
     return (
@@ -1009,12 +1047,21 @@ export default function PracticeQuizScreen() {
               Thử thách trắc nghiệm đã được chinh phục!
             </Text>
 
+            {masteredRetryCount > 0 && (
+              <View style={[styles.masteredRetryBox, { backgroundColor: isDark ? "#064E3B" : "#ECFDF5", borderColor: "#10B981" }]}>
+                <Ionicons name="checkmark-done-circle" size={18} color="#10B981" style={{ marginRight: 6 }} />
+                <Text style={[styles.masteredRetryText, { color: isDark ? "#86EFAC" : "#065F46" }]}>
+                  Đã làm lại thành công {masteredRetryCount} câu từng trả lời sai!
+                </Text>
+              </View>
+            )}
+
             {/* Score Bento Box */}
             <View style={[styles.resultBentoBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.resultBentoItem}>
                 <Text style={[styles.bentoBLabel, { color: colors.textMuted }]}>KẾT QUẢ</Text>
                 <Text style={[styles.bentoBVal, { color: colors.indigo }]}>
-                  {score} <Text style={{ fontSize: 16, color: colors.textMuted }}>/</Text> {questions.length}
+                  {score} <Text style={{ fontSize: 16, color: colors.textMuted }}>/</Text> {baseCount}
                 </Text>
               </View>
 
@@ -1456,5 +1503,33 @@ const styles = StyleSheet.create({
   quizPriorityBtnText: {
     fontSize: 11,
     fontWeight: "700",
+  },
+  retryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  retryBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  masteredRetryBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 340,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  masteredRetryText: {
+    fontSize: 12,
+    fontWeight: "700",
+    flex: 1,
   },
 });

@@ -24,6 +24,7 @@ interface WordItem {
   term: string;
   def: string;
   correctCount?: number;
+  isRetry?: boolean;
 }
 
 export default function PracticeTypingScreen() {
@@ -33,6 +34,9 @@ export default function PracticeTypingScreen() {
   const router = useRouter();
 
   const [words, setWords] = useState<WordItem[]>([]);
+  const wordsRef = useRef<WordItem[]>([]);
+  const initialWordCountRef = useRef<number>(0);
+  const [masteredRetryCount, setMasteredRetryCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
@@ -69,6 +73,9 @@ export default function PracticeTypingScreen() {
           if (targetList.title !== "Cần ôn tập") {
             preparedWords.sort(() => Math.random() - 0.5);
           }
+          wordsRef.current = preparedWords;
+          initialWordCountRef.current = preparedWords.length;
+          setMasteredRetryCount(0);
           setWords(preparedWords);
         } else {
           setIsFinished(true);
@@ -141,7 +148,7 @@ export default function PracticeTypingScreen() {
 
   const moveToNextQuestion = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (currentIndex < words.length - 1) {
+    if (currentIndex < wordsRef.current.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setUserInput("");
       setStatus("typing");
@@ -177,7 +184,12 @@ export default function PracticeTypingScreen() {
 
     if (alternativeAnswers.includes(cleanUser) || cleanUser === getCleanAnswer().trim().toLowerCase()) {
       setStatus("correct");
-      setScore((prev) => prev + 1);
+      if (currentWordObj.isRetry) {
+        setMasteredRetryCount((prev) => prev + 1);
+        triggerToast(`✨ Gõ lại chính xác! Đã làm chủ từ "${parsed.word}"`);
+      } else {
+        setScore((prev) => prev + 1);
+      }
 
       // Thao tác cày bài "Cần ôn tập"
       if (title === "Cần ôn tập" && reviewListObj) {
@@ -203,21 +215,29 @@ export default function PracticeTypingScreen() {
     } else {
       setStatus("wrong");
 
-      // Gõ sai bài thường -> Auto copy sang bài "Cần ôn tập"
-      if (title !== "Cần ôn tập" && reviewListObj) {
-        const isAlreadyInReview = reviewListObj.words.some((w: any) => w.term === currentWordObj.term);
-        
-        if (!isAlreadyInReview) {
-          const freshReviewWords = [
-            ...reviewListObj.words,
-            { term: currentWordObj.term, def: currentWordObj.def, correctCount: 0 },
-          ];
-          api.put(`/api/vocab/update/${reviewListObj._id}`, { title: "Cần ôn tập", list: freshReviewWords })
-            .then(() => {
-              setReviewListObj({ ...reviewListObj, words: freshReviewWords });
-              triggerToast("⚠️ Lọt lưới! Đã khắc từ này vào mục 'Cần ôn tập'.");
-            });
-        }
+      // 🔁 ĐƯA TỪ GÕ SAI VỀ CUỐI HÀNG ĐỂ BẮT BUỘC GÕ LẠI CHO ĐẾN KHI THÀNH THẠO
+      const retriedWord: WordItem = {
+        ...currentWordObj,
+        isRetry: true,
+      };
+      const updatedWords = [...wordsRef.current, retriedWord];
+      wordsRef.current = updatedWords;
+      setWords(updatedWords);
+
+      // Gõ sai bài thường -> Auto lưu vào mục Ưu Tiên Ôn Tập theo đúng bài học
+      if (title !== "Cần ôn tập") {
+        api.post("/api/vocab/priority/add", {
+          term: currentWordObj.term,
+          reading: parsed.reading || parsed.pinyin,
+          meaning: parsed.meaning,
+          topicTitle: title && title !== "Cần ôn tập" ? title : undefined,
+          topicId: topicId,
+        }).then((res) => {
+          const lesson = res.data?.topicTitle || title || "Bài học";
+          triggerToast(`⚠️ Gõ sai! Đã lưu vào Ưu Tiên (${lesson}) & đưa về cuối gõ lại 🔁`);
+        }).catch((e) => console.log("Lỗi auto add priority typing:", e));
+      } else {
+        triggerToast(`⚠️ Gõ sai! Đã đưa về cuối hàng để gõ lại 🔁`);
       }
     }
 
@@ -235,12 +255,23 @@ export default function PracticeTypingScreen() {
   }
 
   if (isFinished) {
-    const accuracy = Math.round((score / words.length) * 100) || 0;
+    const baseCount = initialWordCountRef.current || words.length;
+    const accuracy = Math.round((score / baseCount) * 100) || 0;
     return (
       <SafeAreaView style={[styles.finishContainer, { backgroundColor: colors.background }]}>
         <Text style={styles.finishEmoji}>{accuracy >= 80 ? "🎉" : "💪"}</Text>
         <Text style={[styles.finishTitle, { color: colors.text }]}>Luyện Tập Hoàn Thành!</Text>
-        <Text style={[styles.finishSub, { color: colors.textMuted }]}>Đo độ chính xác: {accuracy}%</Text>
+        <Text style={[styles.finishSub, { color: colors.textMuted }]}>
+          Đúng {score}/{baseCount} từ • Độ chính xác: {accuracy}%
+        </Text>
+        {masteredRetryCount > 0 && (
+          <View style={[styles.masteredRetryBox, { backgroundColor: isDark ? "#064E3B" : "#ECFDF5", borderColor: "#10B981" }]}>
+            <MaterialIcons name="check-circle" size={18} color="#10B981" style={{ marginRight: 6 }} />
+            <Text style={[styles.masteredRetryText, { color: isDark ? "#86EFAC" : "#065F46" }]}>
+              Đã gõ lại thành công {masteredRetryCount} từ từng gõ sai!
+            </Text>
+          </View>
+        )}
         <TouchableOpacity style={[styles.btnFinish, { backgroundColor: "#000000", borderColor: "#8C5C38", borderWidth: 2 }]} onPress={() => router.back()}>
           <Text style={[styles.btnFinishText, { color: colors.indigo }]}>Trở về Kho Từ Vựng</Text>
         </TouchableOpacity>
@@ -285,9 +316,16 @@ export default function PracticeTypingScreen() {
             ]}
           />
         </View>
-        <Text style={[styles.progressText, { color: colors.textMuted }]}>
-          {currentIndex + 1}/{words.length}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={[styles.progressText, { color: colors.textMuted }]}>
+            {currentIndex + 1}/{words.length}
+          </Text>
+          {currentWordObj?.isRetry && (
+            <View style={[styles.retryTag, { backgroundColor: "#F59E0B" }]}>
+              <Text style={styles.retryTagText}>🔁 GÕ LẠI TỪ SAI</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* SWAP MODE BUTTON & PINYIN CHECKBOX */}
@@ -330,6 +368,15 @@ export default function PracticeTypingScreen() {
           <View style={[styles.streakBadge, { backgroundColor: "rgba(245, 199, 107, 0.08)", borderColor: colors.indigo + "40" }]}>
             <Text style={[styles.streakBadgeText, { color: colors.indigo }]}>
               🔥 Độ thuần thục: {currentWordCorrectStreak}/10
+            </Text>
+          </View>
+        )}
+
+        {currentWordObj?.isRetry && (
+          <View style={[styles.retryWordBanner, { backgroundColor: isDark ? "#3D2409" : "#FEF3C7", borderColor: "#F59E0B" }]}>
+            <MaterialIcons name="refresh" size={13} color="#D97706" style={{ marginRight: 4 }} />
+            <Text style={[styles.retryWordBannerText, { color: isDark ? "#FDE68A" : "#92400E" }]}>
+              Từ này bạn vừa gõ sai, hãy gõ lại thật chính xác nhé!
             </Text>
           </View>
         )}
@@ -548,4 +595,43 @@ const styles = StyleSheet.create({
   finishSub: { fontSize: 15, fontWeight: "600", marginBottom: 24 },
   btnFinish: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 16 },
   btnFinishText: { fontSize: 15, fontWeight: "800" },
+  retryTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  retryTagText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  retryWordBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  retryWordBannerText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  masteredRetryBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 320,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  masteredRetryText: {
+    fontSize: 12,
+    fontWeight: "700",
+    flex: 1,
+  },
 });
