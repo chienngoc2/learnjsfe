@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { ThemeProvider } from "@/src/context/ThemeContext";
 import { PinyinProvider } from "@/src/context/PinyinContext";
+import { PriorityProvider } from "@/src/context/PriorityContext";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -30,8 +31,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <PinyinProvider>
           <AuthProvider>
-            <AuthGate>
-              <Stack
+            <PriorityProvider>
+              <AuthGate>
+                <Stack
                 screenOptions={{
                   headerShown: false,
                   animation: "fade_from_bottom",
@@ -63,9 +65,10 @@ export default function RootLayout() {
                 <Stack.Screen name="luyen-tap/vocab-match" />
               </Stack>
             </AuthGate>
-          </AuthProvider>
-        </PinyinProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
-  );
+          </PriorityProvider>
+        </AuthProvider>
+      </PinyinProvider>
+    </ThemeProvider>
+  </SafeAreaProvider>
+);
 }

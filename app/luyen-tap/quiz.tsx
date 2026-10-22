@@ -18,6 +18,8 @@ import * as Speech from "expo-speech";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
 import { usePinyin } from "@/src/context/PinyinContext";
+import { usePriority } from "@/src/context/PriorityContext";
+import { PriorityButton } from "@/src/components/PriorityButton";
 import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { parseWord } from "../../src/utils/wordParser";
@@ -77,7 +79,7 @@ export default function PracticeQuizScreen() {
   }>({ count: 0, words: [], topics: [] });
   const [isPriorityModeSelected, setIsPriorityModeSelected] = useState<boolean>(params.mode === "priority");
   const [selectedPriorityTopic, setSelectedPriorityTopic] = useState<string>("all");
-  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
+  const { prioritySet, addPriority, togglePriority } = usePriority();
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Active quiz phase state
@@ -145,9 +147,6 @@ export default function PracticeQuizScreen() {
         }
         if (priorityRes.data && priorityRes.data.success) {
           setPriorityInfo(priorityRes.data);
-          const pSet = new Set<string>();
-          (priorityRes.data.words || []).forEach((w: any) => pSet.add(w.term));
-          setPrioritySet(pSet);
         }
         setLoadingLists(false);
         setVisibleCount(PAGE_SIZE);
@@ -450,33 +449,21 @@ export default function PracticeQuizScreen() {
     const lessonTitle = currentQuestion.questionWord.topicTitle || (isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : undefined) : undefined);
     const lessonId = currentQuestion.questionWord.topicId;
 
-    try {
-      const res = await api.post("/api/vocab/priority/toggle", {
-        word: word,
-        term: word,
-        reading: currentQuestion.questionWord.reading,
-        meaning: currentQuestion.questionWord.meaning,
-        topicTitle: lessonTitle,
-        topicId: lessonId,
-      });
-      if (res.data.success) {
-        const resolvedTopic = res.data.topicTitle || lessonTitle || "Bài học";
-        setPrioritySet((prev) => {
-          const next = new Set(prev);
-          if (res.data.isPriority) {
-            next.add(word);
-            setToastMsg(`⭐ Đã thêm "${word}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
-          } else {
-            next.delete(word);
-            setToastMsg(`Đã bỏ ưu tiên cho "${word}"`);
-          }
-          return next;
-        });
-        setTimeout(() => setToastMsg(null), 2500);
-      }
-    } catch (e) {
-      console.log("Lỗi toggle priority:", e);
+    const isNow = await togglePriority({
+      word: word,
+      term: word,
+      reading: currentQuestion.questionWord.reading,
+      meaning: currentQuestion.questionWord.meaning,
+      topicTitle: lessonTitle,
+      topicId: lessonId,
+    });
+    const resolvedTopic = lessonTitle || "Bài học";
+    if (isNow) {
+      setToastMsg(`⭐ Đã thêm "${word}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
+    } else {
+      setToastMsg(`Đã bỏ ưu tiên cho "${word}"`);
     }
+    setTimeout(() => setToastMsg(null), 2500);
   };
 
   const handleAnswerSelect = (option: string) => {
@@ -512,18 +499,19 @@ export default function PracticeQuizScreen() {
       const lessonTitle = currentQuestion.questionWord.topicTitle || (isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : undefined) : undefined);
       const lessonId = currentQuestion.questionWord.topicId;
 
-      api.post("/api/vocab/priority/add", {
+      addPriority({
         word: word,
         term: word,
         reading: currentQuestion.questionWord.reading,
         meaning: currentQuestion.questionWord.meaning,
         topicTitle: lessonTitle,
         topicId: lessonId,
-      }).then((res) => {
-        setPrioritySet((prev) => new Set(prev).add(word));
-        const resolvedLesson = res.data?.topicTitle || lessonTitle || "Bài học";
-        setToastMsg(`⚠️ Trả lời sai! Đã lưu "${word}" vào Ưu Tiên (${resolvedLesson}) & chuyển về cuối làm lại 🔁`);
-      }).catch((e) => console.log("Lỗi auto add priority:", e));
+      })
+        .then(() => {
+          const resolvedLesson = lessonTitle || "Bài học";
+          setToastMsg(`⚠️ Trả lời sai! Đã lưu "${word}" vào Ưu Tiên (${resolvedLesson}) & chuyển về cuối làm lại 🔁`);
+        })
+        .catch((e) => console.log("Lỗi auto add priority:", e));
 
       setTimeout(() => setToastMsg(null), 2500);
     }
@@ -868,6 +856,13 @@ export default function PracticeQuizScreen() {
               </View>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <PriorityButton
+                word={currentQuestion.questionWord.word}
+                reading={currentQuestion.questionWord.reading}
+                meaning={currentQuestion.questionWord.meaning}
+                topicTitle={currentQuestion.questionWord.topicTitle}
+                variant="pill"
+              />
               <PinyinCheckbox compact />
               <Pressable
                 style={({ pressed }) => [

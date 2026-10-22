@@ -17,6 +17,8 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
 import { usePinyin } from "@/src/context/PinyinContext";
+import { usePriority } from "@/src/context/PriorityContext";
+import { PriorityButton } from "@/src/components/PriorityButton";
 import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import Animated, {
   useSharedValue,
@@ -37,12 +39,18 @@ export default function CardViewer() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // ⭐ Priority review support
+  // ⭐ Global Priority review integration
   const isPriorityMode = mode === "priority" || title === "Ưu Tiên Ôn Tập";
+  const {
+    prioritySet,
+    priorityWords: globalPriorityWords,
+    priorityTopics: globalPriorityTopics,
+    refreshPriority,
+  } = usePriority();
+
   const [allPriorityWords, setAllPriorityWords] = useState<any[]>([]);
   const [priorityTopics, setPriorityTopics] = useState<string[]>([]);
   const [selectedFilterTopic, setSelectedFilterTopic] = useState<string>("all");
-  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Reanimated Y-axis flip value (0 for front, 180 for back)
@@ -50,38 +58,28 @@ export default function CardViewer() {
   // Tactile press scale value
   const scale = useSharedValue(1);
 
+  // Load danh sách từ vựng
   useEffect(() => {
-    setLoading(true);
     if (isPriorityMode) {
-      api
-        .get("/api/vocab/priority/list")
-        .then((res) => {
-          if (res.data.success) {
-            const list = res.data.words || [];
-            setAllPriorityWords(list);
-            setPriorityTopics(res.data.topics || []);
-            setWords(list);
-            const pSet = new Set<string>();
-            list.forEach((w: any) => pSet.add(w.term));
-            setPrioritySet(pSet);
-          }
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
+      const list = globalPriorityWords || [];
+      setAllPriorityWords(list);
+      setPriorityTopics(globalPriorityTopics || []);
+      if (selectedFilterTopic === "all") {
+        setWords(list);
+      } else {
+        setWords(list.filter((w) => (w.topicTitle || "Khác") === selectedFilterTopic));
+      }
+      setLoading(false);
+      // Đồng bộ trong nền
+      refreshPriority();
     } else {
-      const fetchList = api.get("/api/vocab/lists");
-      const fetchPriority = api.get("/api/vocab/priority/list").catch(() => ({ data: { success: false, words: [] } }));
-
-      Promise.all([fetchList, fetchPriority])
-        .then(([listRes, pRes]) => {
+      setLoading(true);
+      api
+        .get("/api/vocab/lists")
+        .then((listRes) => {
           if (listRes.data.success) {
             const list = listRes.data.data.find((l: any) => l._id === topicId);
             if (list && list.words) setWords(list.words);
-          }
-          if (pRes.data && pRes.data.success && pRes.data.words) {
-            const pSet = new Set<string>();
-            pRes.data.words.forEach((w: any) => pSet.add(w.term));
-            setPrioritySet(pSet);
           }
           setLoading(false);
         })
@@ -89,59 +87,26 @@ export default function CardViewer() {
     }
   }, [topicId, isPriorityMode]);
 
+  // Tự động đồng bộ từ vựng khi danh sách ưu tiên toàn cục thay đổi mà KHÔNG cần reload trang
+  useEffect(() => {
+    if (isPriorityMode) {
+      setAllPriorityWords(globalPriorityWords);
+      setPriorityTopics(globalPriorityTopics);
+      if (selectedFilterTopic === "all") {
+        setWords(globalPriorityWords);
+      } else {
+        setWords(
+          globalPriorityWords.filter(
+            (w) => (w.topicTitle || "Khác") === selectedFilterTopic
+          )
+        );
+      }
+    }
+  }, [isPriorityMode, globalPriorityWords, globalPriorityTopics, selectedFilterTopic]);
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 2500);
-  };
-
-  const togglePriority = async (wordObj: any) => {
-    const term = wordObj.word || wordObj.term;
-    if (!term) return;
-
-    const wasPriority = prioritySet.has(term);
-    const willBePriority = !wasPriority;
-
-    // ⚡ Optimistic UI update tức thì (0ms lag, cực kỳ mượt mà)
-    setPrioritySet((prev) => {
-      const next = new Set(prev);
-      if (willBePriority) {
-        next.add(term);
-        showToast(`⭐ Đã thêm "${term}" vào Ưu Tiên Ôn Tập`);
-      } else {
-        next.delete(term);
-        showToast(`Đã bỏ ưu tiên cho "${term}"`);
-      }
-      return next;
-    });
-
-    try {
-      const res = await api.post("/api/vocab/priority/toggle", {
-        term: term,
-        reading: wordObj.reading || wordObj.pinyin,
-        topicTitle: isPriorityMode ? (wordObj.topicTitle || undefined) : (title && title !== "Ưu Tiên Ôn Tập" ? String(title) : undefined),
-        topicId: isPriorityMode ? (wordObj.topicId || undefined) : (topicId ? String(topicId) : undefined),
-      });
-
-      if (res.data && res.data.success) {
-        if (res.data.isPriority !== willBePriority) {
-          setPrioritySet((prev) => {
-            const next = new Set(prev);
-            if (res.data.isPriority) next.add(term);
-            else next.delete(term);
-            return next;
-          });
-        }
-      }
-    } catch (e) {
-      // Revert if error
-      setPrioritySet((prev) => {
-        const next = new Set(prev);
-        if (wasPriority) next.add(term);
-        else next.delete(term);
-        return next;
-      });
-      showToast(`⚠️ Không thể cập nhật trạng thái cho "${term}"`);
-    }
   };
 
   const handleFilterTopic = (t: string) => {
@@ -489,36 +454,31 @@ export default function CardViewer() {
                         </View>
                       </View>
 
-                      {/* ⭐ NÚT ĐÁNH DẤU ƯU TIÊN */}
-                      <Pressable
-                        style={[
-                          styles.priorityStarBtn,
-                          {
-                            backgroundColor: prioritySet.has(parsed.word)
-                              ? (isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7")
-                              : (isDark ? "#1E293B" : "#F1F5F9"),
-                            borderColor: prioritySet.has(parsed.word) ? "#F59E0B" : colors.border,
-                          },
-                        ]}
-                        onPress={(e) => {
-                          e.stopPropagation?.();
-                          togglePriority(parsed);
+                      {/* ⭐ NÚT ĐÁNH DẤU ƯU TIÊN DẠNG BUTTON SANG TRỌNG */}
+                      <PriorityButton
+                        word={parsed.word}
+                        reading={parsed.reading || parsed.pinyin}
+                        pinyin={parsed.pinyin}
+                        meaning={parsed.meaning}
+                        topicTitle={
+                          isPriorityMode
+                            ? ((words[index] as any)?.topicTitle || (parsed as any).topicTitle || undefined)
+                            : (title && title !== "Ưu Tiên Ôn Tập" ? String(title) : undefined)
+                        }
+                        topicId={
+                          isPriorityMode
+                            ? ((words[index] as any)?.topicId || (parsed as any).topicId || undefined)
+                            : (topicId ? String(topicId) : undefined)
+                        }
+                        variant="button"
+                        onToggle={(active) => {
+                          showToast(
+                            active
+                              ? `⭐ Đã thêm "${parsed.word}" vào Ưu Tiên Ôn Tập`
+                              : `Đã bỏ ưu tiên cho "${parsed.word}"`
+                          );
                         }}
-                      >
-                        <Ionicons
-                          name={prioritySet.has(parsed.word) ? "star" : "star-outline"}
-                          size={15}
-                          color={prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted}
-                        />
-                        <Text
-                          style={[
-                            styles.priorityStarBtnText,
-                            { color: prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted },
-                          ]}
-                        >
-                          {prioritySet.has(parsed.word) ? "Ưu tiên" : "Lưu ưu tiên"}
-                        </Text>
-                      </Pressable>
+                      />
                     </View>
 
                   <ScrollView
@@ -598,36 +558,31 @@ export default function CardViewer() {
                       Ý NGHĨA TIẾNG VIỆT
                     </Text>
 
-                    {/* ⭐ NÚT ĐÁNH DẤU ƯU TIÊN */}
-                    <Pressable
-                      style={[
-                        styles.priorityStarBtn,
-                        {
-                          backgroundColor: prioritySet.has(parsed.word)
-                            ? (isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7")
-                            : (isDark ? "#1E293B" : "#F1F5F9"),
-                          borderColor: prioritySet.has(parsed.word) ? "#F59E0B" : colors.border,
-                        },
-                      ]}
-                      onPress={(e) => {
-                        e.stopPropagation?.();
-                        togglePriority(parsed);
+                    {/* ⭐ NÚT ĐÁNH DẤU ƯU TIÊN DẠNG BUTTON SANG TRỌNG */}
+                    <PriorityButton
+                      word={parsed.word}
+                      reading={parsed.reading || parsed.pinyin}
+                      pinyin={parsed.pinyin}
+                      meaning={parsed.meaning}
+                      topicTitle={
+                        isPriorityMode
+                          ? ((words[index] as any)?.topicTitle || (parsed as any).topicTitle || undefined)
+                          : (title && title !== "Ưu Tiên Ôn Tập" ? String(title) : undefined)
+                      }
+                      topicId={
+                        isPriorityMode
+                          ? ((words[index] as any)?.topicId || (parsed as any).topicId || undefined)
+                          : (topicId ? String(topicId) : undefined)
+                      }
+                      variant="button"
+                      onToggle={(active) => {
+                        showToast(
+                          active
+                            ? `⭐ Đã thêm "${parsed.word}" vào Ưu Tiên Ôn Tập`
+                            : `Đã bỏ ưu tiên cho "${parsed.word}"`
+                        );
                       }}
-                    >
-                      <Ionicons
-                        name={prioritySet.has(parsed.word) ? "star" : "star-outline"}
-                        size={15}
-                        color={prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted}
-                      />
-                      <Text
-                        style={[
-                          styles.priorityStarBtnText,
-                          { color: prioritySet.has(parsed.word) ? "#F59E0B" : colors.textMuted },
-                        ]}
-                      >
-                        {prioritySet.has(parsed.word) ? "Ưu tiên" : "Lưu ưu tiên"}
-                      </Text>
-                    </Pressable>
+                    />
                   </View>
 
                   <ScrollView
@@ -816,30 +771,31 @@ export default function CardViewer() {
                       #{idx + 1}
                     </Text>
                     <View style={styles.vocabItemActionGroup}>
-                      {/* ⭐ Nút Lưu Ưu Tiên (Cảm giác bấm nhanh, mượt mà) */}
-                      <Pressable
-                        onPress={() => togglePriority(wordParsed)}
-                        style={({ pressed }) => [
-                          styles.vocabItemActionBtn,
-                          {
-                            backgroundColor: prioritySet.has(wordParsed.word)
-                              ? (isDark ? "rgba(245, 158, 11, 0.22)" : "#FEF3C7")
-                              : (isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.04)"),
-                            borderColor: prioritySet.has(wordParsed.word)
-                              ? "#F59E0B"
-                              : (isDark ? "#334155" : "#E2E8F0"),
-                            borderWidth: 1,
-                            transform: [{ scale: pressed ? 0.88 : 1 }],
-                          },
-                        ]}
-                        hitSlop={6}
-                      >
-                        <Ionicons
-                          name={prioritySet.has(wordParsed.word) ? "star" : "star-outline"}
-                          size={17}
-                          color={prioritySet.has(wordParsed.word) ? "#F59E0B" : colors.textMuted}
-                        />
-                      </Pressable>
+                      {/* ⭐ Nút Lưu Ưu Tiên dạng button viên thuốc sang trọng, bấm tức thì 0ms */}
+                      <PriorityButton
+                        word={wordParsed.word}
+                        reading={wordParsed.reading || wordParsed.pinyin}
+                        pinyin={wordParsed.pinyin}
+                        meaning={wordParsed.meaning}
+                        topicTitle={
+                          isPriorityMode
+                            ? ((w as any).topicTitle || (wordParsed as any).topicTitle || undefined)
+                            : (title && title !== "Ưu Tiên Ôn Tập" ? String(title) : undefined)
+                        }
+                        topicId={
+                          isPriorityMode
+                            ? ((w as any).topicId || (wordParsed as any).topicId || undefined)
+                            : (topicId ? String(topicId) : undefined)
+                        }
+                        variant="pill"
+                        onToggle={(active) => {
+                          showToast(
+                            active
+                              ? `⭐ Đã thêm "${wordParsed.word}" vào Ưu Tiên Ôn Tập`
+                              : `Đã bỏ ưu tiên cho "${wordParsed.word}"`
+                          );
+                        }}
+                      />
 
                       {/* Nút Loa Phát Âm */}
                       <Pressable

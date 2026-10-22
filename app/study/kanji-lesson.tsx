@@ -23,6 +23,8 @@ import Toast from "../../components/ui/Toast";
 import Header from "../../components/ui/Header";
 import { useTheme } from "@/src/context/ThemeContext";
 import { usePinyin } from "@/src/context/PinyinContext";
+import { usePriority } from "@/src/context/PriorityContext";
+import { PriorityButton } from "@/src/components/PriorityButton";
 import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 
 const { width } = Dimensions.get("window");
@@ -94,7 +96,7 @@ export default function KanjiLessonScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [animationKey, setAnimationKey] = useState(0);
-  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
+  const { prioritySet } = usePriority();
 
   // MODAL EDIT
   const [editModal, setEditModal] = useState(false);
@@ -116,60 +118,6 @@ export default function KanjiLessonScreen() {
       Animated.timing(slideAnim, { toValue: -100, duration: 400, useNativeDriver: Platform.OS !== "web" })
         .start(() => setToast(null));
     }, 3500);
-  };
-
-  // Tải danh sách từ ưu tiên từ server
-  useEffect(() => {
-    api.get("/api/vocab/priority/list")
-      .then((res) => {
-        if (res.data?.success && Array.isArray(res.data.words)) {
-          setPrioritySet(new Set(res.data.words.map((w: any) => w.term)));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleTogglePriority = async (kanji: KanjiItem) => {
-    if (!kanji || !kanji.character) return;
-    const char = kanji.character;
-    const wasPriority = prioritySet.has(char);
-    const willBePriority = !wasPriority;
-
-    // Cập nhật UI ngay lập tức
-    setPrioritySet((prev) => {
-      const next = new Set(prev);
-      if (willBePriority) next.add(char);
-      else next.delete(char);
-      return next;
-    });
-
-    try {
-      const lessonTitle = kanji.lessonGroup || displayTitle;
-      const res = await api.post("/api/vocab/priority/toggle", {
-        term: char,
-        reading: kanji.pinyin || kanji.vietnamese_reading,
-        meaning: kanji.meaning,
-        topicTitle: lessonTitle && lessonTitle !== "Chưa phân loại" ? lessonTitle : undefined,
-      });
-
-      if (res.data && res.data.success) {
-        const resolvedTopic = res.data.topicTitle || lessonTitle;
-        if (res.data.isPriority) {
-          triggerToast("success", `⭐ Đã thêm "${char}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
-        } else {
-          triggerToast("success", `Đã gỡ ưu tiên cho "${char}"`);
-        }
-      }
-    } catch {
-      // Hoàn tác nếu lỗi
-      setPrioritySet((prev) => {
-        const next = new Set(prev);
-        if (wasPriority) next.add(char);
-        else next.delete(char);
-        return next;
-      });
-      triggerToast("error", `Không thể cập nhật trạng thái cho "${char}"`);
-    }
   };
 
   const fetchKanji = useCallback(async () => {
@@ -434,13 +382,22 @@ export default function KanjiLessonScreen() {
                 <View style={[styles.levelBadge, { backgroundColor: isDark ? lc.bgDark : lc.bg }]}>
                   <Text style={[styles.levelBadgeText, { color: isDark ? lc.textDark : lc.text }]}>Cấp độ: {currentKanji.level}</Text>
                 </View>
-                <TouchableOpacity onPress={() => handleTogglePriority(currentKanji)} activeOpacity={0.7}>
-                  <MaterialIcons
-                    name={prioritySet.has(currentKanji.character) ? "star" : "star-border"}
-                    size={26}
-                    color={prioritySet.has(currentKanji.character) ? "#F59E0B" : colors.textMuted}
-                  />
-                </TouchableOpacity>
+                <PriorityButton
+                  word={currentKanji.character}
+                  reading={currentKanji.pinyin || currentKanji.vietnamese_reading}
+                  pinyin={currentKanji.pinyin}
+                  meaning={currentKanji.meaning}
+                  topicTitle={currentKanji.lessonGroup || displayTitle}
+                  variant="pill"
+                  onToggle={(active) => {
+                    triggerToast(
+                      "success",
+                      active
+                        ? `⭐ Đã thêm "${currentKanji.character}" vào Ưu Tiên Ôn Tập`
+                        : `Đã gỡ ưu tiên cho "${currentKanji.character}"`
+                    );
+                  }}
+                />
               </View>
 
               <ScrollView style={styles.backScrollView} showsVerticalScrollIndicator={false}>

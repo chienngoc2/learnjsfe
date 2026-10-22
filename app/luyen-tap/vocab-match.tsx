@@ -19,6 +19,7 @@ import * as Speech from "expo-speech";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
 import { usePinyin } from "@/src/context/PinyinContext";
+import { usePriority } from "@/src/context/PriorityContext";
 import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
 import { useCultivationStore } from "../../store/useCultivationStore";
 import { parseWord } from "../../src/utils/wordParser";
@@ -63,6 +64,7 @@ export default function VocabMatchScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { hidePinyin } = usePinyin();
+  const { addPriority } = usePriority();
   const params = useLocalSearchParams<{ topicId?: string; listId?: string }>();
 
   // Cultivation store rewards
@@ -430,8 +432,8 @@ export default function VocabMatchScreen() {
       ];
     });
 
-    // 🚀 LƯU VÀO MỤC TỪ VỰNG ƯU TIÊN THEO BÀI ĐÓ (Server tự động dò bài nếu thiếu)
-    api.post("/api/vocab/priority/add", {
+    // 🚀 LƯU VÀO MỤC TỪ VỰNG ƯU TIÊN THEO BÀI ĐÓ (Tự động cập nhật 0ms & server sync)
+    addPriority({
       term: wordObj.word,
       word: wordObj.word,
       reading: wordObj.pinyin,
@@ -439,8 +441,8 @@ export default function VocabMatchScreen() {
       topicTitle: wordObj.deckTitle && wordObj.deckTitle !== "Khác" ? wordObj.deckTitle : undefined,
       topicId: wordObj.deckId,
     })
-      .then((res) => {
-        const lesson = res.data?.topicTitle || wordObj.deckTitle || "Bài học";
+      .then(() => {
+        const lesson = wordObj.deckTitle || "Bài học";
         triggerFloatingToast(`⭐ Đã lưu "${wordObj.word}" vào Ưu Tiên Ôn Tập (${lesson})`);
       })
       .catch((err) => console.log("Lỗi auto add priority:", err));

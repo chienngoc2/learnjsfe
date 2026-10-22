@@ -9,6 +9,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePriority } from "@/src/context/PriorityContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const PAGE_SIZE = 10;
@@ -28,8 +29,8 @@ function SkeletonCard({ colors }: { colors: any }) {
 
 export default function TopicListScreen() {
   const { colors, isDark } = useTheme();
+  const { priorityCount, priorityTopics, refreshPriority } = usePriority();
   const [topics, setTopics] = useState<any[]>([]);
-  const [priorityInfo, setPriorityInfo] = useState<{ count: number; words: any[]; topics: string[]; listId?: string }>({ count: 0, words: [], topics: [] });
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const router = useRouter();
@@ -38,14 +39,16 @@ export default function TopicListScreen() {
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
-      setLoading(true);
-      setVisibleCount(PAGE_SIZE); // Reset pagination on focus
+      if (topics.length === 0) {
+        setLoading(true);
+      }
+      setVisibleCount(PAGE_SIZE);
 
       const fetchLists = api.get("/api/vocab/lists");
-      const fetchPriority = api.get("/api/vocab/priority/list").catch(() => ({ data: { success: false, count: 0, words: [], topics: [] } }));
+      refreshPriority();
 
-      Promise.all([fetchLists, fetchPriority])
-        .then(([resLists, resP]) => {
+      fetchLists
+        .then((resLists) => {
           if (resLists.data.success && isActive) {
             const sorted = [...resLists.data.data].sort((a, b) => {
               if (a.title === "Cần ôn tập") return -1;
@@ -54,14 +57,15 @@ export default function TopicListScreen() {
             });
             setTopics(sorted);
           }
-          if (resP.data && resP.data.success && isActive) {
-            setPriorityInfo(resP.data);
-          }
           if (isActive) setLoading(false);
         })
-        .catch(() => { if (isActive) setLoading(false); });
-      return () => { isActive = false; };
-    }, []),
+        .catch(() => {
+          if (isActive) setLoading(false);
+        });
+      return () => {
+        isActive = false;
+      };
+    }, [topics.length, refreshPriority])
   );
 
   const executeDelete = async (topicId: string) => {
@@ -174,12 +178,12 @@ export default function TopicListScreen() {
                         Ưu Tiên Ôn Tập
                       </Text>
                       <View style={[styles.priorityCountBadge, { backgroundColor: "#F59E0B" }]}>
-                        <Text style={styles.priorityCountText}>{priorityInfo.count} từ</Text>
+                        <Text style={styles.priorityCountText}>{priorityCount} từ</Text>
                       </View>
                     </View>
                     <Text style={[styles.priorityCardSub, { color: isDark ? "#D6D3D1" : "#78350F" }]}>
-                      {priorityInfo.topics.length > 0
-                        ? `Trích từ ${priorityInfo.topics.length} bài học · Tự động ghi nhận khi làm sai`
+                      {priorityTopics.length > 0
+                        ? `Trích từ ${priorityTopics.length} bài học · Tự động ghi nhận khi làm sai`
                         : "Tự động ghi nhận khi làm sai hoặc tích dấu ⭐"}
                     </Text>
                   </View>
@@ -192,11 +196,11 @@ export default function TopicListScreen() {
                       styles.btnPriorityAction,
                       {
                         backgroundColor: "#F59E0B",
-                        opacity: priorityInfo.count === 0 ? 0.6 : 1,
+                        opacity: priorityCount === 0 ? 0.6 : 1,
                       },
                     ]}
                     onPress={() => {
-                      if (priorityInfo.count === 0) {
+                      if (priorityCount === 0) {
                         alert("Chưa có từ nào trong mục ưu tiên ôn tập. Sếp hãy chơi trắc nghiệm hoặc đánh dấu ⭐ trong flashcard nhé!");
                         return;
                       }
@@ -218,11 +222,11 @@ export default function TopicListScreen() {
                         backgroundColor: isDark ? "#292524" : "#FEF3C7",
                         borderColor: isDark ? "#78350F" : "#F59E0B",
                         borderWidth: 1,
-                        opacity: priorityInfo.count === 0 ? 0.6 : 1,
+                        opacity: priorityCount === 0 ? 0.6 : 1,
                       },
                     ]}
                     onPress={() => {
-                      if (priorityInfo.count === 0) {
+                      if (priorityCount === 0) {
                         alert("Chưa có từ nào trong mục ưu tiên ôn tập. Sếp hãy chơi trắc nghiệm hoặc đánh dấu ⭐ trong flashcard nhé!");
                         return;
                       }

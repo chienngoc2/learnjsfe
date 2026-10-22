@@ -14,6 +14,8 @@ import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams } from "expo-router";
 import * as Speech from "expo-speech";
 import { useTheme } from "@/src/context/ThemeContext";
+import { usePriority } from "@/src/context/PriorityContext";
+import { PriorityButton } from "@/src/components/PriorityButton";
 import Header from "../../components/ui/Header";
 import api from "@/services/api";
 import HandwritingCanvas from "../../components/HandwritingCanvas";
@@ -53,6 +55,7 @@ interface KanjiData {
   examples?: ExampleSentence[];
   story?: string;
   components?: string[];
+  lessonGroup?: string;
   pinyin_matches?: Array<{ word: string; pinyin?: string; meaning: string; level?: string }>;
 }
 
@@ -250,58 +253,7 @@ export default function KanjiSearchScreen() {
     Array<{ word: string; pinyin?: string; meaning: string }>
   >([]);
   const [currentLessonIdx, setCurrentLessonIdx] = useState(0);
-  const [prioritySet, setPrioritySet] = useState<Set<string>>(new Set());
-
-  // Tải danh sách từ ưu tiên
-  useEffect(() => {
-    api.get("/api/vocab/priority/list")
-      .then((res) => {
-        if (res.data?.success && Array.isArray(res.data.words)) {
-          setPrioritySet(new Set(res.data.words.map((w: any) => w.term)));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const togglePriorityForKanji = async (kanji: KanjiData) => {
-    if (!kanji || !kanji.character) return;
-    const char = kanji.character;
-    const wasPriority = prioritySet.has(char);
-    const willBePriority = !wasPriority;
-
-    setPrioritySet((prev) => {
-      const next = new Set(prev);
-      if (willBePriority) next.add(char);
-      else next.delete(char);
-      return next;
-    });
-
-    try {
-      const res = await api.post("/api/vocab/priority/toggle", {
-        term: char,
-        reading: kanji.pinyin || kanji.vietnamese_reading,
-        meaning: kanji.meaning,
-        topicTitle: lessonTitle && lessonTitle !== "Tra cứu" ? lessonTitle : undefined,
-      });
-
-      if (res.data?.success) {
-        const resolvedTopic = res.data.topicTitle || "Bài học";
-        if (res.data.isPriority) {
-          alert(`⭐ Đã thêm "${char}" vào mục Ưu Tiên Ôn Tập (${resolvedTopic})!`);
-        } else {
-          alert(`Đã gỡ ưu tiên cho "${char}"`);
-        }
-      }
-    } catch {
-      setPrioritySet((prev) => {
-        const next = new Set(prev);
-        if (wasPriority) next.add(char);
-        else next.delete(char);
-        return next;
-      });
-      alert(`Không thể cập nhật trạng thái ưu tiên cho "${char}"`);
-    }
-  };
+  const { prioritySet } = usePriority();
 
   // 🌟 Tổng kho từ vựng hợp nhất (Gồm 533 từ Master + TẤT CẢ từ trong các bảng bài học & Kanji)
   const [allWords, setAllWords] = useState<
@@ -1349,28 +1301,14 @@ export default function KanjiSearchScreen() {
                               <MaterialIcons name="volume-up" size={18} color={colors.indigo} />
                             </TouchableOpacity>
 
-                            <TouchableOpacity
-                              style={[
-                                styles.pinyinActionBtn,
-                                { backgroundColor: isDark ? "#334155" : "#F1F5F9" },
-                              ]}
-                              onPress={() => {
-                                togglePriorityForKanji({
-                                  character: item.word,
-                                  pinyin: item.pinyin,
-                                  meaning: item.meaning,
-                                  vietnamese_reading: item.pinyin || "",
-                                  level: item.level || "TOCFL A1",
-                                });
-                              }}
-                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                            >
-                              <Ionicons
-                                name={isItemPriority ? "star" : "star-outline"}
-                                size={18}
-                                color={isItemPriority ? "#F59E0B" : colors.textMuted}
-                              />
-                            </TouchableOpacity>
+                            <PriorityButton
+                              word={item.word}
+                              reading={item.pinyin}
+                              pinyin={item.pinyin}
+                              meaning={item.meaning}
+                              topicTitle="Tra cứu Pinyin"
+                              variant="pill"
+                            />
 
                             <TouchableOpacity
                               style={[styles.pinyinBtnPractice, { backgroundColor: colors.indigo }]}
@@ -1453,23 +1391,18 @@ export default function KanjiSearchScreen() {
               </View>
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <TouchableOpacity
-                  style={[
-                    styles.audioBtn,
-                    {
-                      backgroundColor: prioritySet.has(selectedKanji.character)
-                        ? (isDark ? "#78350F" : "#FEF3C7")
-                        : (isDark ? "#1E293B" : "#F8FAFC"),
-                    },
-                  ]}
-                  onPress={() => togglePriorityForKanji(selectedKanji)}
-                >
-                  <MaterialIcons
-                    name={prioritySet.has(selectedKanji.character) ? "star" : "star-border"}
-                    size={24}
-                    color={prioritySet.has(selectedKanji.character) ? "#F59E0B" : colors.textMuted}
-                  />
-                </TouchableOpacity>
+                <PriorityButton
+                  word={selectedKanji.character}
+                  reading={selectedKanji.pinyin || selectedKanji.vietnamese_reading}
+                  pinyin={selectedKanji.pinyin}
+                  meaning={selectedKanji.meaning}
+                  topicTitle={
+                    lessonTitle && lessonTitle !== "Tra cứu"
+                      ? lessonTitle
+                      : selectedKanji.lessonGroup || "Tra cứu Kanji"
+                  }
+                  variant="button"
+                />
 
                 <TouchableOpacity
                   style={[styles.audioBtn, { backgroundColor: isDark ? "#1E293B" : "#EFF6FF" }]}
