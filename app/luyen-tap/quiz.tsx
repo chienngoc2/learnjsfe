@@ -70,17 +70,41 @@ export default function PracticeQuizScreen() {
   const PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // ⭐ Priority review state
-  const [priorityInfo, setPriorityInfo] = useState<{
-    count: number;
-    words: any[];
-    topics: string[];
-    listId?: string;
-  }>({ count: 0, words: [], topics: [] });
+  // ⭐ Priority review state from PriorityContext
+  const {
+    prioritySet,
+    priorityWords,
+    priorityTopics,
+    addPriority,
+    togglePriority,
+    refreshPriority,
+  } = usePriority();
+
+  // Active priority words currently flagged in PriorityContext
+  const activePriorityWords = React.useMemo(() => {
+    return (priorityWords || []).filter((w) =>
+      prioritySet.has((w.term || w.word || "").trim())
+    );
+  }, [priorityWords, prioritySet]);
+
+  const activePriorityTopics = React.useMemo(() => {
+    return Array.from(
+      new Set(
+        activePriorityWords
+          .map((w) => (w.topicTitle || "Khác").trim())
+          .filter(Boolean)
+      )
+    );
+  }, [activePriorityWords]);
+
   const [isPriorityModeSelected, setIsPriorityModeSelected] = useState<boolean>(params.mode === "priority");
   const [selectedPriorityTopic, setSelectedPriorityTopic] = useState<string>("all");
-  const { prioritySet, addPriority, togglePriority } = usePriority();
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Non-repeating deck cycle state
+  const seenTermsRef = useRef<Set<string>>(new Set());
+  const lastConfigKeyRef = useRef<string>("");
+  const hasAutoStartedRef = useRef<boolean>(false);
 
   // Active quiz phase state
   const [quizWords, setQuizWords] = useState<WordDetail[]>([]);
@@ -88,6 +112,7 @@ export default function PracticeQuizScreen() {
   const questionsRef = useRef<Question[]>([]);
   const initialTotalRef = useRef<number>(0);
   const [masteredRetryCount, setMasteredRetryCount] = useState<number>(0);
+  const currentIdxRef = useRef<number>(0);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
@@ -102,6 +127,7 @@ export default function PracticeQuizScreen() {
     initialTotalRef.current = quizQuestions.length;
     setMasteredRetryCount(0);
     setCurrentIdx(0);
+    currentIdxRef.current = 0;
     setScore(0);
     setIsAnswered(false);
     setSelectedAnswer(null);
@@ -117,15 +143,22 @@ export default function PracticeQuizScreen() {
     }
   }, [params.mode]);
 
+  // Fallback to "all" if selected priority topic is no longer present
+  useEffect(() => {
+    if (selectedPriorityTopic !== "all" && !activePriorityTopics.includes(selectedPriorityTopic)) {
+      setSelectedPriorityTopic("all");
+    }
+  }, [activePriorityTopics, selectedPriorityTopic]);
+
   useEffect(() => {
     setLoadingLists(true);
     
     const fetchLists = api.get("/api/vocab/lists");
     const fetchGrammars = api.get("/api/vocab/all-grammar-points").catch(() => ({ data: { success: false, data: [] } }));
-    const fetchPriority = api.get("/api/vocab/priority/list").catch(() => ({ data: { success: false, count: 0, words: [], topics: [] } }));
+    refreshPriority().catch(() => {});
 
-    Promise.all([fetchLists, fetchGrammars, fetchPriority])
-      .then(([listsRes, grammarsRes, priorityRes]) => {
+    Promise.all([fetchLists, fetchGrammars])
+      .then(([listsRes, grammarsRes]) => {
         if (listsRes.data.success && listsRes.data.data) {
           const data = listsRes.data.data;
           setVocabLists(data);
@@ -145,9 +178,6 @@ export default function PracticeQuizScreen() {
         if (grammarsRes.data.success && grammarsRes.data.data) {
           setAllGrammarPoints(grammarsRes.data.data);
         }
-        if (priorityRes.data && priorityRes.data.success) {
-          setPriorityInfo(priorityRes.data);
-        }
         setLoadingLists(false);
         setVisibleCount(PAGE_SIZE);
       })
@@ -155,7 +185,7 @@ export default function PracticeQuizScreen() {
         console.error("Lỗi lấy danh sách:", err);
         setLoadingLists(false);
       });
-  }, [params.topicId, params.listId, params.mode]);
+  }, [params.topicId, params.listId, params.mode, refreshPriority]);
 
   const generateGrammarQuestions = (selectedDecks: any[]) => {
     const deckIds = selectedDecks.map((d) => d._id.toString());
@@ -168,12 +198,52 @@ export default function PracticeQuizScreen() {
       return null;
     }
 
+    // Deduplicate grammar points by id or title
+    const uniqueGrammarMap = new Map<string, any>();
+    filteredGrammar.forEach((g) => {
+      const key = (g._id || g.title || "").toString().trim();
+      if (key && !uniqueGrammarMap.has(key)) {
+        uniqueGrammarMap.set(key, g);
+      }
+    });
+    const validGrammar = Array.from(uniqueGrammarMap.values());
+
+    const currentConfigKey = `grammar_${selectedListIds.slice().sort().join(",")}_${questionCount}`;
+    if (lastConfigKeyRef.current !== currentConfigKey) {
+      seenTermsRef.current.clear();
+      lastConfigKeyRef.current = currentConfigKey;
+    }
+
+    const limit = questionCount === "all" ? validGrammar.length : (typeof questionCount === "number" ? questionCount : 10);
+    let finalGrammar: any[] = [];
+
+    if (questionCount === "all" || validGrammar.length <= limit) {
+      finalGrammar = [...validGrammar].sort(() => Math.random() - 0.5).slice(0, limit);
+      seenTermsRef.current.clear();
+    } else {
+      const unplayed = validGrammar.filter((g) => !seenTermsRef.current.has(g.title));
+      if (unplayed.length >= limit) {
+        finalGrammar = [...unplayed].sort(() => Math.random() - 0.5).slice(0, limit);
+        finalGrammar.forEach((g) => seenTermsRef.current.add(g.title));
+      } else if (unplayed.length > 0) {
+        finalGrammar = [...unplayed].sort(() => Math.random() - 0.5);
+        seenTermsRef.current.clear();
+        finalGrammar.forEach((g) => seenTermsRef.current.add(g.title));
+
+        const need = limit - finalGrammar.length;
+        const fillCandidates = validGrammar.filter((g) => !seenTermsRef.current.has(g.title));
+        const fill = [...fillCandidates].sort(() => Math.random() - 0.5).slice(0, need);
+        fill.forEach((g) => seenTermsRef.current.add(g.title));
+        finalGrammar = [...finalGrammar, ...fill];
+      } else {
+        seenTermsRef.current.clear();
+        finalGrammar = [...validGrammar].sort(() => Math.random() - 0.5).slice(0, limit);
+        finalGrammar.forEach((g) => seenTermsRef.current.add(g.title));
+      }
+    }
+
     const allMeanings = allGrammarPoints.map((g) => g.meaning).filter(Boolean);
     const allFormulas = allGrammarPoints.map((g) => g.formula).filter(Boolean);
-
-    const shuffledGrammar = [...filteredGrammar].sort(() => Math.random() - 0.5);
-    const limit = questionCount === "all" ? shuffledGrammar.length : (typeof questionCount === "number" ? questionCount : 10);
-    const finalGrammar = shuffledGrammar.slice(0, limit);
 
     const generatedQuestions: Question[] = [];
 
@@ -269,9 +339,10 @@ export default function PracticeQuizScreen() {
   // Auto start quiz if listId or topicId param exists
   useEffect(() => {
     const targetId = params.topicId || params.listId;
-    if (targetId && vocabLists.length > 0 && selectedListIds.length > 0 && !isPlaying) {
+    if (targetId && vocabLists.length > 0 && selectedListIds.length > 0 && !isPlaying && !hasAutoStartedRef.current) {
       const matched = vocabLists.find((l: any) => l._id.toString() === targetId.toString());
       if (matched && selectedListIds.includes(matched._id)) {
+        hasAutoStartedRef.current = true;
         if (params.mode === "grammar") {
           if (allGrammarPoints.length > 0) {
             const quizQuestions = generateGrammarQuestions([matched]);
@@ -296,30 +367,12 @@ export default function PracticeQuizScreen() {
           }
           
           if (allWords.length > 0) {
-            const shuffledWords = [...allWords].sort(() => Math.random() - 0.5);
-            const limit = questionCount === "all" ? shuffledWords.length : (typeof questionCount === "number" ? questionCount : 10);
-            const finalWords = shuffledWords.slice(0, limit);
-            
-            const quizQuestions: Question[] = finalWords.map((word) => {
-              const correctAns = word.meaning;
-              const otherMeanings = allWords.filter((w) => w.meaning !== correctAns).map((w) => w.meaning);
-              const uniqueWrong = Array.from(new Set(otherMeanings));
-              const shuffledWrong = uniqueWrong.sort(() => Math.random() - 0.5);
-              const fallbackOptions = ["Ăn", "Uống", "Trường học", "Nhà"];
-              const finalWrongOptions = shuffledWrong.length >= 3 
-                ? shuffledWrong.slice(0, 3) 
-                : [...shuffledWrong, ...fallbackOptions].slice(0, 3);
-              const options = [correctAns, ...finalWrongOptions].sort(() => Math.random() - 0.5);
-              return { questionWord: word, options, correctAnswer: correctAns };
-            });
-            
-            setQuizWords(finalWords);
-            initQuizSession(quizQuestions);
+            startQuizWithWords(allWords);
           }
         }
       }
     }
-  }, [vocabLists, selectedListIds, params.topicId, params.listId, params.mode, allGrammarPoints]);
+  }, [vocabLists, selectedListIds, params.topicId, params.listId, params.mode, allGrammarPoints, isPlaying]);
 
   const handleToggleList = (id: string) => {
     setIsPriorityModeSelected(false);
@@ -331,15 +384,74 @@ export default function PracticeQuizScreen() {
   const startQuizWithWords = (allWords: WordDetail[]) => {
     if (allWords.length === 0) return;
 
-    // Shuffle and slice according to count settings
-    const shuffledWords = [...allWords].sort(() => Math.random() - 0.5);
+    // 1. Deduplicate input pool by word string so terms never repeat
+    const uniquePoolMap = new Map<string, WordDetail>();
+    for (const w of allWords) {
+      const key = (w.word || "").trim();
+      if (key && !uniquePoolMap.has(key)) {
+        uniquePoolMap.set(key, w);
+      }
+    }
+    const validPool = Array.from(uniquePoolMap.values());
+    if (validPool.length === 0) return;
+
+    // Check config key: if user changed settings/deck, clear seen words
+    const currentConfigKey = isPriorityModeSelected
+      ? `priority_${selectedPriorityTopic}_${quizMode}_${questionCount}`
+      : `${selectedListIds.slice().sort().join(",")}_${quizMode}_${questionCount}`;
+
+    if (lastConfigKeyRef.current !== currentConfigKey) {
+      seenTermsRef.current.clear();
+      lastConfigKeyRef.current = currentConfigKey;
+    }
+
     const limit = questionCount === "all" 
-      ? shuffledWords.length 
+      ? validPool.length 
       : (typeof questionCount === "number" ? questionCount : 10);
-    const finalWords = shuffledWords.slice(0, limit);
+
+    let finalWords: WordDetail[] = [];
+
+    // Case 1: Limit is "all" or validPool is smaller/equal to question count
+    if (questionCount === "all" || validPool.length <= limit) {
+      finalWords = [...validPool].sort(() => Math.random() - 0.5).slice(0, limit);
+      seenTermsRef.current.clear();
+    } else {
+      // Case 2: Pool is larger than limit -> Non-repeating word cycle across consecutive rounds
+      const unplayedWords = validPool.filter((w) => !seenTermsRef.current.has(w.word));
+
+      if (unplayedWords.length >= limit) {
+        // Sufficient unplayed words left in the current cycle
+        const shuffled = [...unplayedWords].sort(() => Math.random() - 0.5);
+        finalWords = shuffled.slice(0, limit);
+        finalWords.forEach((w) => seenTermsRef.current.add(w.word));
+      } else if (unplayedWords.length > 0) {
+        // Unplayed words exist but fewer than limit -> take all remaining, then start new cycle
+        const shuffledRemaining = [...unplayedWords].sort(() => Math.random() - 0.5);
+        finalWords = [...shuffledRemaining];
+
+        // Current cycle completed! Reset seen pool for next cycle
+        seenTermsRef.current.clear();
+        // Mark the taken words as seen in the new cycle so they won't repeat immediately in next round
+        finalWords.forEach((w) => seenTermsRef.current.add(w.word));
+
+        // Fill remaining slots from the pool excluding already picked words
+        const needCount = limit - finalWords.length;
+        const fillCandidates = validPool.filter((w) => !seenTermsRef.current.has(w.word));
+        const shuffledFill = [...fillCandidates].sort(() => Math.random() - 0.5);
+        const fillWords = shuffledFill.slice(0, needCount);
+        fillWords.forEach((w) => seenTermsRef.current.add(w.word));
+        finalWords = [...finalWords, ...fillWords];
+      } else {
+        // All words in pool have been seen (unplayedWords.length === 0) -> Start fresh cycle
+        seenTermsRef.current.clear();
+        const shuffled = [...validPool].sort(() => Math.random() - 0.5);
+        finalWords = shuffled.slice(0, limit);
+        finalWords.forEach((w) => seenTermsRef.current.add(w.word));
+      }
+    }
 
     // Get meaning pool for plausible distractors
-    const poolMeanings = vocabLists.flatMap(l => (l.words || []).map((w: any) => {
+    const poolMeanings = vocabLists.flatMap((l) => (l.words || []).map((w: any) => {
       const p = parseWord(w.term, w.def);
       return p.meaning;
     })).filter(Boolean);
@@ -347,7 +459,7 @@ export default function PracticeQuizScreen() {
     // Prepare questions with 4 multiple choice options
     const quizQuestions: Question[] = finalWords.map((word) => {
       const correctAns = word.meaning;
-      const otherMeanings = [...allWords.map(w => w.meaning), ...poolMeanings]
+      const otherMeanings = [...allWords.map((w) => w.meaning), ...poolMeanings]
         .filter((m) => m && m !== correctAns);
         
       const uniqueWrong = Array.from(new Set(otherMeanings));
@@ -375,29 +487,50 @@ export default function PracticeQuizScreen() {
 
   const handleStartQuiz = () => {
     if (isPriorityModeSelected) {
-      if (!priorityInfo.words || priorityInfo.words.length === 0) {
-        alert("Chưa có từ vựng nào trong danh sách ưu tiên ôn tập bạn nhé!");
+      // Live up-to-date priority words from PriorityContext
+      const activeWords = (priorityWords || []).filter((w) =>
+        prioritySet.has((w.term || w.word || "").trim())
+      );
+
+      if (activeWords.length === 0) {
+        alert("Bạn đã hoàn thành hoặc chưa có từ vựng nào trong danh sách ưu tiên ôn tập! 🎉");
+        setIsPlaying(false);
         return;
       }
+
       const filtered = selectedPriorityTopic === "all"
-        ? priorityInfo.words
-        : priorityInfo.words.filter(w => (w.topicTitle || "Khác") === selectedPriorityTopic);
+        ? activeWords
+        : activeWords.filter((w) => (w.topicTitle || "Khác").trim() === selectedPriorityTopic);
 
       if (filtered.length === 0) {
-        alert(`Chưa có từ vựng ưu tiên nào trong bài "${selectedPriorityTopic}"!`);
+        alert(`Bạn đã hoàn thành tất cả từ ưu tiên trong mục "${selectedPriorityTopic}"! 🎉`);
+        setIsPlaying(false);
         return;
       }
 
-      const allWords: WordDetail[] = filtered.map((w: any) => {
-        const parsed = parseWord(w.term, w.def);
-        return {
-          word: parsed.word,
-          reading: parsed.reading || parsed.word,
-          meaning: parsed.meaning,
-          topicTitle: w.topicTitle,
-          topicId: w.topicId,
-        };
+      // Deduplicate by term/word
+      const seenMap = new Map<string, WordDetail>();
+      filtered.forEach((w: any) => {
+        const term = (w.term || w.word || "").trim();
+        const parsed = parseWord(term, w.def || w.meaning);
+        const key = parsed.word.trim();
+        if (key && !seenMap.has(key)) {
+          seenMap.set(key, {
+            word: parsed.word,
+            reading: parsed.reading || parsed.word,
+            meaning: parsed.meaning || w.meaning || "",
+            topicTitle: w.topicTitle || "Ưu tiên",
+            topicId: w.topicId,
+          });
+        }
       });
+
+      const allWords = Array.from(seenMap.values());
+      if (allWords.length === 0) {
+        alert("Không tìm thấy từ vựng hợp lệ để bắt đầu.");
+        setIsPlaying(false);
+        return;
+      }
 
       startQuizWithWords(allWords);
       return;
@@ -418,24 +551,30 @@ export default function PracticeQuizScreen() {
       return;
     }
 
-    const allWords: WordDetail[] = [];
+    // Deduplicate words across multiple selected decks so words never duplicate
+    const seenMap = new Map<string, WordDetail>();
     selectedDecks.forEach((deck) => {
       if (deck.words && deck.words.length > 0) {
         deck.words.forEach((w: any) => {
           const parsed = parseWord(w.term, w.def);
-          allWords.push({
-            word: parsed.word,
-            reading: parsed.reading || parsed.word,
-            meaning: parsed.meaning,
-            topicTitle: deck.title,
-            topicId: deck._id,
-          });
+          const key = parsed.word.trim();
+          if (key && !seenMap.has(key)) {
+            seenMap.set(key, {
+              word: parsed.word,
+              reading: parsed.reading || parsed.word,
+              meaning: parsed.meaning,
+              topicTitle: deck.title,
+              topicId: deck._id,
+            });
+          }
         });
       }
     });
 
+    const allWords = Array.from(seenMap.values());
+
     if (allWords.length === 0) {
-      alert("Bài học được chọn chưa có từ vựng nào bạn nhé!");
+      alert("Các bài học được chọn chưa có từ vựng nào bạn nhé!");
       return;
     }
 
@@ -443,7 +582,7 @@ export default function PracticeQuizScreen() {
   };
 
   const toggleCurrentQuestionPriority = async () => {
-    const currentQuestion = questions[currentIdx];
+    const currentQuestion = questions[currentIdxRef.current || currentIdx];
     if (!currentQuestion) return;
     const word = currentQuestion.questionWord.word;
     const lessonTitle = currentQuestion.questionWord.topicTitle || (isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : undefined) : undefined);
@@ -457,6 +596,11 @@ export default function PracticeQuizScreen() {
       topicTitle: lessonTitle,
       topicId: lessonId,
     });
+
+    if (!isNow) {
+      seenTermsRef.current.delete(word);
+    }
+
     const resolvedTopic = lessonTitle || "Bài học";
     if (isNow) {
       setToastMsg(`⭐ Đã thêm "${word}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
@@ -522,7 +666,11 @@ export default function PracticeQuizScreen() {
     // Wait 1.5 seconds and move to next or finish
     setTimeout(() => {
       if (currentIdx < questionsRef.current.length - 1) {
-        setCurrentIdx((prev) => prev + 1);
+        setCurrentIdx((prev) => {
+          const next = prev + 1;
+          currentIdxRef.current = next;
+          return next;
+        });
         setIsAnswered(false);
         setSelectedAnswer(null);
       } else {
@@ -627,7 +775,7 @@ export default function PracticeQuizScreen() {
                           ⭐ Ưu Tiên Ôn Tập
                         </Text>
                         <View style={[styles.priorityBadgeSmall, { backgroundColor: "#F59E0B" }]}>
-                          <Text style={styles.priorityBadgeText}>{priorityInfo.count} từ</Text>
+                          <Text style={styles.priorityBadgeText}>{activePriorityWords.length} từ</Text>
                         </View>
                       </View>
                       <Text style={[styles.prioritySectionSub, { color: isDark ? "#D6D3D1" : "#78350F" }]}>
@@ -638,7 +786,7 @@ export default function PracticeQuizScreen() {
                 </View>
 
                 {/* Sub-filters by lesson when priority is selected */}
-                {isPriorityModeSelected && priorityInfo.topics.length > 0 && (
+                {isPriorityModeSelected && activePriorityTopics.length > 0 && (
                   <View style={styles.prioritySubFilterWrap}>
                     <Text style={[styles.prioritySubFilterLabel, { color: isDark ? "#FDE68A" : "#92400E" }]}>
                       Phân chia theo bài học gốc:
@@ -659,12 +807,12 @@ export default function PracticeQuizScreen() {
                             { color: selectedPriorityTopic === "all" ? "#FFFFFF" : colors.text },
                           ]}
                         >
-                          Tất cả ({priorityInfo.count})
+                          Tất cả ({activePriorityWords.length})
                         </Text>
                       </Pressable>
 
-                      {priorityInfo.topics.map((t) => {
-                        const count = priorityInfo.words.filter(w => (w.topicTitle || "Khác") === t).length;
+                      {activePriorityTopics.map((t) => {
+                        const count = activePriorityWords.filter(w => (w.topicTitle || "Khác").trim() === t).length;
                         const isSel = selectedPriorityTopic === t;
                         return (
                           <Pressable
@@ -860,8 +1008,23 @@ export default function PracticeQuizScreen() {
                 word={currentQuestion.questionWord.word}
                 reading={currentQuestion.questionWord.reading}
                 meaning={currentQuestion.questionWord.meaning}
-                topicTitle={currentQuestion.questionWord.topicTitle}
+                topicTitle={currentQuestion.questionWord.topicTitle || (isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : undefined) : undefined)}
+                topicId={currentQuestion.questionWord.topicId}
                 variant="pill"
+                activeLabel="Ưu tiên ôn"
+                inactiveLabel="Ưu tiên"
+                onToggle={(isNow) => {
+                  if (!isNow) {
+                    seenTermsRef.current.delete(currentQuestion.questionWord.word);
+                  }
+                  const resolvedTopic = currentQuestion.questionWord.topicTitle || "Bài học";
+                  if (isNow) {
+                    setToastMsg(`⭐ Đã thêm "${currentQuestion.questionWord.word}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
+                  } else {
+                    setToastMsg(`Đã bỏ ưu tiên cho "${currentQuestion.questionWord.word}"`);
+                  }
+                  setTimeout(() => setToastMsg(null), 2500);
+                }}
               />
               <PinyinCheckbox compact />
               <Pressable
@@ -927,33 +1090,28 @@ export default function PracticeQuizScreen() {
                 ) : <View style={{ flex: 1 }} />}
 
                 {/* ⭐ Checkbox ưu tiên học lại */}
-                <Pressable
-                  style={[
-                    styles.quizPriorityBtn,
-                    prioritySet.has(currentQuestion.questionWord.word) && styles.quizPriorityBtnActive,
-                    {
-                      backgroundColor: prioritySet.has(currentQuestion.questionWord.word)
-                        ? (isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7")
-                        : (isDark ? "#1E293B" : "#F1F5F9"),
-                      borderColor: prioritySet.has(currentQuestion.questionWord.word) ? "#F59E0B" : colors.border,
-                    },
-                  ]}
-                  onPress={toggleCurrentQuestionPriority}
-                >
-                  <Ionicons
-                    name={prioritySet.has(currentQuestion.questionWord.word) ? "star" : "star-outline"}
-                    size={15}
-                    color={prioritySet.has(currentQuestion.questionWord.word) ? "#F59E0B" : colors.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.quizPriorityBtnText,
-                      { color: prioritySet.has(currentQuestion.questionWord.word) ? "#F59E0B" : colors.textMuted },
-                    ]}
-                  >
-                    {prioritySet.has(currentQuestion.questionWord.word) ? "Ưu tiên ôn" : "Ưu tiên"}
-                  </Text>
-                </Pressable>
+                <PriorityButton
+                  word={currentQuestion.questionWord.word}
+                  reading={currentQuestion.questionWord.reading}
+                  meaning={currentQuestion.questionWord.meaning}
+                  topicTitle={currentQuestion.questionWord.topicTitle || (isPriorityModeSelected ? (selectedPriorityTopic !== "all" ? selectedPriorityTopic : undefined) : undefined)}
+                  topicId={currentQuestion.questionWord.topicId}
+                  variant="pill"
+                  activeLabel="Ưu tiên ôn"
+                  inactiveLabel="Ưu tiên"
+                  onToggle={(isNow) => {
+                    if (!isNow) {
+                      seenTermsRef.current.delete(currentQuestion.questionWord.word);
+                    }
+                    const resolvedTopic = currentQuestion.questionWord.topicTitle || "Bài học";
+                    if (isNow) {
+                      setToastMsg(`⭐ Đã thêm "${currentQuestion.questionWord.word}" vào Ưu Tiên Ôn Tập (${resolvedTopic})`);
+                    } else {
+                      setToastMsg(`Đã bỏ ưu tiên cho "${currentQuestion.questionWord.word}"`);
+                    }
+                    setTimeout(() => setToastMsg(null), 2500);
+                  }}
+                />
               </View>
 
               <Text style={[styles.questionWordText, { color: colors.indigo, fontSize: getQuestionFontSize(currentQuestion.questionWord.word) }]}>

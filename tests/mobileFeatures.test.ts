@@ -130,6 +130,86 @@ async function runMobileTests() {
     assert.ok(data[1][0][1].length > 0);
   });
 
+  // 6. Test Non-Repeating Deck Cycle Algorithm
+  await test("6. Non-Repeating Deck Cycle Algorithm (no repeats until pool exhausted)", () => {
+    const rawPool = [
+      { word: "W1" }, { word: "W2" }, { word: "W3" }, { word: "W4" },
+      { word: "W5" }, { word: "W6" }, { word: "W7" }, { word: "W8" },
+      { word: "W9" }, { word: "W10" }, { word: "W11" }, { word: "W12" },
+      { word: "W1" }, // Duplicate word from another lesson
+    ];
+
+    // Step A: Deduplication
+    const seenMap = new Map<string, any>();
+    rawPool.forEach((item) => {
+      if (!seenMap.has(item.word)) seenMap.set(item.word, item);
+    });
+    const pool = Array.from(seenMap.values());
+    assert.strictEqual(pool.length, 12, "Pool should have 12 unique items");
+
+    // Step B: Simulate 3 rounds with limit = 5
+    const limit = 5;
+    const seenTerms = new Set<string>();
+
+    function pickRound(): string[] {
+      const unplayed = pool.filter((w) => !seenTerms.has(w.word));
+      let finalWords: any[] = [];
+      if (unplayed.length >= limit) {
+        finalWords = unplayed.slice(0, limit);
+        finalWords.forEach((w) => seenTerms.add(w.word));
+      } else if (unplayed.length > 0) {
+        finalWords = [...unplayed];
+        seenTerms.clear();
+        finalWords.forEach((w) => seenTerms.add(w.word));
+        const need = limit - finalWords.length;
+        const fill = pool.filter((w) => !seenTerms.has(w.word)).slice(0, need);
+        fill.forEach((w) => seenTerms.add(w.word));
+        finalWords = [...finalWords, ...fill];
+      }
+      return finalWords.map((w) => w.word);
+    }
+
+    const round1 = pickRound();
+    assert.strictEqual(round1.length, 5);
+    assert.strictEqual(new Set(round1).size, 5, "Round 1 words must be unique");
+
+    const round2 = pickRound();
+    assert.strictEqual(round2.length, 5);
+    assert.strictEqual(new Set(round2).size, 5, "Round 2 words must be unique");
+
+    // Zero overlap between Round 1 and Round 2
+    for (const w of round2) {
+      assert.ok(!round1.includes(w), `Word ${w} in Round 2 should not have appeared in Round 1`);
+    }
+
+    // Round 3 (picks remaining 2 unplayed + 3 from newly reset pool)
+    const round3 = pickRound();
+    assert.strictEqual(round3.length, 5);
+    assert.strictEqual(new Set(round3).size, 5, "Round 3 words must be unique");
+
+    // Total unique words encountered across the 3 rounds must cover all 12 pool items
+    const allEncountered = new Set([...round1, ...round2, ...round3]);
+    assert.strictEqual(allEncountered.size, 12, "All 12 words in pool must be tested before repetition");
+  });
+
+  // 7. Test Priority Restart Filter (unstarred word omitted on restart)
+  await test("7. Priority Restart Filter (unstarred word removed on restart)", () => {
+    const priorityWords = [
+      { term: "貓", word: "貓", topicTitle: "Động vật" },
+      { term: "狗", word: "狗", topicTitle: "Động vật" },
+      { term: "鳥", word: "鳥", topicTitle: "Động vật" },
+    ];
+    const prioritySet = new Set(["貓", "狗", "鳥"]);
+
+    // In-game: user unstars "狗"
+    prioritySet.delete("狗");
+
+    // Restart quiz (Play Again)
+    const activeWords = priorityWords.filter((w) => prioritySet.has(w.term));
+    assert.strictEqual(activeWords.length, 2);
+    assert.ok(!activeWords.some((w) => w.term === "狗"), "Unstarred word '狗' must be completely absent on restart");
+  });
+
   console.log("\n=======================================================");
   console.log(`📊 KẾT QUẢ MOBILE TEST: ${passed} PASSED | ${failed} FAILED`);
   console.log("=======================================================\n");
