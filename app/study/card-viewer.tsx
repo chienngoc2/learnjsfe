@@ -9,11 +9,13 @@ import {
   Pressable,
   Platform,
   ScrollView,
+  TouchableOpacity,
+  Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import * as Speech from "expo-speech";
 import { LinearGradient } from "expo-linear-gradient";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import api from "../../services/api";
 import { useTheme } from "@/src/context/ThemeContext";
 import { usePinyin } from "@/src/context/PinyinContext";
@@ -27,6 +29,21 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { parseWord } from "../../src/utils/wordParser";
+import StrokeOrderPractice from "../../components/StrokeOrderPractice";
+import masterData from "@/assets/data/vocab_master.json";
+import { SINO_VIETNAMESE_DICT } from "./kanji-search";
+
+export interface VocabBankItem {
+  word: string;
+  pinyin?: string;
+  meaning: string;
+  level?: string;
+  topicTitle?: string;
+}
+
+export type ExploreItem =
+  | { type: "char"; char: string }
+  | { type: "word"; word: VocabBankItem };
 
 const { height } = Dimensions.get("window");
 
@@ -52,6 +69,128 @@ export default function CardViewer() {
   const [priorityTopics, setPriorityTopics] = useState<string[]>([]);
   const [selectedFilterTopic, setSelectedFilterTopic] = useState<string>("all");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // 🌟 Toàn bộ kho từ vựng (1141 từ Master TOCFL + từ các bài học server)
+  const [allVocabWords, setAllVocabWords] = useState<VocabBankItem[]>(() => {
+    const master = (masterData as any).words || [];
+    return master.map((w: any) => ({
+      word: w.word,
+      pinyin: w.pinyin,
+      meaning: w.meaning,
+      level: w.level || "TOCFL A1-A2",
+    }));
+  });
+
+  // 🧭 Stack điều hướng khám phá chữ và từ liên quan
+  const [exploreStack, setExploreStack] = useState<ExploreItem[]>([]);
+
+  // Tự động kéo bổ sung từ vựng từ server để kho từ vựng phong phú nhất
+  useEffect(() => {
+    api
+      .get("/api/vocab/lists")
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          const listWords: VocabBankItem[] = [];
+          res.data.data.forEach((list: any) => {
+            (list.words || []).forEach((w: any) => {
+              if (w.term) {
+                const parsedItem = parseWord(w.term, w.def || w.meaning || "");
+                listWords.push({
+                  word: parsedItem.word,
+                  pinyin: parsedItem.pinyin || parsedItem.reading || "",
+                  meaning: parsedItem.meaning || "",
+                  level: list.title || "Bài học",
+                });
+              }
+            });
+          });
+          setAllVocabWords((prev) => {
+            const seen = new Set(prev.map((item) => item.word));
+            const fresh = listWords.filter((cw) => !seen.has(cw.word));
+            return [...prev, ...fresh];
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const openCharDetail = (char: string) => {
+    setExploreStack([{ type: "char", char }]);
+  };
+
+  const pushExplore = (item: ExploreItem) => {
+    setExploreStack((prev) => [...prev, item]);
+  };
+
+  const popExplore = () => {
+    setExploreStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : []));
+  };
+
+  const closeExplore = () => {
+    setExploreStack([]);
+  };
+
+  const jumpExplore = (targetIdx: number) => {
+    setExploreStack((prev) => prev.slice(0, targetIdx + 1));
+  };
+
+  const getChineseChars = (text: string): string[] => {
+    if (!text) return [];
+    return text.split("").filter((ch) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch));
+  };
+
+  const getCharInfo = (ch: string) => {
+    const dict = SINO_VIETNAMESE_DICT[ch];
+    if (dict) {
+      return {
+        char: ch,
+        hanviet: dict.hanviet || "",
+        meaning: dict.meaning || "",
+        pinyin: dict.pinyin || "",
+      };
+    }
+    const match = allVocabWords.find((w) => w.word === ch);
+    return {
+      char: ch,
+      hanviet: match?.meaning ? match.meaning.split(/[,;]/)[0] : "Hán tự",
+      meaning: match?.meaning || "Chữ Hán Phồn Thể",
+      pinyin: match?.pinyin || "",
+    };
+  };
+
+  const getRelatedWordsForChar = (ch: string): VocabBankItem[] => {
+    if (!ch) return [];
+    const list = allVocabWords.filter((w) => w.word && w.word.includes(ch));
+    const seen = new Set<string>();
+    const unique = list.filter((w) => {
+      if (seen.has(w.word)) return false;
+      seen.add(w.word);
+      return true;
+    });
+
+    return unique.sort((a, b) => {
+      if (a.word === ch && b.word !== ch) return 1;
+      if (b.word === ch && a.word !== ch) return -1;
+      const aStarts = a.word.startsWith(ch);
+      const bStarts = b.word.startsWith(ch);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return a.word.length - b.word.length;
+    });
+  };
+
+  const getRelatedWordsForCompound = (compound: string): VocabBankItem[] => {
+    if (!compound) return [];
+    const list = allVocabWords.filter(
+      (w) => w.word && w.word !== compound && w.word.includes(compound)
+    );
+    const seen = new Set<string>();
+    return list.filter((w) => {
+      if (seen.has(w.word)) return false;
+      seen.add(w.word);
+      return true;
+    });
+  };
 
   // Reanimated Y-axis flip value (0 for front, 180 for back)
   const rotate = useSharedValue(0);
@@ -506,6 +645,74 @@ export default function CardViewer() {
                       ) : null}
                     </View>
 
+                    {/* 🔤 MẤY CÁI CONTAINER PHÍA DƯỚI CÓ TỪNG CHỮ + MŨI TÊN TỪNG CHỮ */}
+                    {getChineseChars(parsed.word).length > 0 && (
+                      <View style={styles.charContainerSection}>
+                        <View style={styles.charSectionHeader}>
+                          <Feather name="layers" size={13} color={colors.indigo} />
+                          <Text style={[styles.charSectionTitle, { color: colors.indigo }]}>
+                            TỪNG CHỮ (BẤM XEM NÉT & TỪ LIÊN QUAN)
+                          </Text>
+                        </View>
+                        <View style={styles.charCardsRow}>
+                          {getChineseChars(parsed.word).map((ch, cIdx) => {
+                            const info = getCharInfo(ch);
+                            return (
+                              <TouchableOpacity
+                                key={cIdx}
+                                style={[
+                                  styles.charBoxItem,
+                                  {
+                                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.04)" : "#F8FAFC",
+                                    borderColor: isDark ? "rgba(207, 172, 98, 0.35)" : "rgba(176, 130, 46, 0.3)",
+                                  },
+                                ]}
+                                activeOpacity={0.7}
+                                onPress={(e) => {
+                                  if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                  openCharDetail(ch);
+                                }}
+                              >
+                                <View style={styles.charBoxContent}>
+                                  <Text style={[styles.charBoxChar, { color: colors.indigo }]}>
+                                    {ch}
+                                  </Text>
+                                  <View style={styles.charBoxInfo}>
+                                    <View style={styles.charBoxPillRow}>
+                                      {info.pinyin ? (
+                                        <View style={[styles.charPill, { backgroundColor: isDark ? "#2C1A10" : "#FEF3C7" }]}>
+                                          <Text style={[styles.charPillText, { color: colors.amber }]}>
+                                            {info.pinyin}
+                                          </Text>
+                                        </View>
+                                      ) : null}
+                                      {info.hanviet ? (
+                                        <View style={[styles.charPill, { backgroundColor: isDark ? "#1E293B" : "#EEF2FF" }]}>
+                                          <Text style={[styles.charPillText, { color: colors.indigo }]}>
+                                            {info.hanviet}
+                                          </Text>
+                                        </View>
+                                      ) : null}
+                                    </View>
+                                    {info.meaning ? (
+                                      <Text style={[styles.charBoxMeaning, { color: colors.textMuted }]} numberOfLines={1}>
+                                        {info.meaning}
+                                      </Text>
+                                    ) : null}
+                                  </View>
+                                </View>
+
+                                {/* MŨI TÊN TỪNG CHỮ */}
+                                <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
+                                  <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
+
                     {/* Ví dụ mẫu */}
                     {parsed.examples && parsed.examples.length > 0 && (
                       <View style={styles.detailsSection}>
@@ -598,6 +805,74 @@ export default function CardViewer() {
                     <Text style={[styles.cardTextDef, { color: colors.text }]}>
                       {parsed.meaning}
                     </Text>
+
+                    {/* 🔤 MẤY CÁI CONTAINER PHÍA DƯỚI CÓ TỪNG CHỮ + MŨI TÊN TỪNG CHỮ */}
+                    {getChineseChars(parsed.word).length > 0 && (
+                      <View style={[styles.charContainerSection, { marginTop: 12 }]}>
+                        <View style={styles.charSectionHeader}>
+                          <Feather name="layers" size={13} color={colors.indigo} />
+                          <Text style={[styles.charSectionTitle, { color: colors.indigo }]}>
+                            TỪNG CHỮ (BẤM XEM NÉT & TỪ LIÊN QUAN)
+                          </Text>
+                        </View>
+                        <View style={styles.charCardsRow}>
+                          {getChineseChars(parsed.word).map((ch, cIdx) => {
+                            const info = getCharInfo(ch);
+                            return (
+                              <TouchableOpacity
+                                key={cIdx}
+                                style={[
+                                  styles.charBoxItem,
+                                  {
+                                    backgroundColor: isDark ? "#121824" : "#F8FAFC",
+                                    borderColor: isDark ? "rgba(207, 172, 98, 0.35)" : "rgba(176, 130, 46, 0.3)",
+                                  },
+                                ]}
+                                activeOpacity={0.7}
+                                onPress={(e) => {
+                                  if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                  openCharDetail(ch);
+                                }}
+                              >
+                                <View style={styles.charBoxContent}>
+                                  <Text style={[styles.charBoxChar, { color: colors.indigo }]}>
+                                    {ch}
+                                  </Text>
+                                  <View style={styles.charBoxInfo}>
+                                    <View style={styles.charBoxPillRow}>
+                                      {info.pinyin ? (
+                                        <View style={[styles.charPill, { backgroundColor: isDark ? "#2C1A10" : "#FEF3C7" }]}>
+                                          <Text style={[styles.charPillText, { color: colors.amber }]}>
+                                            {info.pinyin}
+                                          </Text>
+                                        </View>
+                                      ) : null}
+                                      {info.hanviet ? (
+                                        <View style={[styles.charPill, { backgroundColor: isDark ? "#1E293B" : "#EEF2FF" }]}>
+                                          <Text style={[styles.charPillText, { color: colors.indigo }]}>
+                                            {info.hanviet}
+                                          </Text>
+                                        </View>
+                                      ) : null}
+                                    </View>
+                                    {info.meaning ? (
+                                      <Text style={[styles.charBoxMeaning, { color: colors.textMuted }]} numberOfLines={1}>
+                                        {info.meaning}
+                                      </Text>
+                                    ) : null}
+                                  </View>
+                                </View>
+
+                                {/* MŨI TÊN TỪNG CHỮ */}
+                                <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
+                                  <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
 
                     {/* BẢNG CHIA THỂ ĐỘNG TỪ */}
                     {((parsed.type || "").toLowerCase().includes("verb") || 
@@ -858,6 +1133,42 @@ export default function CardViewer() {
                     </View>
                   </View>
 
+                  {/* Chi tiết từng chữ trong list item */}
+                  {getChineseChars(wordParsed.word).length > 0 && (
+                    <View style={styles.listCharChipsRow}>
+                      <Text style={[styles.listCharChipsLabel, { color: colors.textMuted }]}>
+                        Từng chữ:
+                      </Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}>
+                        {getChineseChars(wordParsed.word).map((ch, ci) => {
+                          const info = getCharInfo(ch);
+                          return (
+                            <TouchableOpacity
+                              key={ci}
+                              onPress={() => openCharDetail(ch)}
+                              style={[
+                                styles.listCharChip,
+                                {
+                                  backgroundColor: isDark ? "rgba(255, 255, 255, 0.05)" : "#F1F5F9",
+                                  borderColor: colors.border,
+                                },
+                              ]}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[styles.listCharChipText, { color: colors.indigo }]}>{ch}</Text>
+                              {info.pinyin ? (
+                                <Text style={[styles.listCharChipPinyin, { color: colors.amber }]}>
+                                  {info.pinyin}
+                                </Text>
+                              ) : null}
+                              <Feather name="arrow-right" size={11} color={colors.indigo} style={{ marginLeft: 2 }} />
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
                   {/* Conjugation section if verb */}
                   {isVerbWord && (
                     <View style={[
@@ -908,6 +1219,377 @@ export default function CardViewer() {
           </View>
         </ScrollView>
       )}
+      {/* 🧭 MODAL KHÁM PHÁ CÁCH VIẾT VÀ CÁC TỪ LIÊN QUAN (EXPLORE VOCAB MODAL) */}
+      <Modal
+        visible={exploreStack.length > 0}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={closeExplore}
+      >
+        <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <View style={styles.modalHeaderLeft}>
+              {exploreStack.length > 1 ? (
+                <TouchableOpacity onPress={popExplore} style={[styles.modalBackBtn, { borderColor: colors.border }]} activeOpacity={0.7}>
+                  <Feather name="arrow-left" size={18} color={colors.text} />
+                  <Text style={[styles.modalBackText, { color: colors.text }]}>Quay lại</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.modalHeaderTitleGroup}>
+                  <MaterialIcons name="explore" size={20} color={colors.indigo} />
+                  <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
+                    Tra Cứu & Khám Phá
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity onPress={closeExplore} style={[styles.modalCloseBtn, { borderColor: colors.border }]} activeOpacity={0.7}>
+              <Feather name="x" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Breadcrumb path */}
+          {exploreStack.length > 0 && (
+            <View style={[styles.breadcrumbContainer, { backgroundColor: isDark ? "#0A0E1A" : "#F1F5F9", borderBottomColor: colors.border }]}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.breadcrumbScroll}>
+                {exploreStack.map((item, bIdx) => {
+                  const isCurrent = bIdx === exploreStack.length - 1;
+                  const label = item.type === "char" ? `Chữ 【 ${item.char} 】` : item.word.word;
+                  return (
+                    <View key={bIdx} style={styles.breadcrumbItemWrap}>
+                      <TouchableOpacity
+                        onPress={() => jumpExplore(bIdx)}
+                        disabled={isCurrent}
+                        style={[
+                          styles.breadcrumbChip,
+                          isCurrent
+                            ? { backgroundColor: colors.indigo, borderColor: colors.indigo }
+                            : { backgroundColor: colors.surface, borderColor: colors.border },
+                        ]}
+                      >
+                        <Text style={[styles.breadcrumbText, { color: isCurrent ? "#FFFFFF" : colors.textMuted }]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                      {!isCurrent && (
+                        <Feather name="chevron-right" size={14} color={colors.textMuted} style={{ marginHorizontal: 4 }} />
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Modal Body */}
+          {exploreStack.length > 0 && (() => {
+            const activeItem = exploreStack[exploreStack.length - 1];
+            if (activeItem.type === "char") {
+              const ch = activeItem.char;
+              const info = getCharInfo(ch);
+              const related = getRelatedWordsForChar(ch);
+
+              return (
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={styles.modalContentScroll}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* Character Hero Card */}
+                  <View style={[styles.charHeroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={styles.charHeroTop}>
+                      <Text style={[styles.charHeroBig, { color: colors.text }]}>{ch}</Text>
+                      <View style={styles.charHeroMeta}>
+                        <View style={styles.charHeroPillRow}>
+                          {info.pinyin ? (
+                            <View style={[styles.heroBadge, { backgroundColor: isDark ? "#2C1A10" : "#FEF3C7" }]}>
+                              <Text style={[styles.heroBadgeText, { color: colors.amber }]}>
+                                Pinyin: {info.pinyin}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {info.hanviet ? (
+                            <View style={[styles.heroBadge, { backgroundColor: isDark ? "#121824" : "#EEF2FF" }]}>
+                              <Text style={[styles.heroBadgeText, { color: colors.indigo }]}>
+                                Hán-Việt: {info.hanviet}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={[styles.charHeroMeaning, { color: colors.text }]}>
+                          {info.meaning || "Chữ Hán Phồn Thể"}
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => speak(ch)}
+                        style={[styles.charHeroAudioBtn, { backgroundColor: colors.indigo }]}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="volume-2" size={20} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* ✍️ CÁCH VIẾT TỪNG NÉT (HANZI WRITER) */}
+                  <View style={[styles.strokeSectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={styles.sectionHeaderLine}>
+                      <Feather name="edit-3" size={16} color={colors.indigo} />
+                      <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                        CÁCH VIẾT CHỮ "【 {ch} 】"
+                      </Text>
+                    </View>
+                    <Text style={[styles.sectionSubtext, { color: colors.textMuted }]}>
+                      Mô phỏng nét bút chuẩn, thứ tự viết (Stroke Order) & tập tô theo nét mờ
+                    </Text>
+                    <View style={styles.strokeCenterWrapper}>
+                      <StrokeOrderPractice
+                        character={ch}
+                        pinyin={info.pinyin}
+                        vietnameseReading={info.hanviet}
+                        size={160}
+                      />
+                    </View>
+                  </View>
+
+                  {/* 📚 CÁC TỪ LIÊN QUAN TRONG KHO CÓ CHỨA CHỮ NÀY */}
+                  <View style={styles.relatedSectionWrap}>
+                    <View style={styles.sectionHeaderLine}>
+                      <Feather name="book" size={16} color={colors.indigo} />
+                      <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                        TỪ LIÊN QUAN CÓ CHỨA CHỮ "【 {ch} 】" ({related.length})
+                      </Text>
+                    </View>
+                    <Text style={[styles.sectionSubtext, { color: colors.textMuted }]}>
+                      Trích từ kho từ vựng TOCFL A1/A2 và các bài học của bạn
+                    </Text>
+
+                    {related.length === 0 ? (
+                      <View style={[styles.emptyRelBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <Feather name="info" size={24} color={colors.textMuted} />
+                        <Text style={[styles.emptyRelText, { color: colors.textMuted }]}>
+                          Chưa có từ ghép nào khác trong kho chứa chữ "{ch}".
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={{ marginTop: 10, gap: 10 }}>
+                        {related.map((relItem, rIdx) => (
+                          <TouchableOpacity
+                            key={rIdx}
+                            style={[styles.relCardItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                            activeOpacity={0.7}
+                            onPress={() => pushExplore({ type: "word", word: relItem })}
+                          >
+                            <View style={{ flex: 1, paddingRight: 8 }}>
+                              <View style={styles.relCardTopRow}>
+                                <Text style={[styles.relCardWord, { color: colors.indigo }]}>
+                                  {relItem.word}
+                                </Text>
+                                {relItem.pinyin ? (
+                                  <Text style={[styles.relCardPinyin, { color: colors.amber }]}>
+                                    {relItem.pinyin}
+                                  </Text>
+                                ) : null}
+                                {relItem.level ? (
+                                  <View style={[styles.relCardLevelBadge, { borderColor: "rgba(124, 92, 255, 0.3)" }]}>
+                                    <Text style={[styles.relCardLevelText, { color: colors.purple }]}>
+                                      {relItem.level}
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                              <Text style={[styles.relCardMeaning, { color: colors.text }]} numberOfLines={2}>
+                                {relItem.meaning}
+                              </Text>
+                            </View>
+
+                            <View style={styles.relCardRightActions}>
+                              <TouchableOpacity
+                                onPress={(e) => {
+                                  if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                  speak(relItem.word);
+                                }}
+                                style={[styles.relAudioBtn, { borderColor: colors.border }]}
+                                hitSlop={6}
+                              >
+                                <Feather name="volume-2" size={16} color={colors.indigo} />
+                              </TouchableOpacity>
+
+                              <View style={[styles.relArrowBtn, { backgroundColor: colors.indigo }]}>
+                                <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </ScrollView>
+              );
+            } else {
+              // Word detail
+              const w = activeItem.word;
+              const wordChars = getChineseChars(w.word);
+              const compounds = getRelatedWordsForCompound(w.word);
+
+              return (
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={styles.modalContentScroll}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* Word Hero Card */}
+                  <View style={[styles.wordHeroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={styles.wordHeroTopRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.wordHeroText, { color: colors.indigo }]}>
+                          {w.word}
+                        </Text>
+                        {w.pinyin ? (
+                          <Text style={[styles.wordHeroPinyin, { color: colors.amber }]}>
+                            {w.pinyin}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => speak(w.word)}
+                        style={[styles.wordHeroAudioBtn, { backgroundColor: colors.indigo }]}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="volume-2" size={22} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={[styles.wordHeroDefBox, { backgroundColor: isDark ? "#120E08" : "#F8F6F0" }]}>
+                      <Text style={[styles.wordHeroDefText, { color: colors.text }]}>
+                        {w.meaning}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* 🔤 PHÂN TÍCH TỪNG CHỮ CỦA TỪ NÀY (BẤM TIẾP ĐỂ XEM NÉT & TỪ LIÊN QUAN) */}
+                  {wordChars.length > 0 && (
+                    <View style={styles.subCharsSection}>
+                      <View style={styles.sectionHeaderLine}>
+                        <Feather name="layers" size={16} color={colors.indigo} />
+                        <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                          PHÂN TÍCH TỪNG CHỮ CỦA "{w.word}"
+                        </Text>
+                      </View>
+                      <Text style={[styles.sectionSubtext, { color: colors.textMuted }]}>
+                        Bấm vào từng chữ để xem cách viết và khám phá các từ liên quan khác
+                      </Text>
+
+                      <View style={{ marginTop: 10, gap: 8 }}>
+                        {wordChars.map((charItem, ci) => {
+                          const charInfo = getCharInfo(charItem);
+                          return (
+                            <TouchableOpacity
+                              key={ci}
+                              style={[styles.charBoxItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                              activeOpacity={0.7}
+                              onPress={() => pushExplore({ type: "char", char: charItem })}
+                            >
+                              <View style={styles.charBoxContent}>
+                                <Text style={[styles.charBoxChar, { color: colors.indigo }]}>
+                                  {charItem}
+                                </Text>
+                                <View style={styles.charBoxInfo}>
+                                  <View style={styles.charBoxPillRow}>
+                                    {charInfo.pinyin ? (
+                                      <View style={[styles.charPill, { backgroundColor: isDark ? "#2C1A10" : "#FEF3C7" }]}>
+                                        <Text style={[styles.charPillText, { color: colors.amber }]}>
+                                          {charInfo.pinyin}
+                                        </Text>
+                                      </View>
+                                    ) : null}
+                                    {charInfo.hanviet ? (
+                                      <View style={[styles.charPill, { backgroundColor: isDark ? "#121824" : "#EEF2FF" }]}>
+                                        <Text style={[styles.charPillText, { color: colors.indigo }]}>
+                                          {charInfo.hanviet}
+                                        </Text>
+                                      </View>
+                                    ) : null}
+                                  </View>
+                                  {charInfo.meaning ? (
+                                    <Text style={[styles.charBoxMeaning, { color: colors.textMuted }]} numberOfLines={1}>
+                                      {charInfo.meaning}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              </View>
+
+                              <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
+                                <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* 📚 CÁC TỪ GHÉP KHÁC CÓ CHỨA CỤM NÀY */}
+                  {compounds.length > 0 && (
+                    <View style={[styles.relatedSectionWrap, { marginTop: 18 }]}>
+                      <View style={styles.sectionHeaderLine}>
+                        <Feather name="link" size={16} color={colors.indigo} />
+                        <Text style={[styles.sectionHeading, { color: colors.text }]}>
+                          CÁC TỪ GHÉP KHÁC CÓ CHỨA "{w.word}" ({compounds.length})
+                        </Text>
+                      </View>
+
+                      <View style={{ marginTop: 10, gap: 10 }}>
+                        {compounds.map((cmpItem, cpIdx) => (
+                          <TouchableOpacity
+                            key={cpIdx}
+                            style={[styles.relCardItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                            activeOpacity={0.7}
+                            onPress={() => pushExplore({ type: "word", word: cmpItem })}
+                          >
+                            <View style={{ flex: 1, paddingRight: 8 }}>
+                              <View style={styles.relCardTopRow}>
+                                <Text style={[styles.relCardWord, { color: colors.indigo }]}>
+                                  {cmpItem.word}
+                                </Text>
+                                {cmpItem.pinyin ? (
+                                  <Text style={[styles.relCardPinyin, { color: colors.amber }]}>
+                                    {cmpItem.pinyin}
+                                  </Text>
+                                ) : null}
+                              </View>
+                              <Text style={[styles.relCardMeaning, { color: colors.text }]} numberOfLines={2}>
+                                {cmpItem.meaning}
+                              </Text>
+                            </View>
+
+                            <View style={styles.relCardRightActions}>
+                              <TouchableOpacity
+                                onPress={(e) => {
+                                  if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                  speak(cmpItem.word);
+                                }}
+                                style={[styles.relAudioBtn, { borderColor: colors.border }]}
+                                hitSlop={6}
+                              >
+                                <Feather name="volume-2" size={16} color={colors.indigo} />
+                              </TouchableOpacity>
+                              <View style={[styles.relArrowBtn, { backgroundColor: colors.indigo }]}>
+                                <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </ScrollView>
+              );
+            }
+          })()}
+        </SafeAreaView>
+      </Modal>
       </LinearGradient>
     </SafeAreaView>
   );
@@ -1433,5 +2115,373 @@ const styles = StyleSheet.create({
   vocabConjBadgeValue: {
     fontSize: 11,
     fontWeight: "800",
+  },
+  // 🔤 Character breakdown container in card
+  charContainerSection: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(150, 150, 150, 0.2)",
+    width: "100%",
+  },
+  charSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  charSectionTitle: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  charCardsRow: {
+    gap: 8,
+  },
+  charBoxItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  charBoxContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 8,
+  },
+  charBoxChar: {
+    fontSize: 24,
+    fontWeight: "800",
+    width: 32,
+    textAlign: "center",
+  },
+  charBoxInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  charBoxPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
+  },
+  charPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 5,
+  },
+  charPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  charBoxMeaning: {
+    fontSize: 12,
+  },
+  charArrowIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // List item mini chips
+  listCharChipsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: "rgba(150, 150, 150, 0.2)",
+    gap: 6,
+  },
+  listCharChipsLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  listCharChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+  },
+  listCharChipText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  listCharChipPinyin: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  // Modal styles
+  modalSafeArea: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  modalBackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+  },
+  modalBackText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  modalHeaderTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  breadcrumbContainer: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+  },
+  breadcrumbScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  breadcrumbItemWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  breadcrumbChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  breadcrumbText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  modalContentScroll: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  charHeroCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 14,
+  },
+  charHeroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  charHeroBig: {
+    fontSize: 44,
+    fontWeight: "900",
+    width: 56,
+    textAlign: "center",
+  },
+  charHeroMeta: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  charHeroPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    marginBottom: 6,
+  },
+  heroBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  heroBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  charHeroMeaning: {
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  charHeroAudioBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 10,
+  },
+  strokeSectionCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 14,
+  },
+  sectionHeaderLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 2,
+  },
+  sectionHeading: {
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  sectionSubtext: {
+    fontSize: 12,
+    marginBottom: 10,
+    lineHeight: 17,
+  },
+  strokeCenterWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 6,
+  },
+  relatedSectionWrap: {
+    marginTop: 4,
+  },
+  emptyRelBox: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+  emptyRelText: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  relCardItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  relCardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 4,
+  },
+  relCardWord: {
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  relCardPinyin: {
+    fontSize: 12.5,
+    fontWeight: "600",
+  },
+  relCardLevelBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  relCardLevelText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  relCardMeaning: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  relCardRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: 6,
+  },
+  relAudioBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  relArrowBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wordHeroCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 14,
+  },
+  wordHeroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  wordHeroText: {
+    fontSize: 32,
+    fontWeight: "900",
+  },
+  wordHeroPinyin: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  wordHeroAudioBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  wordHeroDefBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+  },
+  wordHeroDefText: {
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 22,
+  },
+  subCharsSection: {
+    marginTop: 6,
   },
 });
