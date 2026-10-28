@@ -86,6 +86,15 @@ export default function StudyMenuScreen() {
           route: "/study/kanji-search",
           params: { mode: "pinyin" },
         },
+        {
+          id: "audio_script",
+          title: "Bóc Script MP3 (Whisper AI)",
+          desc: "Tải file nghe MP3, trích xuất văn bản tiếng Trung & timestamp 0 token",
+          icon: "subtitles",
+          color: colors.amber || "#CFAC62",
+          lightColor: colors.amberLight || "#FEF3C7",
+          route: "/study/audio-script",
+        },
       ],
     },
     {

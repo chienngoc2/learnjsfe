@@ -71,10 +71,38 @@ export const generateGrammarQuiz = async (grammarData) => {
   return response.data;
 };
 
+/**
+ * Trích xuất Script hoàn chỉnh từ file MP3/Audio (100% Free, 0 token, không tốn Groq)
+ */
+export const transcribeMp3File = async ({
+  uri,
+  name = "audio.mp3",
+  type = "audio/mpeg",
+  language = "chinese",
+}) => {
+  const formData = new FormData();
+  formData.append("file", {
+    uri,
+    type,
+    name,
+  });
+  formData.append("language", language);
+
+  const response = await api.post("/api/audio/transcribe-mp3", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+    timeout: 180000, // 3 phút để xử lý an toàn
+  });
+  return response.data;
+};
+
 export default {
   sendChatMessage,
   transcribeAudio,
+  transcribeMp3File,
   evaluatePronunciation,
   getDailySuggestion,
   generateGrammarQuiz,
 };
+

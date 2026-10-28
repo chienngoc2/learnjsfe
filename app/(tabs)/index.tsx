@@ -331,6 +331,37 @@ export default function DashboardScreen() {
           </View>
         </Animated.View>
 
+        {/* ─── FEATURED: BÓC SCRIPT MP3 BANNER (WHISPER 0 TOKEN) ─── */}
+        <Animated.View entering={FadeInDown.delay(180).duration(500)} style={{ marginHorizontal: 16, marginBottom: 20 }}>
+          <TouchableOpacity
+            onPress={() => router.push("/study/audio-script" as any)}
+            activeOpacity={0.85}
+            style={[
+              styles.audioBanner,
+              {
+                backgroundColor: colors.surface,
+                borderColor: isDark ? "rgba(207, 172, 98, 0.3)" : "rgba(139, 105, 20, 0.2)",
+              },
+            ]}
+          >
+            <View style={[styles.audioBannerIcon, { backgroundColor: isDark ? "#1C1408" : "#FEF3C7" }]}>
+              <MaterialIcons name="subtitles" size={24} color={colors.amber || "#CFAC62"} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.audioBannerTitle, { color: colors.text }]}>Bóc Script MP3</Text>
+                <View style={styles.badgeFree}>
+                  <Text style={styles.badgeFreeText}>0 TOKEN</Text>
+                </View>
+              </View>
+              <Text style={[styles.audioBannerSub, { color: colors.textMuted }]}>
+                Tải file nghe → Lấy văn bản tiếng Trung & Timestamp
+              </Text>
+            </View>
+            <MaterialIcons name="arrow-forward-ios" size={14} color={colors.textMuted} />
+          </TouchableOpacity>
+        </Animated.View>
+
         {/* ─── STATS BENTO GRID ─── */}
         <Animated.View entering={FadeInDown.delay(220).duration(500)} style={{ marginHorizontal: 16, marginBottom: 20 }}>
           <View style={styles.sectionRow}>
@@ -625,5 +656,44 @@ const styles = StyleSheet.create({
   // FAB — hidden, + moved to tab center
   fab: {
     display: "none",
+  },
+
+  // AUDIO BANNER (Whisper 0 token)
+  audioBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
+      android: { elevation: 2 },
+    }),
+  },
+  audioBannerIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  audioBannerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  badgeFree: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeFreeText: {
+    color: "#10B981",
+    fontSize: 9.5,
+    fontWeight: "800",
+  },
+  audioBannerSub: {
+    fontSize: 11.5,
+    marginTop: 3,
   },
 });
