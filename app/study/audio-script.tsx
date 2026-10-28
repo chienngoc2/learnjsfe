@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -12,6 +12,7 @@ import {
   Share,
   LayoutChangeEvent,
   Modal,
+  TextInput,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -60,6 +61,12 @@ interface SavedAudioLesson {
   totalSegments: number;
 }
 
+import {
+  DictationItem,
+  parseSegmentsToDictationItems,
+  formatSecs,
+} from "../../src/utils/dictationParser";
+
 export default function AudioScriptScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
@@ -85,15 +92,60 @@ export default function AudioScriptScreen() {
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [playbackDuration, setPlaybackDuration] = useState(0);
   const [trackWidth, setTrackWidth] = useState(0);
+  const timelineRef = useRef<any>(null);
+  const isSeekingRef = useRef<boolean>(false);
 
   // Transcribe state
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScriptResult | null>(null);
-  const [activeTab, setActiveTab] = useState<"segments" | "fullText">("segments");
+  const [activeTab, setActiveTab] = useState<"segments" | "dictation" | "fullText">("segments");
   const [showPinyin, setShowPinyin] = useState(true);
   const [showMeaning, setShowMeaning] = useState(true);
   const [autoScroll, setAutoScroll] = useState(true);
   const [copiedNotice, setCopiedNotice] = useState(false);
+
+  // ✍️ DICTATION (CHÉP CHÍNH TẢ) STATE
+  const [currentDictIdx, setCurrentDictIdx] = useState(0);
+  const [dictationInput, setDictationInput] = useState("");
+  const [dictationStatus, setDictationStatus] = useState<"idle" | "correct" | "wrong" | "hint">("idle");
+  const [solvedDictationItems, setSolvedDictationItems] = useState<Record<string, "correct" | "hint">>({});
+  const [isSlowMode, setIsSlowMode] = useState(false);
+  const [isLoopMode, setIsLoopMode] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(true);
+
+  // Danh sách các câu chép chính tả phân tách theo dấu câu
+  const dictationItems = useMemo(() => {
+    if (!result?.segments || result.segments.length === 0) return [];
+    return parseSegmentsToDictationItems(result.segments);
+  }, [result?.segments]);
+
+  const currentDictItem = dictationItems[currentDictIdx] || null;
+
+  // Thống kê số câu đúng / xem gợi ý
+  const correctCount = useMemo(() => {
+    return Object.values(solvedDictationItems).filter((v) => v === "correct").length;
+  }, [solvedDictationItems]);
+
+  const hintCount = useMemo(() => {
+    return Object.values(solvedDictationItems).filter((v) => v === "hint").length;
+  }, [solvedDictationItems]);
+
+  // Danh sách các ký tự để bấm điền nhanh (gồm ký tự câu + 2-3 chữ gây nhiễu)
+  const characterOptions = useMemo(() => {
+    if (!currentDictItem) return [];
+    const targetChars = Array.from(currentDictItem.cleanText);
+    const allChars = Array.from(new Set(Array.from(result?.fullText || ""))).filter(
+      (c) => !targetChars.includes(c) && /[\u4e00-\u9fa5]/.test(c)
+    );
+    const distractors = allChars.slice(0, 3);
+    const combined = [...targetChars, ...distractors];
+
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
+    }
+    return combined;
+  }, [currentDictIdx, currentDictItem?.id, result?.fullText]);
 
   // Phát từng câu & lặp lại
   const [activePlayingSegmentId, setActivePlayingSegmentId] = useState<number | null>(null);
@@ -205,6 +257,11 @@ export default function AudioScriptScreen() {
         setPlaybackPosition(0);
       }
 
+      setCurrentDictIdx(0);
+      setDictationInput("");
+      setDictationStatus("idle");
+      setSolvedDictationItems({});
+
       setSelectedFile({
         uri,
         name,
@@ -302,19 +359,27 @@ export default function AudioScriptScreen() {
   // Cập nhật trạng thái phát âm thanh & Tự động cuộn theo câu đang nói
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
-      const currentPos = status.positionMillis / 1000;
-      setPlaybackPosition(currentPos);
-      if (status.durationMillis) {
+      if (!isSeekingRef.current) {
+        const currentPos = status.positionMillis / 1000;
+        setPlaybackPosition(currentPos);
+      }
+      if (status.durationMillis && status.durationMillis > 0) {
         setPlaybackDuration(status.durationMillis / 1000);
       }
       setIsPlaying(status.isPlaying);
 
-      if (status.didJustFinish) {
+      if (status.didJustFinish && !isSeekingRef.current) {
         setIsPlaying(false);
-        setPlaybackPosition(0);
+        setActivePlayingSegmentId(null);
+        // Chỉ reset về 0 nếu thực sự đã phát hết tới cuối file
+        const totalDur = status.durationMillis || (playbackDuration * 1000) || 0;
+        if (totalDur > 1000 && status.positionMillis >= totalDur - 400) {
+          setPlaybackPosition(0);
+        }
       }
 
-      if (status.isPlaying && result?.segments && autoScroll) {
+      if (status.isPlaying && result?.segments && autoScroll && !isSeekingRef.current) {
+        const currentPos = status.positionMillis / 1000;
         const activeSeg = result.segments.find(
           (seg) => currentPos >= seg.start && currentPos <= seg.end
         );
@@ -343,18 +408,36 @@ export default function AudioScriptScreen() {
     }
   };
 
-  // Tua đoạn âm thanh đến giây cụ thể
+  // Tua đoạn âm thanh đến giây cụ thể (chính xác, không bị giật reset)
   const seekToTime = async (seconds: number) => {
     if (!sound) return;
     try {
-      const clampedSeconds = Math.max(0, Math.min(seconds, playbackDuration));
-      await sound.setPositionAsync(clampedSeconds * 1000);
+      if (segmentTimerRef.current) {
+        clearTimeout(segmentTimerRef.current);
+        segmentTimerRef.current = null;
+      }
+      setActivePlayingSegmentId(null);
+
+      const totalDuration = playbackDuration > 0 ? playbackDuration : (result?.duration || 0);
+      const clampedSeconds = Math.max(
+        0,
+        Math.min(seconds, totalDuration > 0 ? Math.max(0, totalDuration - 0.25) : seconds)
+      );
+
+      isSeekingRef.current = true;
       setPlaybackPosition(clampedSeconds);
+      await sound.setPositionAsync(Math.floor(clampedSeconds * 1000));
+
+      setTimeout(() => {
+        isSeekingRef.current = false;
+      }, 200);
+
       if (!isPlaying) {
         await sound.playAsync();
         setIsPlaying(true);
       }
     } catch (e) {
+      isSeekingRef.current = false;
       console.warn("Lỗi seek audio:", e);
     }
   };
@@ -365,13 +448,201 @@ export default function AudioScriptScreen() {
     seekToTime(playbackPosition + deltaSeconds);
   };
 
-  // Xử lý click/tua trên thanh timeline bằng chuột
+  // Xử lý click/tua trên thanh timeline bằng chuột hoặc chạm
   const handleTimelinePress = (e: any) => {
-    if (!playbackDuration || trackWidth <= 0) return;
-    const locationX = e.nativeEvent?.locationX ?? 0;
-    const ratio = Math.max(0, Math.min(1, locationX / trackWidth));
-    const targetSeconds = ratio * playbackDuration;
+    const totalDuration = playbackDuration > 0 ? playbackDuration : (result?.duration || 0);
+    if (!totalDuration || totalDuration <= 0) return;
+
+    if (segmentTimerRef.current) {
+      clearTimeout(segmentTimerRef.current);
+      segmentTimerRef.current = null;
+    }
+    setActivePlayingSegmentId(null);
+    setLoopingSegmentId(null);
+
+    let ratio = 0;
+    if (Platform.OS === "web" && timelineRef.current) {
+      const node = timelineRef.current as any;
+      const rect = node?.getBoundingClientRect ? node.getBoundingClientRect() : null;
+      if (rect && rect.width > 0) {
+        const clientX = e.nativeEvent?.clientX ?? e.clientX ?? (e.nativeEvent?.pageX ?? 0);
+        const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+        ratio = clickX / rect.width;
+      } else if (trackWidth > 0) {
+        const clickX = e.nativeEvent?.locationX ?? 0;
+        ratio = Math.max(0, Math.min(1, clickX / trackWidth));
+      }
+    } else if (trackWidth > 0) {
+      const clickX = e.nativeEvent?.locationX ?? 0;
+      ratio = Math.max(0, Math.min(1, clickX / trackWidth));
+    }
+
+    const targetSeconds = Math.max(0, Math.min(Math.max(0, totalDuration - 0.25), ratio * totalDuration));
     seekToTime(targetSeconds);
+  };
+
+  // 🎵 BẤM VÀO CHỮ NÀO AUDIO PHÁT TỪ ĐÚNG VỊ TRÍ CHỮ ĐÓ
+  const playFromChar = async (item: Segment, charIdx: number) => {
+    const chars = Array.from(item.text);
+    const segDuration = Math.max(0.1, item.end - item.start);
+    const charStartTime = item.start + (charIdx / Math.max(1, chars.length)) * segDuration;
+
+    if (sound) {
+      Speech.stop();
+      await seekToTime(charStartTime);
+    } else {
+      speakSentence(chars[charIdx]);
+    }
+  };
+
+  // ✍️ PHÁT ĐOẠN ÂM THANH RIÊNG CỦA CÂU CHÉP CHÍNH TẢ
+  const playDictationSlice = async (item?: DictationItem | null, slow: boolean = isSlowMode) => {
+    const targetItem = item || currentDictItem;
+    if (!targetItem) return;
+    try {
+      if (segmentTimerRef.current) {
+        clearTimeout(segmentTimerRef.current);
+        segmentTimerRef.current = null;
+      }
+      Speech.stop();
+
+      if (sound) {
+        isSeekingRef.current = true;
+        setPlaybackPosition(targetItem.start);
+        await sound.setPositionAsync(Math.floor(targetItem.start * 1000));
+        setTimeout(() => {
+          isSeekingRef.current = false;
+        }, 150);
+
+        const playbackRate = slow ? 0.75 : 1.0;
+        await sound.setRateAsync(playbackRate, true);
+        await sound.playAsync();
+        setIsPlaying(true);
+
+        const durationMs = Math.max(500, Math.floor(((targetItem.end - targetItem.start) / playbackRate) * 1000));
+        segmentTimerRef.current = setTimeout(async () => {
+          try {
+            if (isLoopMode) {
+              playDictationSlice(targetItem, slow);
+            } else {
+              await sound.pauseAsync();
+              setIsPlaying(false);
+            }
+          } catch (e) {}
+        }, durationMs);
+      } else {
+        Speech.speak(targetItem.text, {
+          language: "zh-TW",
+          rate: slow ? 0.65 : 0.85,
+        });
+      }
+    } catch (e) {
+      console.warn("Lỗi phát audio slice dictation:", e);
+    }
+  };
+
+  // ✍️ KIỂM TRA ĐÁP ÁN CHÉP CHÍNH TẢ
+  const handleCheckDictation = () => {
+    if (!currentDictItem) return;
+
+    const userClean = dictationInput.replace(/[，,。\.！!？\?；;\s]/g, "").trim();
+    const targetClean = currentDictItem.cleanText.replace(/[，,。\.！!？\?；;\s]/g, "").trim();
+
+    if (userClean === targetClean && targetClean.length > 0) {
+      setDictationStatus("correct");
+      setSolvedDictationItems((prev) => ({
+        ...prev,
+        [currentDictItem.id]: prev[currentDictItem.id] || "correct",
+      }));
+      Speech.speak(currentDictItem.text, { language: "zh-TW", rate: 0.85 });
+
+      if (autoAdvance && currentDictIdx < dictationItems.length - 1) {
+        setTimeout(() => {
+          handleNextDictationItem();
+        }, 1500);
+      }
+    } else {
+      setDictationStatus("wrong");
+    }
+  };
+
+  // 💡 GỢI Ý XEM FULL CÂU
+  const handleShowHint = () => {
+    if (!currentDictItem) return;
+    setDictationStatus("hint");
+    setSolvedDictationItems((prev) => ({
+      ...prev,
+      [currentDictItem.id]: prev[currentDictItem.id] || "hint",
+    }));
+  };
+
+  // 📝 TỰ ĐIỀN ĐÁP ÁN THEO GỢI Ý
+  const handleFillDictationAnswer = () => {
+    if (!currentDictItem) return;
+    setDictationInput(currentDictItem.cleanText);
+    setDictationStatus("correct");
+    setSolvedDictationItems((prev) => ({
+      ...prev,
+      [currentDictItem.id]: prev[currentDictItem.id] || "hint",
+    }));
+  };
+
+  // ➡️ CHUYỂN CÂU TIẾP THEO
+  const handleNextDictationItem = () => {
+    if (currentDictIdx < dictationItems.length - 1) {
+      const nextIdx = currentDictIdx + 1;
+      setCurrentDictIdx(nextIdx);
+      setDictationInput("");
+      setDictationStatus("idle");
+      const nextItem = dictationItems[nextIdx];
+      if (nextItem) {
+        setTimeout(() => {
+          playDictationSlice(nextItem, isSlowMode);
+        }, 200);
+      }
+    }
+  };
+
+  // ⬅️ QUAY LẠI CÂU TRƯỚC
+  const handlePrevDictationItem = () => {
+    if (currentDictIdx > 0) {
+      const prevIdx = currentDictIdx - 1;
+      setCurrentDictIdx(prevIdx);
+      setDictationInput("");
+      setDictationStatus("idle");
+      const prevItem = dictationItems[prevIdx];
+      if (prevItem) {
+        setTimeout(() => {
+          playDictationSlice(prevItem, isSlowMode);
+        }, 200);
+      }
+    }
+  };
+
+  // 🎯 CHỌN CÂU THEO SỐ THỨ TỰ
+  const handleSelectDictationIndex = (idx: number) => {
+    if (idx >= 0 && idx < dictationItems.length) {
+      setCurrentDictIdx(idx);
+      setDictationInput("");
+      setDictationStatus("idle");
+      const targetItem = dictationItems[idx];
+      if (targetItem) {
+        setTimeout(() => {
+          playDictationSlice(targetItem, isSlowMode);
+        }, 200);
+      }
+    }
+  };
+
+  // 🔄 CHUYỂN SANG TAB DICTATION
+  const handleSwitchToDictation = () => {
+    setActiveTab("dictation");
+    if (dictationItems.length > 0) {
+      const target = dictationItems[currentDictIdx] || dictationItems[0];
+      setTimeout(() => {
+        playDictationSlice(target, isSlowMode);
+      }, 300);
+    }
   };
 
   // Thực hiện bóc Script qua Backend (0 token, 0 Groq)
@@ -712,40 +983,43 @@ export default function AudioScriptScreen() {
                   <MaterialIcons name="forward-5" size={20} color={colors.text} />
                 </TouchableOpacity>
 
-                {/* Thanh tua âm thanh tương tác bằng chuột/chạm */}
+                  {/* Thanh tua âm thanh tương tác bằng chuột/chạm */}
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <View style={styles.timeRow}>
                     <Text style={[styles.timeText, { color: "#10B981", fontWeight: "700" }]}>
                       {formatDisplayTime(playbackPosition)}
                     </Text>
                     <Text style={[styles.timeText, { color: colors.textMuted }]}>
-                      {formatDisplayTime(playbackDuration)}
+                      {formatDisplayTime(playbackDuration > 0 ? playbackDuration : (result?.duration || 0))}
                     </Text>
                   </View>
 
                   {/* Vùng bấm tua chuột */}
                   <TouchableOpacity
+                    ref={timelineRef}
                     activeOpacity={1}
                     onPress={handleTimelinePress}
                     onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
                     style={styles.timelineHitArea}
                   >
-                    <View style={styles.progressBg}>
+                    <View pointerEvents="none" style={styles.progressBg}>
                       <View
+                        pointerEvents="none"
                         style={[
                           styles.progressFill,
                           {
                             backgroundColor: "#10B981",
-                            width: `${playbackDuration > 0 ? Math.min(100, (playbackPosition / playbackDuration) * 100) : 0}%`,
+                            width: `${(playbackDuration > 0 ? playbackDuration : (result?.duration || 0)) > 0 ? Math.min(100, Math.max(0, (playbackPosition / (playbackDuration > 0 ? playbackDuration : (result?.duration || 1))) * 100)) : 0}%`,
                           },
                         ]}
                       />
                       {/* Scrubber Thumb (nút tròn báo vị trí hiện tại) */}
                       <View
+                        pointerEvents="none"
                         style={[
                           styles.scrubberThumb,
                           {
-                            left: `${playbackDuration > 0 ? Math.min(98, (playbackPosition / playbackDuration) * 100) : 0}%`,
+                            left: `${(playbackDuration > 0 ? playbackDuration : (result?.duration || 0)) > 0 ? Math.min(98, Math.max(0, (playbackPosition / (playbackDuration > 0 ? playbackDuration : (result?.duration || 1))) * 100)) : 0}%`,
                           },
                         ]}
                       />
@@ -912,7 +1186,7 @@ export default function AudioScriptScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Segment / Fulltext Toggle */}
+            {/* Segment / Dictation / Fulltext Toggle */}
             <View style={styles.tabToggleRow}>
               <TouchableOpacity
                 onPress={() => setActiveTab("segments")}
@@ -927,7 +1201,7 @@ export default function AudioScriptScreen() {
               >
                 <MaterialIcons
                   name="subtitles"
-                  size={18}
+                  size={16}
                   color={activeTab === "segments" ? "#10B981" : colors.textMuted}
                 />
                 <Text
@@ -938,8 +1212,39 @@ export default function AudioScriptScreen() {
                       fontWeight: activeTab === "segments" ? "700" : "500",
                     },
                   ]}
+                  numberOfLines={1}
                 >
-                  Karaoke từng câu ({result.segments.length})
+                  Karaoke ({result.segments.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSwitchToDictation}
+                style={[
+                  styles.tabToggleBtn,
+                  activeTab === "dictation" && [
+                    styles.tabToggleActive,
+                    { backgroundColor: colors.surface, borderColor: "#10B981" },
+                  ],
+                ]}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons
+                  name="edit-note"
+                  size={18}
+                  color={activeTab === "dictation" ? "#10B981" : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.tabToggleText,
+                    {
+                      color: activeTab === "dictation" ? "#10B981" : colors.textMuted,
+                      fontWeight: activeTab === "dictation" ? "700" : "500",
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  Chép chính tả ({dictationItems.length})
                 </Text>
               </TouchableOpacity>
 
@@ -956,7 +1261,7 @@ export default function AudioScriptScreen() {
               >
                 <MaterialIcons
                   name="menu-book"
-                  size={18}
+                  size={16}
                   color={activeTab === "fullText" ? "#10B981" : colors.textMuted}
                 />
                 <Text
@@ -967,8 +1272,9 @@ export default function AudioScriptScreen() {
                       fontWeight: activeTab === "fullText" ? "700" : "500",
                     },
                   ]}
+                  numberOfLines={1}
                 >
-                  Toàn bộ văn bản
+                  Toàn văn
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1166,15 +1472,20 @@ export default function AudioScriptScreen() {
                         </View>
                       )}
 
-                      {/* 🟢 CHỮ TIẾNG TRUNG: TỪNG CHỮ CÓ Ô XANH LÁ DI CHUYỂN THEO THỜI GIAN THỰC */}
+                      {/* 🟢 CHỮ TIẾNG TRUNG: BẤM VÀO CHỮ NÀO AUDIO PHÁT TỪ ĐÚNG CHỮ ĐÓ */}
                       <View style={styles.karaokeTextWrap}>
                         {chars.map((char, charIdx) => {
                           const isThisChar = isCurrent && charIdx === activeCharIndex;
                           const isSpoken = isCurrent && charIdx < activeCharIndex;
 
                           return (
-                            <View
+                            <TouchableOpacity
                               key={charIdx}
+                              activeOpacity={0.6}
+                              onPress={(e) => {
+                                if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                playFromChar(item, charIdx);
+                              }}
                               style={[
                                 styles.charBox,
                                 isThisChar && styles.activeCharBoxHighlight,
@@ -1195,7 +1506,7 @@ export default function AudioScriptScreen() {
                               >
                                 {char}
                               </Text>
-                            </View>
+                            </TouchableOpacity>
                           );
                         })}
                       </View>
@@ -1243,7 +1554,506 @@ export default function AudioScriptScreen() {
               </View>
             )}
 
-            {/* Tab 2: Toàn bộ văn bản */}
+            {/* ─── TAB 2: CHÉP CHÍNH TẢ (DICTATION) TỪNG CÂU TỪNG DẤU ─── */}
+            {activeTab === "dictation" && (
+              <View style={{ marginTop: 12 }}>
+                {dictationItems.length === 0 ? (
+                  <View style={[styles.dictationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <MaterialIcons name="edit-note" size={32} color={colors.textMuted} />
+                    <Text style={[styles.dictEmptyTitle, { color: colors.text }]}>
+                      Chưa có câu nào để luyện chép chính tả
+                    </Text>
+                  </View>
+                ) : (
+                  <View>
+                    {/* Header tiến độ & Chọn câu nhanh */}
+                    <View style={[styles.dictHeaderCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                      <View style={styles.dictProgressRow}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <MaterialIcons name="border-color" size={17} color="#10B981" />
+                            <Text style={[styles.dictProgressTitle, { color: colors.text }]}>
+                              Câu {currentDictIdx + 1} / {dictationItems.length}
+                            </Text>
+                          </View>
+                          {/* Thanh tiến trình */}
+                          <View style={styles.dictProgressBarBg}>
+                            <View
+                              style={[
+                                styles.dictProgressBarFill,
+                                {
+                                  width: `${Math.min(100, ((currentDictIdx + 1) / dictationItems.length) * 100)}%`,
+                                },
+                              ]}
+                            />
+                          </View>
+                        </View>
+
+                        {/* Huy hiệu kết quả */}
+                        <View style={styles.dictStatsChips}>
+                          <View style={[styles.dictStatChip, { backgroundColor: isDark ? "#064E3B" : "#D1FAE5" }]}>
+                            <Text style={[styles.dictStatChipText, { color: "#10B981" }]}>
+                              ✅ {correctCount}
+                            </Text>
+                          </View>
+                          <View style={[styles.dictStatChip, { backgroundColor: isDark ? "#451A03" : "#FEF3C7" }]}>
+                            <Text style={[styles.dictStatChipText, { color: colors.amber || "#CFAC62" }]}>
+                              💡 {hintCount}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Danh sách các câu cuộn ngang để nhảy nhanh */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.dictNumbersScroll}
+                      >
+                        {dictationItems.map((item, idx) => {
+                          const isCurrent = idx === currentDictIdx;
+                          const isSolved = solvedDictationItems[item.id] === "correct";
+                          const isHinted = solvedDictationItems[item.id] === "hint";
+
+                          return (
+                            <TouchableOpacity
+                              key={item.id}
+                              onPress={() => handleSelectDictationIndex(idx)}
+                              style={[
+                                styles.dictNumChip,
+                                {
+                                  backgroundColor: isCurrent
+                                    ? (colors.indigo || "#4F46E5")
+                                    : isSolved
+                                    ? "#10B981"
+                                    : isHinted
+                                    ? (colors.amber || "#F59E0B")
+                                    : (isDark ? "rgba(255, 255, 255, 0.06)" : "#F1F5F9"),
+                                  borderColor: isCurrent ? (colors.indigo || "#4F46E5") : colors.border,
+                                },
+                              ]}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.dictNumChipText,
+                                  {
+                                    color: isCurrent || isSolved || isHinted ? "#FFFFFF" : colors.textMuted,
+                                    fontWeight: isCurrent ? "800" : "600",
+                                  },
+                                ]}
+                              >
+                                {idx + 1}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+
+                    {/* 🎧 THẺ CHÉP CHÍNH TẢ CHÍNH */}
+                    {currentDictItem && (
+                      <View style={[styles.dictationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        {/* Audio Controls for this slice */}
+                        <View style={styles.dictAudioHeaderRow}>
+                          <View style={styles.dictTimestampBadge}>
+                            <MaterialIcons name="timer" size={13} color="#10B981" />
+                            <Text style={styles.dictTimestampText}>
+                              {currentDictItem.startFormatted} - {currentDictItem.endFormatted}
+                            </Text>
+                          </View>
+
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            {/* Nút 0.75x chậm */}
+                            <TouchableOpacity
+                              onPress={() => {
+                                const newSlow = !isSlowMode;
+                                setIsSlowMode(newSlow);
+                                playDictationSlice(currentDictItem, newSlow);
+                              }}
+                              style={[
+                                styles.dictControlIconBtn,
+                                {
+                                  backgroundColor: isSlowMode ? "rgba(245, 158, 11, 0.2)" : "transparent",
+                                  borderColor: isSlowMode ? "#F59E0B" : colors.border,
+                                },
+                              ]}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[styles.dictControlIconText, { color: isSlowMode ? "#F59E0B" : colors.textMuted }]}>
+                                0.75x
+                              </Text>
+                            </TouchableOpacity>
+
+                            {/* Nút lặp lại */}
+                            <TouchableOpacity
+                              onPress={() => setIsLoopMode(!isLoopMode)}
+                              style={[
+                                styles.dictControlIconBtn,
+                                {
+                                  backgroundColor: isLoopMode ? "rgba(16, 185, 129, 0.2)" : "transparent",
+                                  borderColor: isLoopMode ? "#10B981" : colors.border,
+                                },
+                              ]}
+                              activeOpacity={0.7}
+                            >
+                              <MaterialIcons
+                                name="repeat"
+                                size={16}
+                                color={isLoopMode ? "#10B981" : colors.textMuted}
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        {/* Nút Play Hero câu này */}
+                        <TouchableOpacity
+                          onPress={() => playDictationSlice(currentDictItem, isSlowMode)}
+                          style={[
+                            styles.dictHeroPlayBtn,
+                            {
+                              backgroundColor: isDark ? "rgba(16, 185, 129, 0.15)" : "#ECFDF5",
+                              borderColor: "#10B981",
+                            },
+                          ]}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.dictHeroPlayIconWrap}>
+                            <MaterialIcons name="volume-up" size={24} color="#FFFFFF" />
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={[styles.dictHeroPlayTitle, { color: isDark ? "#34D399" : "#059669" }]}>
+                              {isPlaying ? "Đang phát đoạn này..." : "Nghe đoạn âm thanh câu này"}
+                            </Text>
+                            <Text style={[styles.dictHeroPlaySubtitle, { color: colors.textMuted }]}>
+                              {currentDictItem.cleanText.length} chữ Hán · Dấu kết thúc: 【 {currentDictItem.punctuation || "Không dấu"} 】
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+
+                        {/* Ô xem trước từng ô chữ và dấu câu */}
+                        <View style={styles.dictSlotsWrapper}>
+                          <Text style={[styles.dictSlotsLabel, { color: colors.textMuted }]}>
+                            Cấu trúc câu ({currentDictItem.cleanText.length} chữ Hán):
+                          </Text>
+                          <View style={styles.dictSlotsRow}>
+                            {currentDictItem.cleanText.split("").map((ch, idx) => {
+                              const userChars = dictationInput.replace(/[，,。\.！!？\?；;\s]/g, "");
+                              const typedChar = userChars[idx];
+                              const isFilled = !!typedChar;
+                              const isCorrectStatus = dictationStatus === "correct" || dictationStatus === "hint";
+                              const isWrongStatus = dictationStatus === "wrong";
+
+                              return (
+                                <View
+                                  key={idx}
+                                  style={[
+                                    styles.dictSlotBox,
+                                    {
+                                      backgroundColor: isFilled
+                                        ? (isDark ? "rgba(255, 255, 255, 0.06)" : "#F1F5F9")
+                                        : (isDark ? "rgba(255, 255, 255, 0.02)" : "rgba(0, 0, 0, 0.02)"),
+                                      borderColor: isCorrectStatus
+                                        ? "#10B981"
+                                        : isWrongStatus
+                                        ? "#EF4444"
+                                        : isFilled
+                                        ? (colors.indigo || "#4F46E5")
+                                        : colors.border,
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.dictSlotText,
+                                      {
+                                        color: isCorrectStatus
+                                          ? "#10B981"
+                                          : isWrongStatus
+                                          ? "#EF4444"
+                                          : colors.text,
+                                      },
+                                    ]}
+                                  >
+                                    {isCorrectStatus ? ch : (typedChar || "_")}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+
+                            {/* Dấu câu tách biệt */}
+                            {!!currentDictItem.punctuation && (
+                              <View
+                                style={[
+                                  styles.dictPunctBadge,
+                                  {
+                                    backgroundColor: isDark ? "#2C1A10" : "#FEF3C7",
+                                    borderColor: colors.amber || "#CFAC62",
+                                  },
+                                ]}
+                              >
+                                <Text style={[styles.dictPunctText, { color: colors.amber || "#CFAC62" }]}>
+                                  {currentDictItem.punctuation}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Ô nhập chữ Hán TextInput */}
+                        <View style={styles.dictInputWrap}>
+                          <View
+                            style={[
+                              styles.dictInputBox,
+                              {
+                                backgroundColor: isDark ? "#0F172A" : "#FFFFFF",
+                                borderColor: dictationStatus === "correct"
+                                  ? "#10B981"
+                                  : dictationStatus === "wrong"
+                                  ? "#EF4444"
+                                  : colors.border,
+                              },
+                            ]}
+                          >
+                            <TextInput
+                              style={[styles.dictTextInput, { color: colors.text }]}
+                              placeholder="Gõ hoặc chạm chữ bên dưới..."
+                              placeholderTextColor={colors.textMuted}
+                              value={dictationInput}
+                              onChangeText={(val) => {
+                                setDictationInput(val);
+                                if (dictationStatus === "wrong") setDictationStatus("idle");
+                              }}
+                              autoCorrect={false}
+                              autoCapitalize="none"
+                              returnKeyType="done"
+                              onSubmitEditing={handleCheckDictation}
+                            />
+                            {dictationInput.length > 0 && (
+                              <TouchableOpacity
+                                onPress={() => setDictationInput("")}
+                                style={styles.dictClearBtn}
+                                hitSlop={8}
+                              >
+                                <MaterialIcons name="close" size={18} color={colors.textMuted} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Hàng phím ký tự gợi ý chạm nhanh */}
+                        <View style={styles.dictChipsContainer}>
+                          <View style={styles.dictChipsHeader}>
+                            <Text style={[styles.dictChipsTitle, { color: colors.textMuted }]}>
+                              Chạm chữ để điền nhanh:
+                            </Text>
+                            {dictationInput.length > 0 && (
+                              <TouchableOpacity
+                                onPress={() => setDictationInput((prev) => prev.slice(0, -1))}
+                                style={[styles.dictBackspaceBtn, { borderColor: colors.border }]}
+                                activeOpacity={0.7}
+                              >
+                                <MaterialIcons name="backspace" size={15} color={colors.textMuted} />
+                                <Text style={[styles.dictBackspaceText, { color: colors.textMuted }]}>Xóa chữ</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+
+                          <View style={styles.dictChipsRow}>
+                            {characterOptions.map((ch, cIdx) => (
+                              <TouchableOpacity
+                                key={cIdx}
+                                onPress={() => {
+                                  setDictationInput((prev) => prev + ch);
+                                  if (dictationStatus === "wrong") setDictationStatus("idle");
+                                }}
+                                style={[
+                                  styles.dictCharChip,
+                                  {
+                                    backgroundColor: isDark ? "rgba(255, 255, 255, 0.08)" : "#F1F5F9",
+                                    borderColor: colors.border,
+                                  },
+                                ]}
+                                activeOpacity={0.6}
+                              >
+                                <Text style={[styles.dictCharChipText, { color: colors.indigo || "#4F46E5" }]}>
+                                  {ch}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Phản hồi kết quả (Correct / Wrong) */}
+                        {dictationStatus === "correct" && (
+                          <View style={styles.dictFeedbackSuccess}>
+                            <View style={styles.dictFeedbackSuccessRow}>
+                              <MaterialIcons name="check-circle" size={24} color="#10B981" />
+                              <View style={{ flex: 1, marginLeft: 10 }}>
+                                <Text style={styles.dictFeedbackSuccessTitle}>CHÍNH XÁC! XUẤT SẮC! 🎉</Text>
+                                <Text style={[styles.dictFeedbackSuccessSub, { color: colors.text }]}>
+                                  {currentDictItem.text}
+                                </Text>
+                                {currentDictItem.pinyin ? (
+                                  <Text style={[styles.dictFeedbackPinyin, { color: colors.amber || "#CFAC62" }]}>
+                                    {currentDictItem.pinyin}
+                                  </Text>
+                                ) : null}
+                                {currentDictItem.meaningVi ? (
+                                  <Text style={[styles.dictFeedbackMeaning, { color: colors.textMuted }]}>
+                                    🇻🇳 {currentDictItem.meaningVi}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </View>
+                          </View>
+                        )}
+
+                        {dictationStatus === "wrong" && (
+                          <View style={styles.dictFeedbackWrong}>
+                            <MaterialIcons name="cancel" size={20} color="#EF4444" />
+                            <Text style={styles.dictFeedbackWrongText}>
+                              Chưa chính xác. Hãy nghe lại lần nữa hoặc bấm "Gợi ý"!
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Gợi ý full câu khi user bấm nút Gợi ý */}
+                        {dictationStatus === "hint" && (
+                          <View
+                            style={[
+                              styles.dictHintCard,
+                              {
+                                backgroundColor: isDark ? "#1C1408" : "#FEF3C7",
+                                borderColor: colors.amber || "#F59E0B",
+                              },
+                            ]}
+                          >
+                            <View style={styles.dictHintHeader}>
+                              <MaterialIcons name="lightbulb" size={18} color="#D97706" />
+                              <Text style={styles.dictHintTitle}>GỢI Ý CÂU ĐẦY ĐỦ</Text>
+                            </View>
+                            <Text style={[styles.dictHintTextZh, { color: colors.text }]}>
+                              {currentDictItem.text}
+                            </Text>
+                            {currentDictItem.pinyin ? (
+                              <Text style={[styles.dictHintTextPy, { color: colors.amber || "#CFAC62" }]}>
+                                {currentDictItem.pinyin}
+                              </Text>
+                            ) : null}
+                            {currentDictItem.meaningVi ? (
+                              <Text style={[styles.dictHintTextVi, { color: colors.textMuted }]}>
+                                🇻🇳 {currentDictItem.meaningVi}
+                              </Text>
+                            ) : null}
+
+                            <TouchableOpacity
+                              onPress={handleFillDictationAnswer}
+                              style={styles.dictFillBtn}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons name="assignment-turned-in" size={16} color="#FFFFFF" />
+                              <Text style={styles.dictFillBtnText}>Tự điền đáp án & tiếp tục</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {/* Dòng nút hành động chính */}
+                        <View style={styles.dictActionsRow}>
+                          {/* Nút Gợi ý */}
+                          <TouchableOpacity
+                            onPress={handleShowHint}
+                            style={[
+                              styles.dictHintBtn,
+                              {
+                                backgroundColor: isDark ? "rgba(245, 158, 11, 0.15)" : "#FEF3C7",
+                                borderColor: "rgba(245, 158, 11, 0.4)",
+                              },
+                            ]}
+                            activeOpacity={0.7}
+                          >
+                            <MaterialIcons name="lightbulb-outline" size={18} color="#D97706" />
+                            <Text style={styles.dictHintBtnText}>Gợi ý câu</Text>
+                          </TouchableOpacity>
+
+                          {/* Nút Kiểm tra hoặc Nút Tiếp theo */}
+                          {dictationStatus !== "correct" && dictationStatus !== "hint" ? (
+                            <TouchableOpacity
+                              onPress={handleCheckDictation}
+                              style={[
+                                styles.dictCheckBtn,
+                                {
+                                  backgroundColor: dictationInput.trim().length > 0
+                                    ? (colors.indigo || "#4F46E5")
+                                    : colors.border,
+                                },
+                              ]}
+                              disabled={dictationInput.trim().length === 0}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons name="check" size={20} color="#FFFFFF" />
+                              <Text style={styles.dictCheckBtnText}>Kiểm tra</Text>
+                            </TouchableOpacity>
+                          ) : currentDictIdx < dictationItems.length - 1 ? (
+                            <TouchableOpacity
+                              onPress={handleNextDictationItem}
+                              style={[styles.dictNextBtn, { backgroundColor: "#10B981" }]}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.dictNextBtnText}>Câu tiếp theo</Text>
+                              <MaterialIcons name="arrow-forward" size={18} color="#FFFFFF" />
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity
+                              onPress={() => {
+                                Alert.alert(
+                                  "🎉 Chúc mừng bạn!",
+                                  `Bạn đã hoàn thành toàn bộ ${dictationItems.length} câu chép chính tả với ${correctCount} câu đúng tự lực!`
+                                );
+                              }}
+                              style={[styles.dictNextBtn, { backgroundColor: "#10B981" }]}
+                              activeOpacity={0.8}
+                            >
+                              <MaterialIcons name="emoji-events" size={18} color="#FFFFFF" />
+                              <Text style={styles.dictNextBtnText}>Hoàn thành bài</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Dòng điều hướng trước / sau */}
+                        <View style={styles.dictNavRow}>
+                          <TouchableOpacity
+                            onPress={handlePrevDictationItem}
+                            disabled={currentDictIdx === 0}
+                            style={[
+                              styles.dictNavBtn,
+                              { opacity: currentDictIdx === 0 ? 0.3 : 1 },
+                            ]}
+                          >
+                            <MaterialIcons name="skip-previous" size={20} color={colors.textMuted} />
+                            <Text style={[styles.dictNavText, { color: colors.textMuted }]}>Câu trước</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            onPress={handleNextDictationItem}
+                            disabled={currentDictIdx >= dictationItems.length - 1}
+                            style={[
+                              styles.dictNavBtn,
+                              { opacity: currentDictIdx >= dictationItems.length - 1 ? 0.3 : 1 },
+                            ]}
+                          >
+                            <Text style={[styles.dictNavText, { color: colors.textMuted }]}>Câu sau</Text>
+                            <MaterialIcons name="skip-next" size={20} color={colors.textMuted} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Tab 3: Toàn bộ văn bản */}
             {activeTab === "fullText" && (
               <View style={{ marginTop: 12 }}>
                 {/* Bản gốc tiếng Trung */}
@@ -1917,11 +2727,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   charBox: {
-    paddingHorizontal: 1,
+    paddingHorizontal: 2,
     paddingVertical: 1,
     borderRadius: 5,
     marginVertical: 1,
-  },
+    cursor: "pointer",
+  } as any,
   activeCharBoxHighlight: {
     backgroundColor: "#10B981",
     paddingHorizontal: 4,
@@ -2142,5 +2953,400 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 13.5,
     fontWeight: "700",
+  },
+  // ─── DICTATION STYLES ───
+  dictHeaderCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+  },
+  dictProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  dictProgressTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  dictProgressBarBg: {
+    height: 6,
+    backgroundColor: "rgba(150, 150, 150, 0.2)",
+    borderRadius: 3,
+    marginTop: 6,
+    overflow: "hidden",
+  },
+  dictProgressBarFill: {
+    height: "100%",
+    backgroundColor: "#10B981",
+    borderRadius: 3,
+  },
+  dictStatsChips: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: 12,
+  },
+  dictStatChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  dictStatChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dictNumbersScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 2,
+  },
+  dictNumChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dictNumChipText: {
+    fontSize: 12,
+  },
+  dictationCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 16,
+  },
+  dictEmptyTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  dictAudioHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  dictTimestampBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    gap: 4,
+  },
+  dictTimestampText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  dictControlIconBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dictControlIconText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  dictHeroPlayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 14,
+  },
+  dictHeroPlayIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dictHeroPlayTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  dictHeroPlaySubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dictSlotsWrapper: {
+    marginBottom: 14,
+  },
+  dictSlotsLabel: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  dictSlotsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+  },
+  dictSlotBox: {
+    minWidth: 38,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  dictSlotText: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  dictPunctBadge: {
+    paddingHorizontal: 10,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dictPunctText: {
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  dictInputWrap: {
+    marginBottom: 14,
+  },
+  dictInputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  dictTextInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "700",
+    paddingVertical: 8,
+  },
+  dictClearBtn: {
+    padding: 6,
+  },
+  dictChipsContainer: {
+    marginBottom: 14,
+  },
+  dictChipsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  dictChipsTitle: {
+    fontSize: 11.5,
+    fontWeight: "600",
+  },
+  dictBackspaceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 4,
+  },
+  dictBackspaceText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  dictChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  dictCharChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dictCharChipText: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  dictFeedbackSuccess: {
+    borderRadius: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderWidth: 1,
+    borderColor: "#10B981",
+    padding: 12,
+    marginBottom: 14,
+  },
+  dictFeedbackSuccessRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  dictFeedbackSuccessTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#10B981",
+  },
+  dictFeedbackSuccessSub: {
+    fontSize: 17,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  dictFeedbackPinyin: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  dictFeedbackMeaning: {
+    fontSize: 12.5,
+    marginTop: 2,
+  },
+  dictFeedbackWrong: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderWidth: 1,
+    borderColor: "#EF4444",
+    padding: 12,
+    marginBottom: 14,
+    gap: 8,
+  },
+  dictFeedbackWrongText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#EF4444",
+    flex: 1,
+  },
+  dictHintCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 14,
+  },
+  dictHintHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  dictHintTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    color: "#D97706",
+  },
+  dictHintTextZh: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  dictHintTextPy: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  dictHintTextVi: {
+    fontSize: 12.5,
+    marginTop: 2,
+  },
+  dictFillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#F59E0B",
+    marginTop: 10,
+    gap: 6,
+  },
+  dictFillBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+  dictActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  dictHintBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+  },
+  dictHintBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  dictCheckBtn: {
+    flex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  dictCheckBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  dictNextBtn: {
+    flex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  dictNextBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  dictNavRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: "rgba(150, 150, 150, 0.2)",
+  },
+  dictNavBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  dictNavText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

@@ -624,11 +624,24 @@ export default function CardViewer() {
                     contentContainerStyle={styles.cardFrontScroll}
                     showsVerticalScrollIndicator={false}
                   >
-                    {/* Chữ Hán Phồn Thể chính */}
+                    {/* Chữ Hán Phồn Thể chính: bấm vào chữ nào phát âm chữ đó */}
                     <View style={styles.japaneseWrapper}>
-                      <Text style={[styles.cardTextSolid, { color: colors.indigo }]}>
-                        {parsed.word}
-                      </Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
+                        {parsed.word.split("").map((ch: string, cIdx: number) => (
+                          <TouchableOpacity
+                            key={cIdx}
+                            activeOpacity={0.6}
+                            onPress={(e) => {
+                              if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                              speak(ch);
+                            }}
+                          >
+                            <Text style={[styles.cardTextSolid, { color: colors.indigo }]}>
+                              {ch}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                       {!hidePinyin && (parsed.pinyin ? (
                         <Text style={[styles.readingText, { color: colors.indigo }]}>
                           {parsed.pinyin}
@@ -670,6 +683,7 @@ export default function CardViewer() {
                                 activeOpacity={0.7}
                                 onPress={(e) => {
                                   if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                  speak(ch);
                                   openCharDetail(ch);
                                 }}
                               >
@@ -702,9 +716,23 @@ export default function CardViewer() {
                                   </View>
                                 </View>
 
-                                {/* MŨI TÊN TỪNG CHỮ */}
-                                <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
-                                  <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                  {/* LOA PHÁT ÂM RIÊNG TỪNG CHỮ */}
+                                  <TouchableOpacity
+                                    onPress={(e) => {
+                                      if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                      speak(ch);
+                                    }}
+                                    style={[styles.charAudioBtnMini, { borderColor: colors.border }]}
+                                    hitSlop={6}
+                                  >
+                                    <Feather name="volume-2" size={13} color={colors.indigo} />
+                                  </TouchableOpacity>
+
+                                  {/* MŨI TÊN TỪNG CHỮ */}
+                                  <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
+                                    <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                                  </View>
                                 </View>
                               </TouchableOpacity>
                             );
@@ -796,10 +824,23 @@ export default function CardViewer() {
                     contentContainerStyle={styles.cardBackScroll}
                     showsVerticalScrollIndicator={false}
                   >
-                    {/* Kanji nhỏ nhắc lại */}
-                    <Text style={[styles.backKanjiSmall, { color: colors.textMuted }]}>
-                      {parsed.word}
-                    </Text>
+                    {/* Kanji nhỏ nhắc lại: Bấm chữ nào phát âm chữ đó */}
+                    <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", marginBottom: 12 }}>
+                      {parsed.word.split("").map((ch: string, cIdx: number) => (
+                        <TouchableOpacity
+                          key={cIdx}
+                          activeOpacity={0.6}
+                          onPress={(e) => {
+                            if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                            speak(ch);
+                          }}
+                        >
+                          <Text style={[styles.backKanjiSmall, { color: colors.textMuted }]}>
+                            {ch}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
 
                     {/* Nghĩa chính */}
                     <Text style={[styles.cardTextDef, { color: colors.text }]}>
@@ -831,6 +872,7 @@ export default function CardViewer() {
                                 activeOpacity={0.7}
                                 onPress={(e) => {
                                   if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                  speak(ch);
                                   openCharDetail(ch);
                                 }}
                               >
@@ -863,9 +905,23 @@ export default function CardViewer() {
                                   </View>
                                 </View>
 
-                                {/* MŨI TÊN TỪNG CHỮ */}
-                                <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
-                                  <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                  {/* LOA PHÁT ÂM RIÊNG TỪNG CHỮ */}
+                                  <TouchableOpacity
+                                    onPress={(e) => {
+                                      if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                      speak(ch);
+                                    }}
+                                    style={[styles.charAudioBtnMini, { borderColor: colors.border }]}
+                                    hitSlop={6}
+                                  >
+                                    <Feather name="volume-2" size={13} color={colors.indigo} />
+                                  </TouchableOpacity>
+
+                                  {/* MŨI TÊN TỪNG CHỮ */}
+                                  <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
+                                    <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                                  </View>
                                 </View>
                               </TouchableOpacity>
                             );
@@ -1095,9 +1151,19 @@ export default function CardViewer() {
                   <View style={styles.vocabListItemMain}>
                     {/* Left Column: Japanese Word / Furigana */}
                     <View style={styles.vocabItemLeft}>
-                      <Text style={[styles.vocabWordText, { color: colors.indigo }]}>
-                        {wordParsed.word}
-                      </Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                        {wordParsed.word.split("").map((ch: string, cIdx: number) => (
+                          <TouchableOpacity
+                            key={cIdx}
+                            activeOpacity={0.6}
+                            onPress={() => speak(ch)}
+                          >
+                            <Text style={[styles.vocabWordText, { color: colors.indigo }]}>
+                              {ch}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                       {!hidePinyin && (wordParsed.pinyin ? (
                         <Text style={[styles.vocabReadingText, { color: colors.amber }]}>
                           {wordParsed.pinyin}
@@ -1145,7 +1211,10 @@ export default function CardViewer() {
                           return (
                             <TouchableOpacity
                               key={ci}
-                              onPress={() => openCharDetail(ch)}
+                              onPress={() => {
+                                speak(ch);
+                                openCharDetail(ch);
+                              }}
                               style={[
                                 styles.listCharChip,
                                 {
@@ -1383,9 +1452,20 @@ export default function CardViewer() {
                           >
                             <View style={{ flex: 1, paddingRight: 8 }}>
                               <View style={styles.relCardTopRow}>
-                                <Text style={[styles.relCardWord, { color: colors.indigo }]}>
-                                  {relItem.word}
-                                </Text>
+                                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                  {relItem.word.split("").map((c: string, ci: number) => (
+                                    <TouchableOpacity
+                                      key={ci}
+                                      onPress={(e) => {
+                                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                        speak(c);
+                                      }}
+                                      activeOpacity={0.6}
+                                    >
+                                      <Text style={[styles.relCardWord, { color: colors.indigo }]}>{c}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
                                 {relItem.pinyin ? (
                                   <Text style={[styles.relCardPinyin, { color: colors.amber }]}>
                                     {relItem.pinyin}
@@ -1443,9 +1523,22 @@ export default function CardViewer() {
                   <View style={[styles.wordHeroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <View style={styles.wordHeroTopRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.wordHeroText, { color: colors.indigo }]}>
-                          {w.word}
-                        </Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                          {w.word.split("").map((ch: string, cIdx: number) => (
+                            <TouchableOpacity
+                              key={cIdx}
+                              activeOpacity={0.6}
+                              onPress={(e) => {
+                                if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                speak(ch);
+                              }}
+                            >
+                              <Text style={[styles.wordHeroText, { color: colors.indigo }]}>
+                                {ch}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                         {w.pinyin ? (
                           <Text style={[styles.wordHeroPinyin, { color: colors.amber }]}>
                             {w.pinyin}
@@ -1520,8 +1613,21 @@ export default function CardViewer() {
                                 </View>
                               </View>
 
-                              <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
-                                <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                <TouchableOpacity
+                                  onPress={(e) => {
+                                    if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                                    speak(charItem);
+                                  }}
+                                  style={[styles.charAudioBtnMini, { borderColor: colors.border }]}
+                                  hitSlop={6}
+                                >
+                                  <Feather name="volume-2" size={13} color={colors.indigo} />
+                                </TouchableOpacity>
+
+                                <View style={[styles.charArrowIconWrap, { backgroundColor: colors.indigo }]}>
+                                  <Feather name="arrow-right" size={13} color="#FFFFFF" />
+                                </View>
                               </View>
                             </TouchableOpacity>
                           );
@@ -2185,6 +2291,14 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  charAudioBtnMini: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },

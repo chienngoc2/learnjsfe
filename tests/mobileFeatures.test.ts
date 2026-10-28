@@ -5,6 +5,7 @@
 
 import assert from "assert";
 import { parseWord, formatWordForDisplay } from "../src/utils/wordParser";
+import { parseSegmentsToDictationItems } from "../src/utils/dictationParser";
 
 async function runMobileTests() {
   console.log("\n=======================================================");
@@ -208,6 +209,43 @@ async function runMobileTests() {
     const activeWords = priorityWords.filter((w) => prioritySet.has(w.term));
     assert.strictEqual(activeWords.length, 2);
     assert.ok(!activeWords.some((w) => w.term === "狗"), "Unstarred word '狗' must be completely absent on restart");
+  });
+
+  // 8. Test Dictation Segment Splitter (by sentence & punctuation with audio timestamps)
+  await test("8. Dictation Segment Splitter (by sentence & punctuation with audio timestamps)", () => {
+    const segments = [
+      {
+        id: 0,
+        text: "你好，歡迎收聽中文廣播。",
+        start: 0,
+        end: 4.4,
+        startFormatted: "00:00",
+        endFormatted: "00:04",
+        pinyin: "nǐ hǎo, huān yíng shōu tīng zhōng wén guǎng bō.",
+        meaningVi: "Xin chào, chào mừng các bạn đón nghe đài phát thanh tiếng Trung.",
+      },
+      {
+        id: 1,
+        text: "今天天氣很好！",
+        start: 4.4,
+        end: 7.0,
+        startFormatted: "00:04",
+        endFormatted: "00:07",
+        pinyin: "jīn tiān tiān qì hěn hǎo!",
+        meaningVi: "Hôm nay thời tiết rất đẹp!",
+      },
+    ];
+
+    const items = parseSegmentsToDictationItems(segments as any);
+    assert.strictEqual(items.length, 3, "Must split into exactly 3 dictation clauses based on punctuation");
+    assert.strictEqual(items[0].cleanText, "你好");
+    assert.strictEqual(items[0].punctuation, "，");
+    assert.strictEqual(items[1].cleanText, "歡迎收聽中文廣播");
+    assert.strictEqual(items[1].punctuation, "。");
+    assert.strictEqual(items[2].cleanText, "今天天氣很好");
+    assert.strictEqual(items[2].punctuation, "！");
+    assert.ok(items[0].start < items[0].end, "Item 0 start must be before end");
+    assert.ok(items[1].start >= items[0].end, "Item 1 start must be after Item 0 end");
   });
 
   console.log("\n=======================================================");
