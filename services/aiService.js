@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import api from "./api";
 
 /**
@@ -73,18 +74,49 @@ export const generateGrammarQuiz = async (grammarData) => {
 
 /**
  * Trích xuất Script hoàn chỉnh từ file MP3/Audio (100% Free, 0 token, không tốn Groq)
+ * Hỗ trợ đa nền tảng: Expo Web, Android, iOS
  */
 export const transcribeMp3File = async ({
   uri,
   name = "audio.mp3",
   type = "audio/mpeg",
   language = "chinese",
+  file = null,
 }) => {
+  const isWeb = Platform.OS === "web" || (typeof window !== "undefined" && !!window.document);
+
+  if (isWeb) {
+    let fileBlob = file;
+    if (!fileBlob && uri && (uri.startsWith("blob:") || uri.startsWith("data:") || uri.startsWith("http"))) {
+      try {
+        const resp = await fetch(uri);
+        fileBlob = await resp.blob();
+      } catch (e) {
+        console.warn("Không thể fetch blob từ URI:", e);
+      }
+    }
+
+    if (fileBlob) {
+      const formData = new FormData();
+      formData.append("file", fileBlob, name || "audio.mp3");
+      formData.append("language", language);
+
+      const response = await api.post("/api/audio/transcribe-mp3", formData, {
+        headers: {
+          "Content-Type": undefined, // Để browser tự thêm boundary multipart chuẩn
+        },
+        timeout: 180000,
+      });
+      return response.data;
+    }
+  }
+
+  // Chế độ Native Mobile (Android / iOS)
   const formData = new FormData();
   formData.append("file", {
     uri,
-    type,
-    name,
+    type: type || "audio/mpeg",
+    name: name || "audio.mp3",
   });
   formData.append("language", language);
 
@@ -92,7 +124,7 @@ export const transcribeMp3File = async ({
     headers: {
       "Content-Type": "multipart/form-data",
     },
-    timeout: 180000, // 3 phút để xử lý an toàn
+    timeout: 180000,
   });
   return response.data;
 };

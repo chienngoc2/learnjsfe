@@ -50,6 +50,7 @@ export default function AudioScriptScreen() {
     name: string;
     size?: number;
     mimeType?: string;
+    file?: any;
   } | null>(null);
 
   // Audio player state
@@ -97,6 +98,7 @@ export default function AudioScriptScreen() {
           name: asset.name,
           size: asset.size,
           mimeType: asset.mimeType || "audio/mpeg",
+          file: (asset as any).file || null,
         });
         setResult(null);
 
@@ -172,6 +174,7 @@ export default function AudioScriptScreen() {
         name: selectedFile.name,
         type: selectedFile.mimeType || "audio/mpeg",
         language: "chinese",
+        file: selectedFile.file,
       });
 
       if (res && res.success && res.data) {
