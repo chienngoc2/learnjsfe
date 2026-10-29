@@ -19,11 +19,19 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import * as Speech from "expo-speech";
+import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/src/context/ThemeContext";
-import { transcribeMp3File } from "../../services/aiService";
+import {
+  transcribeMp3File,
+  fetchSavedAudioLessons,
+  saveAudioLessonToCloud,
+  deleteAudioLessonFromCloud,
+  getFullAudioStreamUrl,
+  getFullAudioDownloadUrl,
+} from "../../services/aiService";
 
 const SAVED_LESSONS_STORAGE_KEY = "@ai_sensei_saved_audio_lessons_v1";
 
@@ -39,6 +47,8 @@ interface Segment {
 }
 
 interface ScriptResult {
+  lessonId?: string;
+  fileId?: string;
   fileName: string;
   fileSize: number;
   duration: number;
@@ -47,14 +57,22 @@ interface ScriptResult {
   segments: Segment[];
   totalSegments: number;
   language: string;
+  streamUrl?: string;
+  downloadUrl?: string;
 }
 
 interface SavedAudioLesson {
   id: string;
+  lessonId?: string;
   title: string;
+  originalFileName?: string;
   savedAt: string;
   duration: number;
+  fileSize?: number;
   fileUri: string;
+  streamUrl?: string;
+  downloadUrl?: string;
+  gridFsFileId?: string;
   fullText: string;
   fullTranslation?: string;
   segments: Segment[];
@@ -164,12 +182,20 @@ export default function AudioScriptScreen() {
 
   const loadSavedLessons = async () => {
     try {
+      // 1. Tải nhanh từ AsyncStorage để hiển thị ngay lập tức
       const raw = await AsyncStorage.getItem(SAVED_LESSONS_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setSavedLessons(parsed);
         }
+      }
+
+      // 2. Tự động đồng bộ các bài nghe nhị phân từ MongoDB Atlas
+      const cloudRes = await fetchSavedAudioLessons();
+      if (cloudRes && cloudRes.success && Array.isArray(cloudRes.data)) {
+        setSavedLessons(cloudRes.data);
+        await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(cloudRes.data));
       }
     } catch (err) {
       console.warn("Lỗi đọc bài nghe đã lưu:", err);
@@ -675,7 +701,7 @@ export default function AudioScriptScreen() {
     }
   };
 
-  // 💾 LƯU LẠI BÀI NGHE VÀO THƯ VIỆN ĐỂ NGHE LẠI SAU NÀY
+  // 💾 LƯU LẠI BÀI NGHE VÀO MONGODB & THƯ VIỆN ĐỂ NGHE LẠI VĨNH VIỄN
   const handleSaveLesson = async () => {
     if (!result || !selectedFile) {
       Alert.alert("Thông báo", "Chưa có nội dung script để lưu.");
@@ -687,48 +713,127 @@ export default function AudioScriptScreen() {
       const now = new Date();
       const formattedDate = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()} ${now.getHours()}:${now.getMinutes() < 10 ? "0" + now.getMinutes() : now.getMinutes()}`;
 
+      // File ID từ GridFS (đã được lưu khi bóc script)
+      const gridFsId = (result as any).fileId || (result as any).gridFsFileId || "";
+      const streamUrl = (result as any).streamUrl
+        ? getFullAudioStreamUrl((result as any).streamUrl)
+        : getFullAudioStreamUrl(selectedFile.uri);
+
+      // Lưu/Cập nhật lên MongoDB
+      let cloudLessonId = (result as any).lessonId;
+      if (!cloudLessonId && gridFsId) {
+        try {
+          const saveRes = await saveAudioLessonToCloud({
+            gridFsFileId: gridFsId,
+            title: lessonTitle,
+            duration: result.duration,
+            fileSize: result.fileSize,
+            fullText: result.fullText,
+            fullTranslation: result.fullTranslation,
+            segments: result.segments,
+          });
+          if (saveRes && saveRes.success && saveRes.data) {
+            cloudLessonId = saveRes.data._id;
+          }
+        } catch (e) {
+          console.warn("Lưu bổ sung lên cloud:", e);
+        }
+      }
+
       const newLesson: SavedAudioLesson = {
-        id: `audio_lesson_${Date.now()}`,
+        id: cloudLessonId || `audio_lesson_${Date.now()}`,
+        lessonId: cloudLessonId,
         title: lessonTitle,
+        originalFileName: selectedFile.name,
         savedAt: formattedDate,
         duration: result.duration,
-        fileUri: selectedFile.uri,
+        fileSize: result.fileSize,
+        fileUri: streamUrl,
+        streamUrl: streamUrl,
+        downloadUrl: (result as any).downloadUrl ? getFullAudioDownloadUrl((result as any).downloadUrl) : "",
+        gridFsFileId: gridFsId,
         fullText: result.fullText,
         fullTranslation: result.fullTranslation,
         segments: result.segments,
         totalSegments: result.totalSegments,
       };
 
-      const updated = [newLesson, ...savedLessons.filter((l) => l.title !== lessonTitle)];
+      const updated = [newLesson, ...savedLessons.filter((l) => l.title !== lessonTitle && l.id !== newLesson.id)];
       await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
       setSavedLessons(updated);
 
       Alert.alert(
-        "Đã lưu thành công! 🎉",
-        `Bài nghe "${lessonTitle}" đã được lưu vào Thư viện. Bạn có thể mở lại nghe bất kỳ lúc nào!`
+        "Đã lưu thành công vào MongoDB! 🎉",
+        `Bài nghe "${lessonTitle}" và dữ liệu nhị phân đã được lưu trên MongoDB Cloud. Bạn có thể mở lại nghe trên bất kỳ thiết bị nào!`
       );
     } catch (err: any) {
       Alert.alert("Lỗi", "Không thể lưu bài nghe: " + (err.message || ""));
     }
   };
 
-  // 🗑️ XÓA ĐOẠN ÂM THANH / BÀI NGHE KHÔNG CẦN THIẾT
+  // 📥 TẢI FILE MP3 NHỊ PHÂN TỪ MONGODB VỀ MÁY
+  const handleDownloadAudio = async (lesson: SavedAudioLesson) => {
+    try {
+      const fileId = lesson.gridFsFileId || (lesson as any).fileId || lesson.id;
+      const downloadUrl = getFullAudioDownloadUrl(lesson.downloadUrl || fileId);
+
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") {
+          const a = document.createElement("a");
+          a.href = downloadUrl;
+          a.download = `${lesson.title}.mp3`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      } else {
+        await WebBrowser.openBrowserAsync(downloadUrl).catch(async () => {
+          await Share.share({
+            title: `Tải file: ${lesson.title}`,
+            url: downloadUrl,
+            message: `Tải file âm thanh: ${lesson.title} - ${downloadUrl}`,
+          });
+        });
+      }
+    } catch (e: any) {
+      Alert.alert("Lỗi tải file", e.message || "Không thể tải file âm thanh.");
+    }
+  };
+
+  // 🗑️ XÓA VĨNH VIỄN BÀI NGHE & FILE NHỊ PHÂN TRÊN MONGODB
   const handleDeleteLesson = (id: string, title: string) => {
     Alert.alert(
-      "Xác nhận xóa bài nghe",
-      `Bạn có chắc chắn muốn xóa bài nghe "${title}" khỏi thư viện không?`,
+      "Xác nhận xóa vĩnh viễn",
+      `Bạn có chắc chắn muốn xóa bài nghe "${title}"?\n\nThao tác này sẽ xóa vĩnh viễn cả bài học và file âm thanh nhị phân trên MongoDB Atlas.`,
       [
         { text: "Hủy bỏ", style: "cancel" },
         {
-          text: "Xóa vĩnh viễn",
+          text: "Xóa khỏi MongoDB",
           style: "destructive",
           onPress: async () => {
             try {
-              const updated = savedLessons.filter((l) => l.id !== id);
+              // 1. Gọi API xóa triệt để bài học và file nhị phân trong MongoDB GridFS
+              await deleteAudioLessonFromCloud(id);
+
+              // 2. Cập nhật state và bộ nhớ đệm
+              const updated = savedLessons.filter(
+                (l) => l.id !== id && (l as any).lessonId !== id && (l as any).gridFsFileId !== id
+              );
               await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
               setSavedLessons(updated);
-            } catch (e) {
+
+              Alert.alert(
+                "Đã xóa thành công",
+                `Bài nghe "${title}" và dữ liệu nhị phân đã được xóa vĩnh viễn khỏi MongoDB!`
+              );
+            } catch (e: any) {
               console.warn("Lỗi xóa bài nghe:", e);
+              const updated = savedLessons.filter(
+                (l) => l.id !== id && (l as any).lessonId !== id && (l as any).gridFsFileId !== id
+              );
+              await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
+              setSavedLessons(updated);
+              Alert.alert("Đã xóa", `Đã xóa bài nghe khỏi danh sách.`);
             }
           },
         },
@@ -751,17 +856,22 @@ export default function AudioScriptScreen() {
   const handleOpenLesson = async (lesson: SavedAudioLesson) => {
     setShowLibraryModal(false);
     setResult({
+      lessonId: lesson.lessonId || lesson.id,
+      fileId: lesson.gridFsFileId,
       fileName: lesson.title,
-      fileSize: 0,
+      fileSize: lesson.fileSize || 0,
       duration: lesson.duration,
       fullText: lesson.fullText,
       fullTranslation: lesson.fullTranslation,
       segments: lesson.segments,
-      totalSegments: lesson.totalSegments,
+      totalSegments: lesson.totalSegments || lesson.segments?.length || 0,
       language: "chinese",
+      streamUrl: lesson.streamUrl,
+      downloadUrl: lesson.downloadUrl,
     });
 
-    await setupAudio(lesson.fileUri, lesson.title);
+    const persistentStreamUri = getFullAudioStreamUrl(lesson.streamUrl || lesson.gridFsFileId || lesson.fileUri);
+    await setupAudio(persistentStreamUri, lesson.title, lesson.fileSize);
     setActiveTab("segments");
   };
 
@@ -2245,19 +2355,30 @@ export default function AudioScriptScreen() {
                       </Text>
                       <View style={styles.savedLessonMetaRow}>
                         <Text style={[styles.savedLessonMeta, { color: colors.textMuted }]}>
-                          🕒 {formatDisplayTime(lesson.duration)} · {lesson.totalSegments || lesson.segments?.length} câu · {lesson.savedAt}
+                          🕒 {formatDisplayTime(lesson.duration)} · {lesson.totalSegments || lesson.segments?.length} câu {lesson.fileSize ? `· ${formatFileSize(lesson.fileSize)}` : ""} · {lesson.savedAt}
                         </Text>
                       </View>
                     </View>
 
-                    {/* NÚT XÓA BÀI NGHE */}
-                    <TouchableOpacity
-                      onPress={() => handleDeleteLesson(lesson.id, lesson.title)}
-                      style={styles.deleteLessonBtn}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialIcons name="delete-outline" size={20} color="#EF4444" />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {/* NÚT TẢI FILE MP3 NHỊ PHÂN VỀ MÁY */}
+                      <TouchableOpacity
+                        onPress={() => handleDownloadAudio(lesson)}
+                        style={styles.downloadLessonBtn}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="file-download" size={20} color={colors.amber || "#CFAC62"} />
+                      </TouchableOpacity>
+
+                      {/* NÚT XÓA BÀI NGHE KHỎI MONGODB */}
+                      <TouchableOpacity
+                        onPress={() => handleDeleteLesson(lesson.lessonId || lesson.id, lesson.title)}
+                        style={styles.deleteLessonBtn}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons name="delete-outline" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {/* Xem trước câu đầu tiên */}
@@ -2925,7 +3046,13 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 8,
     backgroundColor: "rgba(239, 68, 68, 0.1)",
-    marginLeft: 8,
+    marginLeft: 6,
+  },
+  downloadLessonBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(207, 172, 98, 0.12)",
+    marginLeft: 6,
   },
   previewBox: {
     padding: 10,

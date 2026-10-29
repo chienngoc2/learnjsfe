@@ -129,6 +129,72 @@ export const transcribeMp3File = async ({
   return response.data;
 };
 
+/**
+ * Lấy danh sách các bài nghe & script đã lưu trong MongoDB
+ */
+export const fetchSavedAudioLessons = async () => {
+  try {
+    const response = await api.get("/api/audio/lessons");
+    return response.data;
+  } catch (err) {
+    console.warn("Lỗi fetch bài nghe từ MongoDB:", err);
+    return { success: false, data: [] };
+  }
+};
+
+/**
+ * Lưu bài nghe vào MongoDB
+ */
+export const saveAudioLessonToCloud = async (lessonData) => {
+  const response = await api.post("/api/audio/save-lesson", lessonData);
+  return response.data;
+};
+
+/**
+ * Xóa vĩnh viễn bài nghe và file nhị phân khỏi MongoDB
+ */
+export const deleteAudioLessonFromCloud = async (lessonId) => {
+  const response = await api.delete(`/api/audio/lessons/${lessonId}`);
+  return response.data;
+};
+
+/**
+ * Lấy URL đầy đủ để stream âm thanh từ MongoDB GridFS
+ */
+export const getFullAudioStreamUrl = (streamUrlOrFileId) => {
+  if (!streamUrlOrFileId) return "";
+  if (
+    streamUrlOrFileId.startsWith("http://") ||
+    streamUrlOrFileId.startsWith("https://") ||
+    streamUrlOrFileId.startsWith("blob:") ||
+    streamUrlOrFileId.startsWith("file:")
+  ) {
+    return streamUrlOrFileId;
+  }
+  const baseUrl = api.defaults.baseURL || "http://localhost:5000";
+  const cleanBase = baseUrl.replace(/\/+$/, "");
+  const cleanPath = streamUrlOrFileId.startsWith("/")
+    ? streamUrlOrFileId
+    : `/api/audio/files/${streamUrlOrFileId}`;
+  return `${cleanBase}${cleanPath}`;
+};
+
+/**
+ * Lấy URL đầy đủ để tải file MP3 nhị phân từ MongoDB về máy
+ */
+export const getFullAudioDownloadUrl = (downloadUrlOrFileId) => {
+  if (!downloadUrlOrFileId) return "";
+  if (downloadUrlOrFileId.startsWith("http://") || downloadUrlOrFileId.startsWith("https://")) {
+    return downloadUrlOrFileId;
+  }
+  const baseUrl = api.defaults.baseURL || "http://localhost:5000";
+  const cleanBase = baseUrl.replace(/\/+$/, "");
+  const cleanPath = downloadUrlOrFileId.startsWith("/")
+    ? downloadUrlOrFileId
+    : `/api/audio/download/${downloadUrlOrFileId}`;
+  return `${cleanBase}${cleanPath}`;
+};
+
 export default {
   sendChatMessage,
   transcribeAudio,
@@ -136,5 +202,10 @@ export default {
   evaluatePronunciation,
   getDailySuggestion,
   generateGrammarQuiz,
+  fetchSavedAudioLessons,
+  saveAudioLessonToCloud,
+  deleteAudioLessonFromCloud,
+  getFullAudioStreamUrl,
+  getFullAudioDownloadUrl,
 };
 
