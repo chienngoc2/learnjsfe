@@ -32,6 +32,69 @@ import {
   getFullAudioStreamUrl,
   getFullAudioDownloadUrl,
 } from "../../services/aiService";
+import api from "../../services/api";
+import StrokeOrderPractice from "../../components/StrokeOrderPractice";
+import { SINO_VIETNAMESE_DICT } from "./kanji-search";
+import masterData from "@/assets/data/vocab_master.json";
+
+const masterWords: Array<{ word: string; pinyin?: string; meaning: string; level?: string }> =
+  (masterData as any).words || [];
+
+const getCharInfo = (char: string) => {
+  const cleanChar = char.trim();
+  const dictItem = SINO_VIETNAMESE_DICT[cleanChar];
+  const vocabItem = masterWords.find((w) => w.word === cleanChar);
+  return {
+    char: cleanChar,
+    pinyin: dictItem?.pinyin || vocabItem?.pinyin || "",
+    hanviet: dictItem?.hanviet || "",
+    meaning: dictItem?.meaning || vocabItem?.meaning || "",
+  };
+};
+
+const getRelatedWordsForChar = (char: string, limit = 16) => {
+  const clean = char.trim();
+  if (!clean) return [];
+  return masterWords
+    .filter((w) => w.word.includes(clean) && w.word !== clean)
+    .slice(0, limit);
+};
+
+interface QuickCharTooltip {
+  char: string;
+  pinyin: string;
+  hanviet: string;
+  meaning: string;
+  item: Segment;
+  charIdx: number;
+}
+
+interface ExploreItem {
+  word: string;
+  pinyin?: string;
+  hanviet?: string;
+  meaning?: string;
+  audioTimestamp?: number;
+  lessonTitle?: string;
+}
+
+interface WordInsightData {
+  word?: string;
+  pinyin?: string;
+  hanviet?: string;
+  meaning?: string;
+  synonyms?: Array<{ word: string; pinyin?: string; meaning: string; difference?: string }>;
+  usages?: Array<{
+    pattern: string;
+    meaning?: string;
+    explanation?: string;
+    exampleCn?: string;
+    examplePinyin?: string;
+    exampleVn?: string;
+    example?: string;
+  }>;
+  relatedWords?: Array<{ word: string; pinyin?: string; meaning: string }>;
+}
 
 const SAVED_LESSONS_STORAGE_KEY = "@ai_sensei_saved_audio_lessons_v1";
 
@@ -175,6 +238,43 @@ export default function AudioScriptScreen() {
   const [savedLessons, setSavedLessons] = useState<SavedAudioLesson[]>([]);
   const [showLibraryModal, setShowLibraryModal] = useState(false);
 
+  // ─── 🔍 TRA CỨU HÁN TỰ & TỪ VỰNG KHI HOLD / CLICK CHỮ ───
+  const [hoveredChar, setHoveredChar] = useState<QuickCharTooltip | null>(null);
+  const hoverTimeoutRef = useRef<any>(null);
+
+  // Modal Khám phá từ vựng & Hán tự (hỗ trợ Breadcrumb Stack)
+  const [exploreStack, setExploreStack] = useState<ExploreItem[]>([]);
+  const [activePracticeCharIdx, setActivePracticeCharIdx] = useState(0);
+  const [wordInsights, setWordInsights] = useState<WordInsightData | null>(null);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  const activeExploreItem = exploreStack.length > 0 ? exploreStack[exploreStack.length - 1] : null;
+
+  // Ký tự Hán tự hợp lệ của từ đang xem
+  const activeHanziChars = useMemo(() => {
+    if (!activeExploreItem?.word) return [];
+    return Array.from(activeExploreItem.word).filter((c) => /[\u4e00-\u9fa5]/.test(c));
+  }, [activeExploreItem?.word]);
+
+  // Các từ ghép chứa từ đang xem
+  const activeRelatedWords = useMemo(() => {
+    if (!activeExploreItem?.word) return [];
+    const directChar = activeExploreItem.word.trim();
+    const offlineList = getRelatedWordsForChar(directChar, 18);
+    const backendRelated = wordInsights?.relatedWords || [];
+    const combined = [...offlineList];
+    for (const b of backendRelated) {
+      if (!combined.some((w) => w.word === b.word) && b.word !== directChar) {
+        combined.push({
+          word: b.word,
+          pinyin: b.pinyin,
+          meaning: b.meaning,
+        });
+      }
+    }
+    return combined;
+  }, [activeExploreItem?.word, wordInsights?.relatedWords]);
+
   // Load danh sách bài nghe đã lưu khi mở trang
   useEffect(() => {
     loadSavedLessons();
@@ -273,8 +373,23 @@ export default function AudioScriptScreen() {
     }
   };
 
+  // Tổng thời lượng chuẩn xác của bài nghe (tránh bị cắt cụt do stream buffer)
+  const effectiveTotalDuration = useMemo(() => {
+    const maxSegEnd = result?.segments?.length
+      ? Math.max(...result.segments.map((s) => s.end || 0))
+      : 0;
+    return Math.max(playbackDuration || 0, result?.duration || 0, maxSegEnd || 0);
+  }, [playbackDuration, result?.duration, result?.segments]);
+
   // Thiết lập audio file và khởi tạo trình phát
-  const setupAudio = async (uri: string, name: string, size?: number, mimeType?: string, fileObj?: any) => {
+  const setupAudio = async (
+    uri: string,
+    name: string,
+    size?: number,
+    mimeType?: string,
+    fileObj?: any,
+    knownDuration?: number
+  ) => {
     try {
       if (sound) {
         await sound.unloadAsync();
@@ -287,6 +402,10 @@ export default function AudioScriptScreen() {
       setDictationInput("");
       setDictationStatus("idle");
       setSolvedDictationItems({});
+
+      if (knownDuration && knownDuration > 0) {
+        setPlaybackDuration(knownDuration);
+      }
 
       setSelectedFile({
         uri,
@@ -311,7 +430,8 @@ export default function AudioScriptScreen() {
 
       setSound(newSound);
       if (status.isLoaded && status.durationMillis) {
-        setPlaybackDuration(status.durationMillis / 1000);
+        const durSec = status.durationMillis / 1000;
+        setPlaybackDuration((prev) => Math.max(prev, durSec, knownDuration || 0));
       }
     } catch (err: any) {
       console.warn("Lỗi khởi tạo audio:", err);
@@ -390,16 +510,27 @@ export default function AudioScriptScreen() {
         setPlaybackPosition(currentPos);
       }
       if (status.durationMillis && status.durationMillis > 0) {
-        setPlaybackDuration(status.durationMillis / 1000);
+        const durSec = status.durationMillis / 1000;
+        setPlaybackDuration((prev) => Math.max(prev, durSec, result?.duration || 0));
       }
       setIsPlaying(status.isPlaying);
 
       if (status.didJustFinish && !isSeekingRef.current) {
-        setIsPlaying(false);
-        setActivePlayingSegmentId(null);
-        // Chỉ reset về 0 nếu thực sự đã phát hết tới cuối file
-        const totalDur = status.durationMillis || (playbackDuration * 1000) || 0;
-        if (totalDur > 1000 && status.positionMillis >= totalDur - 400) {
+        const maxSegEnd = result?.segments?.length
+          ? Math.max(...result.segments.map((s) => s.end || 0))
+          : 0;
+        const totalDur = Math.max(
+          playbackDuration,
+          result?.duration || 0,
+          maxSegEnd,
+          status.durationMillis ? status.durationMillis / 1000 : 0
+        );
+        const currentPos = status.positionMillis / 1000;
+
+        // Chỉ kết thúc nếu thực sự đã phát tới cuối file âm thanh (cách đuôi < 1.5s)
+        if (totalDur > 1.5 && currentPos >= totalDur - 1.5) {
+          setIsPlaying(false);
+          setActivePlayingSegmentId(null);
           setPlaybackPosition(0);
         }
       }
@@ -434,7 +565,7 @@ export default function AudioScriptScreen() {
     }
   };
 
-  // Tua đoạn âm thanh đến giây cụ thể (chính xác, không bị giật reset)
+  // Tua đoạn âm thanh đến giây cụ thể (chính xác, không bị giật reset hay cắt nửa bài)
   const seekToTime = async (seconds: number) => {
     if (!sound) return;
     try {
@@ -444,7 +575,7 @@ export default function AudioScriptScreen() {
       }
       setActivePlayingSegmentId(null);
 
-      const totalDuration = playbackDuration > 0 ? playbackDuration : (result?.duration || 0);
+      const totalDuration = effectiveTotalDuration;
       const clampedSeconds = Math.max(
         0,
         Math.min(seconds, totalDuration > 0 ? Math.max(0, totalDuration - 0.25) : seconds)
@@ -476,7 +607,7 @@ export default function AudioScriptScreen() {
 
   // Xử lý click/tua trên thanh timeline bằng chuột hoặc chạm
   const handleTimelinePress = (e: any) => {
-    const totalDuration = playbackDuration > 0 ? playbackDuration : (result?.duration || 0);
+    const totalDuration = effectiveTotalDuration;
     if (!totalDuration || totalDuration <= 0) return;
 
     if (segmentTimerRef.current) {
@@ -518,6 +649,108 @@ export default function AudioScriptScreen() {
       await seekToTime(charStartTime);
     } else {
       speakSentence(chars[charIdx]);
+    }
+  };
+
+  // ─── 🔍 XỬ LÝ HOVER / HOLD CHUỘT VÀ CHI TIẾT TỪ VỰNG ───
+  const handleCharHover = (char: string, item: Segment, charIdx: number) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    const info = getCharInfo(char);
+    setHoveredChar({
+      char,
+      pinyin: info.pinyin,
+      hanviet: info.hanviet,
+      meaning: info.meaning || "Từ vựng tiếng Trung",
+      item,
+      charIdx,
+    });
+  };
+
+  const handleCharLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredChar(null);
+    }, 1200);
+  };
+
+  // Mở trang chi tiết từ vựng & Hán tự (Modal)
+  const openWordDetail = (char: string, item?: Segment, charIdx?: number) => {
+    setHoveredChar(null);
+    const info = getCharInfo(char);
+    let audioTimestamp: number | undefined = undefined;
+    if (item) {
+      const chars = Array.from(item.text);
+      const segDuration = Math.max(0.1, item.end - item.start);
+      audioTimestamp = item.start + ((charIdx ?? 0) / Math.max(1, chars.length)) * segDuration;
+    }
+
+    const initialItem: ExploreItem = {
+      word: char,
+      pinyin: info.pinyin,
+      hanviet: info.hanviet,
+      meaning: info.meaning,
+      audioTimestamp,
+      lessonTitle: result?.fileName || selectedFile?.name,
+    };
+
+    setActivePracticeCharIdx(0);
+    setExploreStack([initialItem]);
+    fetchInsights(char);
+  };
+
+  // Khám phá từ con (từ ghép, từ đồng nghĩa) trong Modal (push vào stack)
+  const pushExploreWord = (word: string, pinyin?: string, meaning?: string) => {
+    const info = getCharInfo(word);
+    const newItem: ExploreItem = {
+      word,
+      pinyin: pinyin || info.pinyin,
+      hanviet: info.hanviet,
+      meaning: meaning || info.meaning,
+    };
+    setActivePracticeCharIdx(0);
+    setExploreStack((prev) => [...prev, newItem]);
+    fetchInsights(word);
+  };
+
+  // Quay lại từ trước trong stack
+  const popExploreWord = () => {
+    if (exploreStack.length <= 1) {
+      closeWordDetail();
+    } else {
+      const nextStack = exploreStack.slice(0, exploreStack.length - 1);
+      setExploreStack(nextStack);
+      setActivePracticeCharIdx(0);
+      const topWord = nextStack[nextStack.length - 1].word;
+      fetchInsights(topWord);
+    }
+  };
+
+  const closeWordDetail = () => {
+    setExploreStack([]);
+    setWordInsights(null);
+    setActivePracticeCharIdx(0);
+  };
+
+  // Gọi backend API /api/kanji/insights để lấy từ đồng nghĩa, phân biệt và ngữ cảnh
+  const fetchInsights = async (word: string) => {
+    const cleanWord = word.trim();
+    if (!cleanWord) return;
+    setLoadingInsights(true);
+    setWordInsights(null);
+    try {
+      const res = await api.get(`/kanji/insights?q=${encodeURIComponent(cleanWord)}`);
+      if (res.data && res.data.success && res.data.data) {
+        setWordInsights(res.data.data);
+      }
+    } catch (e) {
+      console.warn("Lỗi tải insights từ backend:", e);
+    } finally {
+      setLoadingInsights(false);
     }
   };
 
@@ -690,6 +923,9 @@ export default function AudioScriptScreen() {
 
       if (res && res.success && res.data) {
         setResult(res.data);
+        if (res.data.duration && res.data.duration > 0) {
+          setPlaybackDuration((prev) => Math.max(prev, res.data.duration));
+        }
       } else {
         Alert.alert("Lỗi", res?.error || "Không thể bóc script từ file âm thanh.");
       }
@@ -870,8 +1106,12 @@ export default function AudioScriptScreen() {
       downloadUrl: lesson.downloadUrl,
     });
 
+    if (lesson.duration && lesson.duration > 0) {
+      setPlaybackDuration(lesson.duration);
+    }
+
     const persistentStreamUri = getFullAudioStreamUrl(lesson.streamUrl || lesson.gridFsFileId || lesson.fileUri);
-    await setupAudio(persistentStreamUri, lesson.title, lesson.fileSize);
+    await setupAudio(persistentStreamUri, lesson.title, lesson.fileSize, undefined, undefined, lesson.duration);
     setActiveTab("segments");
   };
 
@@ -1100,7 +1340,7 @@ export default function AudioScriptScreen() {
                       {formatDisplayTime(playbackPosition)}
                     </Text>
                     <Text style={[styles.timeText, { color: colors.textMuted }]}>
-                      {formatDisplayTime(playbackDuration > 0 ? playbackDuration : (result?.duration || 0))}
+                      {formatDisplayTime(effectiveTotalDuration)}
                     </Text>
                   </View>
 
@@ -1119,7 +1359,7 @@ export default function AudioScriptScreen() {
                           styles.progressFill,
                           {
                             backgroundColor: "#10B981",
-                            width: `${(playbackDuration > 0 ? playbackDuration : (result?.duration || 0)) > 0 ? Math.min(100, Math.max(0, (playbackPosition / (playbackDuration > 0 ? playbackDuration : (result?.duration || 1))) * 100)) : 0}%`,
+                            width: `${effectiveTotalDuration > 0 ? Math.min(100, Math.max(0, (playbackPosition / effectiveTotalDuration) * 100)) : 0}%`,
                           },
                         ]}
                       />
@@ -1129,7 +1369,7 @@ export default function AudioScriptScreen() {
                         style={[
                           styles.scrubberThumb,
                           {
-                            left: `${(playbackDuration > 0 ? playbackDuration : (result?.duration || 0)) > 0 ? Math.min(98, Math.max(0, (playbackPosition / (playbackDuration > 0 ? playbackDuration : (result?.duration || 1))) * 100)) : 0}%`,
+                            left: `${effectiveTotalDuration > 0 ? Math.min(98, Math.max(0, (playbackPosition / effectiveTotalDuration) * 100)) : 0}%`,
                           },
                         ]}
                       />
@@ -1571,6 +1811,88 @@ export default function AudioScriptScreen() {
                         </View>
                       </View>
 
+                      {/* 🟢 KHUNG TOOLTIP NỔI KHI HOVER / HOLD CHUỘT VÀO CHỮ */}
+                      {hoveredChar && hoveredChar.item.id === item.id && (
+                        <View
+                          style={[
+                            styles.charTooltipCard,
+                            {
+                              backgroundColor: isDark ? "#1C1917" : "#FFFFFF",
+                              borderColor: colors.amber || "#F59E0B",
+                            },
+                          ]}
+                        >
+                          <View style={styles.charTooltipHeader}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                              <Text style={[styles.charTooltipChar, { color: colors.amber || "#F59E0B" }]}>
+                                {hoveredChar.char}
+                              </Text>
+                              {!!hoveredChar.pinyin && (
+                                <View style={styles.charTooltipPinyinBadge}>
+                                  <Text style={styles.charTooltipPinyinText}>{hoveredChar.pinyin}</Text>
+                                </View>
+                              )}
+                              {!!hoveredChar.hanviet && (
+                                <Text style={[styles.charTooltipHanviet, { color: colors.textMuted }]}>
+                                  [{hoveredChar.hanviet}]
+                                </Text>
+                              )}
+                            </View>
+
+                            <TouchableOpacity
+                              onPress={() => setHoveredChar(null)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={styles.charTooltipCloseBtn}
+                            >
+                              <MaterialIcons name="close" size={16} color={colors.textMuted} />
+                            </TouchableOpacity>
+                          </View>
+
+                          <Text style={[styles.charTooltipMeaning, { color: colors.text }]}>
+                            🇻🇳 {hoveredChar.meaning || "Từ vựng tiếng Trung"}
+                          </Text>
+
+                          <View style={styles.charTooltipActions}>
+                            <TouchableOpacity
+                              onPress={() => speakSentence(hoveredChar.char)}
+                              style={[
+                                styles.charTooltipActionBtn,
+                                { backgroundColor: isDark ? "#292524" : "#F3F4F6" },
+                              ]}
+                            >
+                              <MaterialIcons name="volume-up" size={14} color="#10B981" />
+                              <Text style={[styles.charTooltipActionText, { color: colors.text }]}>Phát âm</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              onPress={() => playFromChar(hoveredChar.item, hoveredChar.charIdx)}
+                              style={[
+                                styles.charTooltipActionBtn,
+                                { backgroundColor: isDark ? "#292524" : "#F3F4F6" },
+                              ]}
+                            >
+                              <MaterialIcons name="play-circle-outline" size={14} color="#3B82F6" />
+                              <Text style={[styles.charTooltipActionText, { color: colors.text }]}>
+                                Nghe từ chữ này
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              onPress={() => openWordDetail(hoveredChar.char, hoveredChar.item, hoveredChar.charIdx)}
+                              style={[
+                                styles.charTooltipActionBtn,
+                                { backgroundColor: colors.amber || "#F59E0B" },
+                              ]}
+                            >
+                              <MaterialIcons name="auto-stories" size={14} color="#FFFFFF" />
+                              <Text style={[styles.charTooltipActionText, { color: "#FFFFFF", fontWeight: "700" }]}>
+                                Chi tiết từ & Hán tự
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
                       {/* 🟢 Ô XANH LÁ HIỆN ĐANG NÓI Ở CHỮ NÀO (LIVE CALLOUT) */}
                       {isCurrent && !!activeChar && (
                         <View style={styles.activeCharCallout}>
@@ -1582,23 +1904,33 @@ export default function AudioScriptScreen() {
                         </View>
                       )}
 
-                      {/* 🟢 CHỮ TIẾNG TRUNG: BẤM VÀO CHỮ NÀO AUDIO PHÁT TỪ ĐÚNG CHỮ ĐÓ */}
+                      {/* 🟢 CHỮ TIẾNG TRUNG: HOLD / HOVER XEM NGHĨA - BẤM MỞ TRANG CHI TIẾT */}
                       <View style={styles.karaokeTextWrap}>
                         {chars.map((char, charIdx) => {
                           const isThisChar = isCurrent && charIdx === activeCharIndex;
                           const isSpoken = isCurrent && charIdx < activeCharIndex;
+                          const isHovered = hoveredChar?.item.id === item.id && hoveredChar?.charIdx === charIdx;
 
                           return (
                             <TouchableOpacity
                               key={charIdx}
-                              activeOpacity={0.6}
+                              activeOpacity={0.7}
+                              onLongPress={() => handleCharHover(char, item, charIdx)}
+                              delayLongPress={180}
                               onPress={(e) => {
                                 if ((e as any)?.stopPropagation) (e as any).stopPropagation();
-                                playFromChar(item, charIdx);
+                                openWordDetail(char, item, charIdx);
                               }}
+                              {...(Platform.OS === "web"
+                                ? {
+                                    onMouseEnter: () => handleCharHover(char, item, charIdx),
+                                    onMouseLeave: handleCharLeave,
+                                  }
+                                : {})}
                               style={[
                                 styles.charBox,
                                 isThisChar && styles.activeCharBoxHighlight,
+                                isHovered && styles.hoveredCharBoxHighlight,
                               ]}
                             >
                               <Text
@@ -1607,10 +1939,12 @@ export default function AudioScriptScreen() {
                                   {
                                     color: isThisChar
                                       ? "#FFFFFF"
+                                      : isHovered
+                                      ? (colors.amber || "#F59E0B")
                                       : isSpoken
                                       ? (isDark ? "#34D399" : "#059669")
                                       : colors.text,
-                                    fontWeight: isThisChar ? "900" : isSpoken ? "800" : "600",
+                                    fontWeight: isThisChar || isHovered ? "900" : isSpoken ? "800" : "600",
                                   },
                                 ]}
                               >
@@ -2408,6 +2742,401 @@ export default function AudioScriptScreen() {
               ))
             )}
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ─── 📖 MODAL CHI TIẾT TỪ VỰNG, HÁN TỰ, TỪ ĐỒNG NGHĨA & NÉT VIẾT ─── */}
+      <Modal
+        visible={exploreStack.length > 0}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeWordDetail}
+      >
+        <View style={[styles.wordDetailContainer, { backgroundColor: colors.background }]}>
+          {/* Top Bar Modal */}
+          <View
+            style={[
+              styles.wordDetailTopBar,
+              {
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.border,
+                paddingTop: insets.top > 0 ? insets.top + 8 : (Platform.OS === "android" ? 44 : 20),
+              },
+            ]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+              {exploreStack.length > 1 ? (
+                <TouchableOpacity onPress={popExploreWord} style={styles.modalBackBtn}>
+                  <MaterialIcons name="arrow-back-ios" size={18} color={colors.text} />
+                  <Text style={[styles.modalBackText, { color: colors.text }]} numberOfLines={1}>
+                    {exploreStack[exploreStack.length - 2]?.word}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <MaterialIcons name="menu-book" size={20} color={colors.amber || "#F59E0B"} />
+                  <Text style={[styles.wordDetailTopTitle, { color: colors.text }]}>
+                    Chi tiết từ & Hán tự
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity onPress={closeWordDetail} style={styles.modalCloseBtn}>
+              <MaterialIcons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {activeExploreItem && (
+            <ScrollView
+              contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* 🌟 HERO CARD: TỪ VỰNG & HÁN TỰ */}
+              <View
+                style={[
+                  styles.exploreHeroCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={styles.exploreHeroTopRow}>
+                  <Text style={[styles.exploreHeroWord, { color: colors.text }]}>
+                    {activeExploreItem.word}
+                  </Text>
+
+                  <TouchableOpacity
+                    onPress={() => speakSentence(activeExploreItem.word)}
+                    style={styles.exploreTtsBtn}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="volume-up" size={22} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Badges: Pinyin + Hán Việt */}
+                <View style={styles.exploreBadgeRow}>
+                  {!!(activeExploreItem.pinyin || wordInsights?.pinyin) && (
+                    <View style={styles.explorePinyinBadge}>
+                      <Text style={styles.explorePinyinText}>
+                        {activeExploreItem.pinyin || wordInsights?.pinyin}
+                      </Text>
+                    </View>
+                  )}
+                  {!!(activeExploreItem.hanviet || wordInsights?.hanviet) && (
+                    <View style={styles.exploreHanvietBadge}>
+                      <Text style={styles.exploreHanvietText}>
+                        Hán Việt: {activeExploreItem.hanviet || wordInsights?.hanviet}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Nghĩa tiếng Việt */}
+                <View
+                  style={[
+                    styles.exploreMeaningBox,
+                    { backgroundColor: isDark ? "rgba(16, 185, 129, 0.08)" : "#F0FDF4" },
+                  ]}
+                >
+                  <Text style={styles.exploreMeaningLabel}>🇻🇳 Ý NGHĨA TIẾNG VIỆT</Text>
+                  <Text style={[styles.exploreMeaningText, { color: isDark ? "#A7F3D0" : "#065F46" }]}>
+                    {activeExploreItem.meaning || wordInsights?.meaning || "Từ vựng tiếng Trung"}
+                  </Text>
+                </View>
+
+                {/* Nút phát âm thanh từ đoạn audio này (nếu được mở từ audio) */}
+                {activeExploreItem.audioTimestamp !== undefined && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const ts = activeExploreItem.audioTimestamp!;
+                      closeWordDetail();
+                      seekToTime(ts);
+                    }}
+                    style={styles.explorePlayFromAudioBtn}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="headphones" size={18} color="#FFFFFF" />
+                    <Text style={styles.explorePlayFromAudioText}>
+                      Nghe câu này trong bài audio ({formatDisplayTime(activeExploreItem.audioTimestamp)})
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* ✍️ TẬP VIẾT THỨ TỰ TỪNG NÉT (STROKE ORDER CANVAS) */}
+              {activeHanziChars.length > 0 && (
+                <View
+                  style={[
+                    styles.exploreSectionCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                >
+                  <View style={styles.exploreSectionTitleRow}>
+                    <MaterialIcons name="edit" size={18} color={colors.amber || "#F59E0B"} />
+                    <Text style={[styles.exploreSectionTitle, { color: colors.text }]}>
+                      Tập viết & Thứ tự từng nét chữ
+                    </Text>
+                  </View>
+
+                  {/* Nếu từ có nhiều chữ Hán (ví dụ: 走路, 幫忙), cho chọn từng chữ để viết */}
+                  {activeHanziChars.length > 1 && (
+                    <View style={styles.charSelectorRow}>
+                      {activeHanziChars.map((ch, idx) => (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => setActivePracticeCharIdx(idx)}
+                          style={[
+                            styles.charSelectTab,
+                            activePracticeCharIdx === idx && styles.charSelectTabActive,
+                            {
+                              borderColor:
+                                activePracticeCharIdx === idx
+                                  ? colors.amber || "#F59E0B"
+                                  : colors.border,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.charSelectTabText,
+                              {
+                                color:
+                                  activePracticeCharIdx === idx
+                                    ? colors.amber || "#F59E0B"
+                                    : colors.text,
+                                fontWeight: activePracticeCharIdx === idx ? "800" : "500",
+                              },
+                            ]}
+                          >
+                            {ch}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Interactive Stroke Practice Canvas */}
+                  <View style={styles.strokeCanvasWrap}>
+                    <StrokeOrderPractice
+                      character={activeHanziChars[activePracticeCharIdx] || activeHanziChars[0]}
+                      pinyin={getCharInfo(activeHanziChars[activePracticeCharIdx] || activeHanziChars[0]).pinyin}
+                      vietnameseReading={getCharInfo(activeHanziChars[activePracticeCharIdx] || activeHanziChars[0]).hanviet}
+                      size={Platform.OS === "web" ? 170 : 150}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* 🌿 TỪ ĐỒNG NGHĨA & GẦN NGHĨA */}
+              <View
+                style={[
+                  styles.exploreSectionCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.exploreSectionTitleRow}>
+                  <MaterialIcons name="compare-arrows" size={18} color="#10B981" />
+                  <Text style={[styles.exploreSectionTitle, { color: colors.text }]}>
+                    Từ đồng nghĩa & Gần nghĩa
+                  </Text>
+                  {loadingInsights && <ActivityIndicator size="small" color="#10B981" style={{ marginLeft: 8 }} />}
+                </View>
+
+                {wordInsights?.synonyms && wordInsights.synonyms.length > 0 ? (
+                  <View style={{ gap: 10 }}>
+                    {wordInsights.synonyms.map((syn, sIdx) => (
+                      <View
+                        key={sIdx}
+                        style={[
+                          styles.synonymCard,
+                          {
+                            backgroundColor: isDark ? "#1C1917" : "#F9FAFB",
+                            borderColor: colors.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.synonymHeaderRow}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                            <Text style={[styles.synonymWord, { color: colors.text }]}>{syn.word}</Text>
+                            {!!syn.pinyin && (
+                              <Text style={[styles.synonymPinyin, { color: colors.amber || "#CFAC62" }]}>
+                                {syn.pinyin}
+                              </Text>
+                            )}
+                            <Text style={[styles.synonymMeaning, { color: "#10B981" }]} numberOfLines={1}>
+                              · {syn.meaning}
+                            </Text>
+                          </View>
+
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <TouchableOpacity
+                              onPress={() => speakSentence(syn.word)}
+                              style={styles.smallTtsBtn}
+                            >
+                              <MaterialIcons name="volume-up" size={16} color="#10B981" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              onPress={() => pushExploreWord(syn.word, syn.pinyin, syn.meaning)}
+                              style={styles.exploreNextBtn}
+                            >
+                              <Text style={styles.exploreNextBtnText}>Tra từ này</Text>
+                              <MaterialIcons name="chevron-right" size={14} color="#FFFFFF" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        {!!syn.difference && (
+                          <View style={[styles.synonymDiffBox, { backgroundColor: isDark ? "#292524" : "#F3F4F6" }]}>
+                            <Text style={[styles.synonymDiffText, { color: colors.textMuted }]}>
+                              💡 <Text style={{ fontWeight: "700", color: colors.text }}>Phân biệt:</Text>{" "}
+                              {syn.difference}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ) : !loadingInsights ? (
+                  <Text style={[styles.emptySectionText, { color: colors.textMuted }]}>
+                    Chưa có từ đồng nghĩa ghi nhận cho từ này.
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* 📘 CÁC CÁCH DÙNG KHÁC & CẤU TRÚC NGỮ PHÁP */}
+              <View
+                style={[
+                  styles.exploreSectionCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.exploreSectionTitleRow}>
+                  <MaterialIcons name="school" size={18} color="#3B82F6" />
+                  <Text style={[styles.exploreSectionTitle, { color: colors.text }]}>
+                    Cách dùng & Cấu trúc ngữ pháp
+                  </Text>
+                  {loadingInsights && <ActivityIndicator size="small" color="#3B82F6" style={{ marginLeft: 8 }} />}
+                </View>
+
+                {wordInsights?.usages && wordInsights.usages.length > 0 ? (
+                  <View style={{ gap: 10 }}>
+                    {wordInsights.usages.map((usage, uIdx) => (
+                      <View
+                        key={uIdx}
+                        style={[
+                          styles.usageCard,
+                          {
+                            backgroundColor: isDark ? "#1C1917" : "#F9FAFB",
+                            borderColor: colors.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.usagePatternBadge}>
+                          <Text style={styles.usagePatternText}>{usage.pattern}</Text>
+                        </View>
+
+                        {!!(usage.meaning || usage.explanation) && (
+                          <Text style={[styles.usageMeaningText, { color: colors.text }]}>
+                            👉 {usage.meaning || usage.explanation}
+                          </Text>
+                        )}
+
+                        {!!(usage.exampleCn || usage.example) && (
+                          <View
+                            style={[
+                              styles.usageExampleBox,
+                              { backgroundColor: isDark ? "#292524" : "#FFFFFF", borderColor: colors.border },
+                            ]}
+                          >
+                            <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+                              <Text style={[styles.usageExampleCn, { color: colors.text }]}>
+                                {usage.exampleCn || usage.example}
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => speakSentence(usage.exampleCn || usage.example || "")}
+                                style={styles.smallTtsBtn}
+                              >
+                                <MaterialIcons name="volume-up" size={16} color="#3B82F6" />
+                              </TouchableOpacity>
+                            </View>
+
+                            {!!usage.examplePinyin && (
+                              <Text style={[styles.usageExamplePinyin, { color: colors.amber || "#CFAC62" }]}>
+                                {usage.examplePinyin}
+                              </Text>
+                            )}
+
+                            {!!usage.exampleVn && (
+                              <Text style={[styles.usageExampleVn, { color: colors.textMuted }]}>
+                                🇻🇳 {usage.exampleVn}
+                              </Text>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ) : !loadingInsights ? (
+                  <Text style={[styles.emptySectionText, { color: colors.textMuted }]}>
+                    Đang cập nhật các cấu trúc ngữ pháp phổ biến cho từ này.
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* 🔗 CÁC TỪ GHÉP CÓ CHỨA CHỮ NÀY */}
+              {activeRelatedWords.length > 0 && (
+                <View
+                  style={[
+                    styles.exploreSectionCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                >
+                  <View style={styles.exploreSectionTitleRow}>
+                    <MaterialIcons name="hub" size={18} color="#8B5CF6" />
+                    <Text style={[styles.exploreSectionTitle, { color: colors.text }]}>
+                      Các từ ghép có chứa chữ "{activeExploreItem.word}" ({activeRelatedWords.length})
+                    </Text>
+                  </View>
+
+                  <View style={styles.relatedWordsGrid}>
+                    {activeRelatedWords.map((rw, rwIdx) => (
+                      <TouchableOpacity
+                        key={rwIdx}
+                        onPress={() => pushExploreWord(rw.word, rw.pinyin, rw.meaning)}
+                        style={[
+                          styles.relatedWordChip,
+                          {
+                            backgroundColor: isDark ? "#1C1917" : "#F9FAFB",
+                            borderColor: colors.border,
+                          },
+                        ]}
+                        activeOpacity={0.7}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text style={[styles.relatedWordText, { color: colors.text }]}>{rw.word}</Text>
+                            {!!rw.pinyin && (
+                              <Text style={[styles.relatedWordPinyin, { color: colors.amber || "#CFAC62" }]}>
+                                {rw.pinyin}
+                              </Text>
+                            )}
+                          </View>
+                          <Text style={[styles.relatedWordMeaning, { color: colors.textMuted }]} numberOfLines={1}>
+                            {rw.meaning}
+                          </Text>
+                        </View>
+                        <MaterialIcons name="chevron-right" size={18} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+          )}
         </View>
       </Modal>
 
@@ -3475,5 +4204,363 @@ const styles = StyleSheet.create({
   dictNavText: {
     fontSize: 12,
     fontWeight: "600",
+  },
+
+  // ─── STYLES FOR CHAR QUICK TOOLTIP ───
+  charTooltipCard: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  charTooltipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  charTooltipChar: {
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  charTooltipPinyinBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  charTooltipPinyinText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  charTooltipHanviet: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  charTooltipCloseBtn: {
+    padding: 4,
+  },
+  charTooltipMeaning: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  charTooltipActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  charTooltipActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  charTooltipActionText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  hoveredCharBoxHighlight: {
+    borderColor: "#F59E0B",
+    borderWidth: 2,
+    transform: [{ scale: 1.08 }],
+    backgroundColor: "rgba(245, 158, 11, 0.18)",
+  },
+
+  // ─── STYLES FOR WORD DETAIL MODAL ───
+  wordDetailContainer: {
+    flex: 1,
+  },
+  wordDetailTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+  },
+  modalBackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  modalBackText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  wordDetailTopTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+
+  // Explore Hero Card
+  exploreHeroCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 14,
+  },
+  exploreHeroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  exploreHeroWord: {
+    fontSize: 40,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  exploreTtsBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  exploreBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  explorePinyinBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  explorePinyinText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#D97706",
+  },
+  exploreHanvietBadge: {
+    backgroundColor: "rgba(139, 92, 246, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  exploreHanvietText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#8B5CF6",
+  },
+  exploreMeaningBox: {
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  exploreMeaningLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#059669",
+    marginBottom: 4,
+    letterSpacing: 0.5,
+  },
+  exploreMeaningText: {
+    fontSize: 16,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
+  explorePlayFromAudioBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#3B82F6",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 4,
+  },
+  explorePlayFromAudioText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  // Explore Section Card
+  exploreSectionCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 14,
+  },
+  exploreSectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  exploreSectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  charSelectorRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  charSelectTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  charSelectTabActive: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+  },
+  charSelectTabText: {
+    fontSize: 16,
+  },
+  strokeCanvasWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+  },
+
+  // Synonyms
+  synonymCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  synonymHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  synonymWord: {
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  synonymPinyin: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  synonymMeaning: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  smallTtsBtn: {
+    padding: 6,
+  },
+  exploreNextBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#10B981",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 2,
+  },
+  exploreNextBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  synonymDiffBox: {
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  synonymDiffText: {
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+
+  // Usages
+  usageCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  usagePatternBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  usagePatternText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#2563EB",
+  },
+  usageMeaningText: {
+    fontSize: 13.5,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  usageExampleBox: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  usageExampleCn: {
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 22,
+    flex: 1,
+  },
+  usageExamplePinyin: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  usageExampleVn: {
+    fontSize: 12.5,
+    marginTop: 2,
+    lineHeight: 18,
+  },
+
+  // Related words
+  relatedWordsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  relatedWordChip: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  relatedWordText: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  relatedWordPinyin: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  relatedWordMeaning: {
+    fontSize: 11.5,
+    marginTop: 2,
+  },
+  emptySectionText: {
+    fontSize: 13,
+    fontStyle: "italic",
+    paddingVertical: 4,
   },
 });
