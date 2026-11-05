@@ -182,7 +182,7 @@ export default function AudioScriptScreen() {
   const [activeTab, setActiveTab] = useState<"segments" | "dictation" | "fullText">("segments");
   const [showPinyin, setShowPinyin] = useState(true);
   const [showMeaning, setShowMeaning] = useState(true);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(false);
   const [copiedNotice, setCopiedNotice] = useState(false);
 
   // ✍️ DICTATION (CHÉP CHÍNH TẢ) STATE
@@ -505,38 +505,30 @@ export default function AudioScriptScreen() {
   // Cập nhật trạng thái phát âm thanh & Tự động cuộn theo câu đang nói
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
+      const currentPos = status.positionMillis / 1000;
       if (!isSeekingRef.current) {
-        const currentPos = status.positionMillis / 1000;
         setPlaybackPosition(currentPos);
       }
+
+      // Luôn mở rộng playbackDuration theo độ dài thực tế của file âm thanh hoặc vị trí phát
       if (status.durationMillis && status.durationMillis > 0) {
         const durSec = status.durationMillis / 1000;
-        setPlaybackDuration((prev) => Math.max(prev, durSec, result?.duration || 0));
+        setPlaybackDuration((prev) => Math.max(prev, durSec, currentPos, result?.duration || 0));
+      } else {
+        setPlaybackDuration((prev) => Math.max(prev, currentPos, result?.duration || 0));
       }
+
       setIsPlaying(status.isPlaying);
 
+      // Chỉ dừng khi file thực sự hoàn tất phát (tránh bị cắt cụt ở giữa bài nghe dài)
       if (status.didJustFinish && !isSeekingRef.current) {
-        const maxSegEnd = result?.segments?.length
-          ? Math.max(...result.segments.map((s) => s.end || 0))
-          : 0;
-        const totalDur = Math.max(
-          playbackDuration,
-          result?.duration || 0,
-          maxSegEnd,
-          status.durationMillis ? status.durationMillis / 1000 : 0
-        );
-        const currentPos = status.positionMillis / 1000;
-
-        // Chỉ kết thúc nếu thực sự đã phát tới cuối file âm thanh (cách đuôi < 1.5s)
-        if (totalDur > 1.5 && currentPos >= totalDur - 1.5) {
-          setIsPlaying(false);
-          setActivePlayingSegmentId(null);
-          setPlaybackPosition(0);
-        }
+        setIsPlaying(false);
+        setActivePlayingSegmentId(null);
+        setPlaybackPosition(0);
       }
 
-      if (status.isPlaying && result?.segments && autoScroll && !isSeekingRef.current) {
-        const currentPos = status.positionMillis / 1000;
+      // Chỉ tự cuộn transcript khi người dùng bật autoScroll (mặc định tắt theo yêu cầu)
+      if (autoScroll && status.isPlaying && result?.segments && !isSeekingRef.current) {
         const activeSeg = result.segments.find(
           (seg) => currentPos >= seg.start && currentPos <= seg.end
         );
@@ -1037,7 +1029,7 @@ export default function AudioScriptScreen() {
   };
 
   // 🗑️ XÓA VĨNH VIỄN BÀI NGHE & FILE NHỊ PHÂN TRÊN MONGODB
-  const handleDeleteLesson = (id: string, title: string) => {
+  const handleDeleteLesson = (id: string, title: string, gridFsFileId?: string) => {
     Alert.alert(
       "Xác nhận xóa vĩnh viễn",
       `Bạn có chắc chắn muốn xóa bài nghe "${title}"?\n\nThao tác này sẽ xóa vĩnh viễn cả bài học và file âm thanh nhị phân trên MongoDB Atlas.`,
@@ -1049,11 +1041,11 @@ export default function AudioScriptScreen() {
           onPress: async () => {
             try {
               // 1. Gọi API xóa triệt để bài học và file nhị phân trong MongoDB GridFS
-              await deleteAudioLessonFromCloud(id);
+              await deleteAudioLessonFromCloud(id, gridFsFileId);
 
               // 2. Cập nhật state và bộ nhớ đệm
               const updated = savedLessons.filter(
-                (l) => l.id !== id && (l as any).lessonId !== id && (l as any).gridFsFileId !== id
+                (l) => l.id !== id && (l as any).lessonId !== id && (!gridFsFileId || (l as any).gridFsFileId !== gridFsFileId)
               );
               await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
               setSavedLessons(updated);
@@ -1065,7 +1057,7 @@ export default function AudioScriptScreen() {
             } catch (e: any) {
               console.warn("Lỗi xóa bài nghe:", e);
               const updated = savedLessons.filter(
-                (l) => l.id !== id && (l as any).lessonId !== id && (l as any).gridFsFileId !== id
+                (l) => l.id !== id && (l as any).lessonId !== id && (!gridFsFileId || (l as any).gridFsFileId !== gridFsFileId)
               );
               await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
               setSavedLessons(updated);
@@ -1663,7 +1655,7 @@ export default function AudioScriptScreen() {
                           borderColor: isCurrent
                             ? "#10B981"
                             : colors.border,
-                          borderWidth: isCurrent ? 2 : 1,
+                          borderWidth: 1.5,
                         },
                       ]}
                     >
@@ -1893,17 +1885,6 @@ export default function AudioScriptScreen() {
                         </View>
                       )}
 
-                      {/* 🟢 Ô XANH LÁ HIỆN ĐANG NÓI Ở CHỮ NÀO (LIVE CALLOUT) */}
-                      {isCurrent && !!activeChar && (
-                        <View style={styles.activeCharCallout}>
-                          <View style={styles.pulsingDot} />
-                          <Text style={styles.activeCharCalloutLabel}>Đang nói chữ:</Text>
-                          <View style={styles.activeCharBadge}>
-                            <Text style={styles.activeCharBadgeText}>{activeChar}</Text>
-                          </View>
-                        </View>
-                      )}
-
                       {/* 🟢 CHỮ TIẾNG TRUNG: HOLD / HOVER XEM NGHĨA - BẤM MỞ TRANG CHI TIẾT */}
                       <View style={styles.karaokeTextWrap}>
                         {chars.map((char, charIdx) => {
@@ -1944,7 +1925,7 @@ export default function AudioScriptScreen() {
                                       : isSpoken
                                       ? (isDark ? "#34D399" : "#059669")
                                       : colors.text,
-                                    fontWeight: isThisChar || isHovered ? "900" : isSpoken ? "800" : "600",
+                                    fontWeight: "700",
                                   },
                                 ]}
                               >
@@ -2706,7 +2687,7 @@ export default function AudioScriptScreen() {
 
                       {/* NÚT XÓA BÀI NGHE KHỎI MONGODB */}
                       <TouchableOpacity
-                        onPress={() => handleDeleteLesson(lesson.lessonId || lesson.id, lesson.title)}
+                        onPress={() => handleDeleteLesson(lesson.lessonId || lesson.id, lesson.title, lesson.gridFsFileId)}
                         style={styles.deleteLessonBtn}
                         activeOpacity={0.7}
                       >
@@ -3577,22 +3558,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   charBox: {
-    paddingHorizontal: 2,
+    paddingHorizontal: 3,
     paddingVertical: 1,
     borderRadius: 5,
     marginVertical: 1,
+    borderWidth: 1.5,
+    borderColor: "transparent",
     cursor: "pointer",
   } as any,
   activeCharBoxHighlight: {
     backgroundColor: "#10B981",
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 6,
-    elevation: 3,
-    shadowColor: "#10B981",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
+    borderColor: "#10B981",
+    borderRadius: 5,
   },
   segmentCharText: {
     fontSize: 18,
@@ -4271,8 +4248,7 @@ const styles = StyleSheet.create({
   },
   hoveredCharBoxHighlight: {
     borderColor: "#F59E0B",
-    borderWidth: 2,
-    transform: [{ scale: 1.08 }],
+    borderRadius: 5,
     backgroundColor: "rgba(245, 158, 11, 0.18)",
   },
 

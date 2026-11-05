@@ -153,8 +153,9 @@ export const saveAudioLessonToCloud = async (lessonData) => {
 /**
  * Xóa vĩnh viễn bài nghe và file nhị phân khỏi MongoDB
  */
-export const deleteAudioLessonFromCloud = async (lessonId) => {
-  const response = await api.delete(`/api/audio/lessons/${lessonId}`);
+export const deleteAudioLessonFromCloud = async (lessonId, gridFsFileId) => {
+  const query = gridFsFileId ? `?gridFsFileId=${encodeURIComponent(gridFsFileId)}` : "";
+  const response = await api.delete(`/api/audio/lessons/${lessonId}${query}`);
   return response.data;
 };
 
