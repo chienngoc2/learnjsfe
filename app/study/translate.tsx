@@ -110,10 +110,14 @@ export default function TranslateScreen() {
     }
     setLoading(true);
     try {
-      const res = await api.post("/api/audio/translate-text", {
-        text: trimmed,
-        direction,
-      });
+      const res = await api.post(
+        "/api/audio/translate-text",
+        {
+          text: trimmed,
+          direction,
+        },
+        { timeout: 45000 }
+      );
       if (res.data?.success && res.data?.data) {
         setResult(res.data.data);
       } else {

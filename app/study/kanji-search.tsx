@@ -682,6 +682,7 @@ export default function KanjiSearchScreen() {
     try {
       const response = await api.get(`/api/kanji/search`, {
         params: { q: query },
+        timeout: 45000,
       });
 
       if (response.data && response.data.success && response.data.data) {

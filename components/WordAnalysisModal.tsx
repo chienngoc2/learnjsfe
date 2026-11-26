@@ -68,6 +68,7 @@ export default function WordAnalysisModal({
   const { isDark } = useTheme();
   const router = useRouter();
   const [historyStack, setHistoryStack] = useState<string[]>([]);
+  const [reloadTick, setReloadTick] = useState(0);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<WordAnalysisData | null>(null);
@@ -108,7 +109,7 @@ export default function WordAnalysisModal({
     setSavedNotice(null);
 
     api
-      .get(`/api/kanji/word-analysis?word=${encodeURIComponent(activeWord)}`)
+      .get(`/api/kanji/word-analysis?word=${encodeURIComponent(activeWord)}`, { timeout: 60000 })
       .then((res) => {
         if (!active) return;
         if (res.data?.success && res.data?.data) {
@@ -119,7 +120,13 @@ export default function WordAnalysisModal({
       })
       .catch((err: any) => {
         if (!active) return;
-        setErrorMsg(err?.response?.data?.error || "Không thể kết nối máy chủ phân tích.");
+        const isTimeout = err?.code === "ECONNABORTED" || String(err?.message || "").includes("timeout");
+        setErrorMsg(
+          err?.response?.data?.error ||
+            (isTimeout
+              ? "AI đang phân tích hơi lâu (>60s), vui lòng bấm Thử lại."
+              : "Không thể kết nối máy chủ phân tích.")
+        );
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -128,7 +135,7 @@ export default function WordAnalysisModal({
     return () => {
       active = false;
     };
-  }, [visible, activeWord]);
+  }, [visible, activeWord, reloadTick]);
 
   const speak = (text: string) => {
     if (!text) return;
@@ -142,7 +149,10 @@ export default function WordAnalysisModal({
     setErrorMsg(null);
     setSavedNotice(null);
     try {
-      const res = await api.get(`/api/kanji/word-analysis?word=${encodeURIComponent(activeWord)}&refresh=true`);
+      const res = await api.get(
+        `/api/kanji/word-analysis?word=${encodeURIComponent(activeWord)}&refresh=true`,
+        { timeout: 60000 }
+      );
       if (res.data?.success && res.data?.data) {
         setData(res.data.data);
         setSavedNotice("Đã phân tích lại từ mới và cập nhật cache MongoDB");
@@ -150,7 +160,11 @@ export default function WordAnalysisModal({
         setSavedNotice("Không thể phân tích lại lúc này");
       }
     } catch (err: any) {
-      setSavedNotice(err?.response?.data?.error || "Lỗi kết nối khi phân tích lại");
+      const isTimeout = err?.code === "ECONNABORTED" || String(err?.message || "").includes("timeout");
+      setSavedNotice(
+        err?.response?.data?.error ||
+          (isTimeout ? "AI phân tích hơi lâu, vui lòng bấm lại." : "Lỗi kết nối khi phân tích lại")
+      );
     } finally {
       setRefreshing(false);
     }
@@ -272,7 +286,16 @@ export default function WordAnalysisModal({
             </View>
           ) : errorMsg ? (
             <View style={styles.centerBox}>
-              <Text style={{ color: palette.secondary, fontSize: 14 }}>{errorMsg}</Text>
+              <Text style={{ color: palette.secondary, fontSize: 14, textAlign: "center", paddingHorizontal: 20 }}>
+                {errorMsg}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setReloadTick((t) => t + 1)}
+                style={[styles.actionChip, { backgroundColor: palette.raised, borderColor: palette.border, marginTop: 8 }]}
+              >
+                <MaterialIcons name="refresh" size={16} color={palette.accent} />
+                <Text style={[styles.actionChipText, { color: palette.accent }]}>Thử lại</Text>
+              </TouchableOpacity>
             </View>
           ) : data ? (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
