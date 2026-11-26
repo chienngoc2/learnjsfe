@@ -30,6 +30,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { parseWord } from "../../src/utils/wordParser";
 import StrokeOrderPractice from "../../components/StrokeOrderPractice";
+import WordAnalysisModal from "../../components/WordAnalysisModal";
 import masterData from "@/assets/data/vocab_master.json";
 import { SINO_VIETNAMESE_DICT } from "./kanji-search";
 
@@ -83,6 +84,7 @@ export default function CardViewer() {
 
   // 🧭 Stack điều hướng khám phá chữ và từ liên quan
   const [exploreStack, setExploreStack] = useState<ExploreItem[]>([]);
+  const [analysisWord, setAnalysisWord] = useState<string>("");
 
   // Tự động kéo bổ sung từ vựng từ server để kho từ vựng phong phú nhất
   useEffect(() => {
@@ -656,6 +658,34 @@ export default function CardViewer() {
                           ({parsed.zhuyin})
                         </Text>
                       ) : null}
+
+                      {/* Nút phân tích bộ thủ 214 + câu chuyện AI + đồng nghĩa (lưu cache MongoDB) */}
+                      {getChineseChars(parsed.word).length > 0 && (
+                        <TouchableOpacity
+                          onPress={(e) => {
+                            if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                            setAnalysisWord(parsed.word);
+                          }}
+                          activeOpacity={0.75}
+                          style={{
+                            marginTop: 12,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: isDark ? "rgba(76, 195, 138, 0.35)" : "rgba(15, 118, 110, 0.28)",
+                            backgroundColor: isDark ? "#262421" : "#EFE9DF",
+                          }}
+                        >
+                          <MaterialIcons name="extension" size={16} color={isDark ? "#4CC38A" : "#0F766E"} />
+                          <Text style={{ fontSize: 13, fontWeight: "500", color: isDark ? "#EFE9DE" : "#1F1B16" }}>
+                            Phân tích bộ thủ & ngữ cảnh
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
 
                     {/* 🔤 MẤY CÁI CONTAINER PHÍA DƯỚI CÓ TỪNG CHỮ + MŨI TÊN TỪNG CHỮ */}
@@ -1696,6 +1726,11 @@ export default function CardViewer() {
           })()}
         </SafeAreaView>
       </Modal>
+      <WordAnalysisModal
+        visible={!!analysisWord}
+        word={analysisWord}
+        onClose={() => setAnalysisWord("")}
+      />
       </LinearGradient>
     </SafeAreaView>
   );

@@ -107,7 +107,16 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Tab 5 — Cá nhân (profile) */}
+      {/* Tab 5 — Bài đọc (Phân tích bài đọc & đối chiếu từ lặp) */}
+      <Tabs.Screen
+        name="reading"
+        options={{
+          title: 'Bài đọc',
+          tabBarIcon: ({ color }) => <MaterialIcons name="menu-book" size={20} color={color} />,
+        }}
+      />
+
+      {/* Tab 6 — Cá nhân (profile) */}
       <Tabs.Screen
         name="profile"
         options={{
