@@ -264,11 +264,16 @@ export default function AddVocabScreen() {
       if (!line.trim()) return;
       let separator = ":";
       if (!line.includes(":") && line.includes("-")) separator = "-";
-      const parts = line.split(separator);
-      if (parts.length >= 2) {
-        const term = parts[0].trim();
-        const def = parts.slice(1).join(separator).trim();
-        if (term && def) parsedList.push({ term, def });
+      const parts = line.split(separator).map((p) => p.trim());
+      if (parts.length >= 3 && parts[0] && parts[2]) {
+        // Hỗ trợ định dạng: Hán tự : Pinyin : Nghĩa
+        parsedList.push({
+          term: parts[0],
+          reading: parts[1],
+          def: parts.slice(2).join(` ${separator} `).trim(),
+        });
+      } else if (parts.length >= 2 && parts[0] && parts[1]) {
+        parsedList.push({ term: parts[0], def: parts.slice(1).join(separator).trim() });
       }
     });
     return parsedList;
@@ -300,9 +305,9 @@ export default function AddVocabScreen() {
         return;
       }
     } else {
-      const hasEmptyField = words.some((w) => !w.term.trim() || !w.def.trim());
+      const hasEmptyField = words.some((w) => !w.term.trim() || !(w.reading || "").trim() || !w.def.trim());
       if (hasEmptyField) {
-        triggerToast("error", "Sếp đang bỏ trống từ vựng hoặc ý nghĩa!");
+        triggerToast("error", "Vui lòng nhập đủ Hán tự, Pinyin và Nghĩa cho mỗi từ!");
         return;
       }
       finalWordsList = words;
@@ -346,14 +351,16 @@ export default function AddVocabScreen() {
         triggerToast(
           "success",
           currentEditId
-            ? "🎉 Đã cập nhật bài học thành công!"
-            : `🎉 Đã lưu bài học thành công!`,
+            ? "Đã cập nhật bài học thành công!"
+            : response.data.merged
+              ? `Đã thêm vào bài "${title.trim()}" thành công!`
+              : "Đã lưu bài học thành công!",
         );
         if (currentEditId) {
           setTimeout(() => router.back(), 1500);
         } else {
           setTitle("");
-          setWords([{ term: "", def: "" }]);
+          setWords([{ term: "", reading: "", def: "" }]);
           setBulkText("");
           setJsonText("");
         }
@@ -486,6 +493,13 @@ export default function AddVocabScreen() {
             onChangeText={setTitle}
             placeholder="Ví dụ: Bài 6. Trong nhà"
           />
+          {!currentEditId &&
+            !!title.trim() &&
+            existingTopics.some((t) => t.trim().toLowerCase() === title.trim().toLowerCase()) && (
+              <Text style={{ fontSize: 12, color: "#10B981", marginTop: 6, fontWeight: "600" }}>
+                Bài học này đã có — các từ mới sẽ được tự động gộp vào bài cũ.
+              </Text>
+            )}
         </View>
 
         <View
@@ -576,35 +590,54 @@ export default function AddVocabScreen() {
                     {index + 1}
                   </Text>
                 </View>
-                <TextInput
-                  style={[
-                    styles.rowInput,
-                    {
-                      marginRight: 4,
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={word.term}
-                  onChangeText={(text) => handleWordChange(index, "term", text)}
-                  placeholder="Từ vựng"
-                  placeholderTextColor={colors.textMuted}
-                />
-                <TextInput
-                  style={[
-                    styles.rowInput,
-                    {
-                      backgroundColor: colors.background,
-                      borderColor: colors.border,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={word.def}
-                  onChangeText={(text) => handleWordChange(index, "def", text)}
-                  placeholder="Ý nghĩa"
-                  placeholderTextColor={colors.textMuted}
-                />
+                <View style={{ flex: 1, gap: 6, marginRight: 6 }}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <TextInput
+                      style={[
+                        styles.rowInput,
+                        {
+                          flex: 1,
+                          backgroundColor: colors.background,
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      value={word.term}
+                      onChangeText={(text) => handleWordChange(index, "term", text)}
+                      placeholder="Hán tự (VD: 你好)"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                    <TextInput
+                      style={[
+                        styles.rowInput,
+                        {
+                          flex: 1,
+                          backgroundColor: colors.background,
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      value={word.reading || ""}
+                      onChangeText={(text) => handleWordChange(index, "reading", text)}
+                      placeholder="Pinyin (VD: nǐ hǎo)"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  <TextInput
+                    style={[
+                      styles.rowInput,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                    value={word.def}
+                    onChangeText={(text) => handleWordChange(index, "def", text)}
+                    placeholder="Nghĩa tiếng Việt (VD: Xin chào)"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
                 <TouchableOpacity
                   onPress={() => removeWordRow(index)}
                   disabled={words.length === 1}

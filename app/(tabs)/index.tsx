@@ -38,6 +38,7 @@ const { width } = Dimensions.get("window");
 
 // Quick action data
 const QUICK_ACTIONS = [
+  { id: "translate", label: "Đọc & Dịch", icon: "translate", route: "/study/translate" },
   { id: "pronunciation", label: "Phát âm AI", icon: "record-voice-over", route: "/luyen-tap/pronunciation" },
   { id: "flashcard", label: "Flashcard", icon: "style", route: "/study/flashcard" },
   { id: "vocab", label: "Thêm từ", icon: "post-add", route: "/study/add-vocab" },

@@ -10,6 +10,7 @@ import {
   Platform,
   Dimensions,
   TouchableOpacity,
+  Modal,
 } from "react-native";
 import { useRouter, Stack, useLocalSearchParams } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -120,6 +121,28 @@ export default function PracticeQuizScreen() {
   // Results
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+
+  // 🧩 Modal phân tích 214 bộ thủ màu sắc & câu chuyện AI
+  const [radicalModalVisible, setRadicalModalVisible] = useState(false);
+  const [radicalLoading, setRadicalLoading] = useState(false);
+  const [radicalData, setRadicalData] = useState<any>(null);
+
+  const handleInspectRadicals = async (word: string) => {
+    if (!word || quizMode !== "vocab") return;
+    setRadicalModalVisible(true);
+    setRadicalLoading(true);
+    setRadicalData(null);
+    try {
+      const res = await api.get(`/api/kanji/decompose?word=${encodeURIComponent(word)}`);
+      if (res.data?.success) {
+        setRadicalData(res.data.data);
+      }
+    } catch (e) {
+      console.warn("Lỗi phân tích bộ thủ:", e);
+    } finally {
+      setRadicalLoading(false);
+    }
+  };
 
   const initQuizSession = (quizQuestions: Question[]) => {
     questionsRef.current = quizQuestions;
@@ -1114,9 +1137,24 @@ export default function PracticeQuizScreen() {
                 />
               </View>
 
-              <Text style={[styles.questionWordText, { color: colors.indigo, fontSize: getQuestionFontSize(currentQuestion.questionWord.word) }]}>
-                {currentQuestion.questionWord.word}
-              </Text>
+              <TouchableOpacity
+                onPress={() => handleInspectRadicals(currentQuestion.questionWord.word)}
+                activeOpacity={0.7}
+                disabled={quizMode !== "vocab"}
+                style={{ alignItems: "center" }}
+              >
+                <Text style={[styles.questionWordText, { color: colors.indigo, fontSize: getQuestionFontSize(currentQuestion.questionWord.word) }]}>
+                  {currentQuestion.questionWord.word}
+                </Text>
+                {quizMode === "vocab" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
+                    <Ionicons name="extension-puzzle-outline" size={13} color={colors.textMuted} />
+                    <Text style={{ fontSize: 11, color: colors.textMuted, fontWeight: "500" }}>
+                      Chạm vào chữ để xem bộ thủ & mẹo nhớ AI
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
 
             {/* Answer Options Box */}
@@ -1173,6 +1211,190 @@ export default function PracticeQuizScreen() {
               })}
             </View>
           </View>
+
+          {/* 🧩 MODAL PHÂN TÍCH BỘ THỦ MÀU SẮC & CÂU CHUYỆN AI */}
+          <Modal
+            visible={radicalModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setRadicalModalVisible(false)}
+          >
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.55)",
+                justifyContent: "flex-end",
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: colors.surface,
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  padding: 20,
+                  maxHeight: "82%",
+                  borderTopWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name="extension-puzzle" size={20} color={colors.indigo} />
+                    <Text style={{ fontSize: 17, fontWeight: "700", color: colors.text }}>
+                      Phân tích bộ thủ & Mẹo nhớ AI
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setRadicalModalVisible(false)}
+                    style={{ padding: 6, borderRadius: 10, borderWidth: 1, borderColor: colors.border }}
+                  >
+                    <Ionicons name="close" size={18} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+
+                {radicalLoading ? (
+                  <View style={{ paddingVertical: 40, alignItems: "center", gap: 12 }}>
+                    <ActivityIndicator size="large" color={colors.indigo} />
+                    <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+                      Đang tách 214 bộ thủ & tạo câu chuyện ghi nhớ...
+                    </Text>
+                  </View>
+                ) : radicalData ? (
+                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+                    {(radicalData.characters || []).map((ch: any, cIdx: number) => (
+                      <View
+                        key={cIdx}
+                        style={{
+                          backgroundColor: colors.background,
+                          borderRadius: 14,
+                          padding: 14,
+                          marginBottom: 12,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                          <Text style={{ fontSize: 32, fontWeight: "700", color: colors.text }}>
+                            {ch.char}
+                          </Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14, fontWeight: "600", color: colors.indigo }}>
+                              {ch.pinyin || ""} {ch.hanViet ? `· ${ch.hanViet}` : ""}
+                            </Text>
+                            {!!ch.meaning && (
+                              <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 2 }}>
+                                {ch.meaning}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Các bộ thủ màu sắc khác nhau nối với nhau */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                          <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            {(ch.radicals || []).map((rad: any, rIdx: number) => (
+                              <React.Fragment key={rIdx}>
+                                <View
+                                  style={{
+                                    borderWidth: 2,
+                                    borderColor: rad.color || "#3B82F6",
+                                    backgroundColor: `${rad.color || "#3B82F6"}18`,
+                                    borderRadius: 12,
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 8,
+                                    alignItems: "center",
+                                    minWidth: 72,
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 24, fontWeight: "700", color: rad.color || "#3B82F6" }}>
+                                    {rad.radical}
+                                  </Text>
+                                  {!!rad.hanViet && (
+                                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text, marginTop: 2 }}>
+                                      {rad.hanViet}
+                                    </Text>
+                                  )}
+                                  {!!rad.meaning && (
+                                    <Text style={{ fontSize: 11, color: colors.textMuted, textAlign: "center" }} numberOfLines={2}>
+                                      {rad.meaning}
+                                    </Text>
+                                  )}
+                                </View>
+
+                                {rIdx < ch.radicals.length - 1 && (
+                                  <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 4 }}>
+                                    <View style={{ width: 10, height: 2, backgroundColor: colors.border }} />
+                                    <View
+                                      style={{
+                                        width: 20,
+                                        height: 20,
+                                        borderRadius: 10,
+                                        backgroundColor: colors.surface,
+                                        borderWidth: 1,
+                                        borderColor: colors.border,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                      }}
+                                    >
+                                      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>+</Text>
+                                    </View>
+                                    <View style={{ width: 10, height: 2, backgroundColor: colors.border }} />
+                                  </View>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </View>
+                        </ScrollView>
+
+                        {!!ch.story && (
+                          <View
+                            style={{
+                              marginTop: 12,
+                              padding: 10,
+                              borderRadius: 10,
+                              backgroundColor: isDark ? "rgba(16, 185, 129, 0.12)" : "#ECFDF5",
+                              borderLeftWidth: 3,
+                              borderLeftColor: "#10B981",
+                            }}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: "700", color: "#10B981", marginBottom: 4 }}>
+                              Câu chuyện ghi nhớ
+                            </Text>
+                            <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.text }}>
+                              {ch.story}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+
+                    {!!radicalData.combinedStory && radicalData.characters?.length > 1 && (
+                      <View
+                        style={{
+                          padding: 12,
+                          borderRadius: 12,
+                          backgroundColor: isDark ? "rgba(79, 70, 229, 0.14)" : "#EEF2FF",
+                          borderWidth: 1,
+                          borderColor: "rgba(79, 70, 229, 0.3)",
+                        }}
+                      >
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: colors.indigo, marginBottom: 4 }}>
+                          Câu chuyện ghép cả từ "{radicalData.word}"
+                        </Text>
+                        <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.text }}>
+                          {radicalData.combinedStory}
+                        </Text>
+                      </View>
+                    )}
+                  </ScrollView>
+                ) : (
+                  <Text style={{ color: colors.textMuted, textAlign: "center", paddingVertical: 24 }}>
+                    Không thể tải phân tích bộ thủ cho từ này.
+                  </Text>
+                )}
+              </View>
+            </View>
+          </Modal>
         </LinearGradient>
       </SafeAreaView>
     );

@@ -19,6 +19,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio } from "expo-av";
 import * as Speech from "expo-speech";
+import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
@@ -1028,45 +1029,48 @@ export default function AudioScriptScreen() {
     }
   };
 
-  // 🗑️ XÓA VĨNH VIỄN BÀI NGHE & FILE NHỊ PHÂN TRÊN MONGODB
-  const handleDeleteLesson = (id: string, title: string, gridFsFileId?: string) => {
-    Alert.alert(
-      "Xác nhận xóa vĩnh viễn",
-      `Bạn có chắc chắn muốn xóa bài nghe "${title}"?\n\nThao tác này sẽ xóa vĩnh viễn cả bài học và file âm thanh nhị phân trên MongoDB Atlas.`,
-      [
-        { text: "Hủy bỏ", style: "cancel" },
-        {
-          text: "Xóa khỏi MongoDB",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // 1. Gọi API xóa triệt để bài học và file nhị phân trong MongoDB GridFS
-              await deleteAudioLessonFromCloud(id, gridFsFileId);
+  // 🗑️ XÓA VĨNH VIỄN BÀI NGHE & FILE NHỊ PHÂN TRÊN MONGODB (Hỗ trợ cả Web lẫn Mobile)
+  const handleDeleteLesson = async (id: string, title: string, gridFsFileId?: string) => {
+    const confirmMsg = `Bạn có chắc chắn muốn xóa bài nghe "${title}"?\n\nThao tác này sẽ xóa vĩnh viễn cả bài học và file âm thanh nhị phân trên MongoDB.`;
 
-              // 2. Cập nhật state và bộ nhớ đệm
-              const updated = savedLessons.filter(
-                (l) => l.id !== id && (l as any).lessonId !== id && (!gridFsFileId || (l as any).gridFsFileId !== gridFsFileId)
-              );
-              await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
-              setSavedLessons(updated);
+    const runDelete = async () => {
+      try {
+        await deleteAudioLessonFromCloud(id, gridFsFileId);
+      } catch (e: any) {
+        console.warn("Lỗi xóa bài nghe trên cloud:", e);
+      }
 
-              Alert.alert(
-                "Đã xóa thành công",
-                `Bài nghe "${title}" và dữ liệu nhị phân đã được xóa vĩnh viễn khỏi MongoDB!`
-              );
-            } catch (e: any) {
-              console.warn("Lỗi xóa bài nghe:", e);
-              const updated = savedLessons.filter(
-                (l) => l.id !== id && (l as any).lessonId !== id && (!gridFsFileId || (l as any).gridFsFileId !== gridFsFileId)
-              );
-              await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
-              setSavedLessons(updated);
-              Alert.alert("Đã xóa", `Đã xóa bài nghe khỏi danh sách.`);
-            }
-          },
-        },
-      ]
-    );
+      const updated = savedLessons.filter(
+        (l) =>
+          l.id !== id &&
+          (l as any).lessonId !== id &&
+          (!gridFsFileId || (l as any).gridFsFileId !== gridFsFileId)
+      );
+      await AsyncStorage.setItem(SAVED_LESSONS_STORAGE_KEY, JSON.stringify(updated));
+      setSavedLessons(updated);
+
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert(`Đã xóa vĩnh viễn bài nghe "${title}".`);
+      } else {
+        Alert.alert("Đã xóa thành công", `Bài nghe "${title}" đã được xóa khỏi MongoDB.`);
+      }
+    };
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if (window.confirm(confirmMsg)) {
+        await runDelete();
+      }
+      return;
+    }
+
+    Alert.alert("Xác nhận xóa vĩnh viễn", confirmMsg, [
+      { text: "Hủy bỏ", style: "cancel" },
+      {
+        text: "Xóa khỏi MongoDB",
+        style: "destructive",
+        onPress: runDelete,
+      },
+    ]);
   };
 
   // ✂️ XÓA ĐOẠN / CÂU ÂM THANH KHÔNG CẦN KHỎI SCRIPT
@@ -1107,15 +1111,31 @@ export default function AudioScriptScreen() {
     setActiveTab("segments");
   };
 
-  const handleShareOrCopy = async (text: string) => {
+  const handleCopyText = async (text: string) => {
+    if (!text) return;
     try {
-      await Share.share({
-        message: text,
-        title: "Script bài nghe tiếng Trung",
-      });
-      setCopiedNotice(true);
-      setTimeout(() => setCopiedNotice(false), 2500);
-    } catch (e) {}
+      await Clipboard.setStringAsync(text);
+    } catch (e) {
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (err) {}
+      }
+    }
+    setCopiedNotice(true);
+    setTimeout(() => setCopiedNotice(false), 2500);
+  };
+
+  const handleShareOrCopy = async (text: string) => {
+    await handleCopyText(text);
+    if (Platform.OS !== "web") {
+      try {
+        await Share.share({
+          message: text,
+          title: "Script bài nghe tiếng Trung",
+        });
+      } catch (e) {}
+    }
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -1163,11 +1183,10 @@ export default function AudioScriptScreen() {
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Bóc Script MP3</Text>
-          <View style={styles.freeBadge}>
-            <View style={styles.greenDot} />
-            <Text style={styles.freeBadgeText}>Karaoke chữ xanh lá · Song ngữ Trung - Việt</Text>
-          </View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Luyện nghe & Script</Text>
+          <Text style={[styles.freeBadgeText, { color: colors.textMuted }]}>
+            Song ngữ Phồn Thể · Việt
+          </Text>
         </View>
 
         {/* Nút mở thư viện bài nghe đã lưu */}
@@ -1783,7 +1802,10 @@ export default function AudioScriptScreen() {
 
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                           <TouchableOpacity
-                            onPress={() => handleShareOrCopy(`${item.text}\n${item.pinyin || ""}\n${item.meaningVi || ""}`)}
+                            onPress={(e) => {
+                              if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                              handleCopyText(`${item.text}\n${item.pinyin || ""}\n${item.meaningVi || ""}`.trim());
+                            }}
                             style={styles.copySingleBtn}
                             activeOpacity={0.6}
                           >
@@ -2566,13 +2588,13 @@ export default function AudioScriptScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Nút chia sẻ song ngữ */}
+              {/* Nút Copy toàn bài nghe (Hán tự + Pinyin + Nghĩa) */}
               <TouchableOpacity
                 onPress={() => {
-                  const combined = result.segments
-                    .map((s) => `[${s.startFormatted}] ${s.text}\n(${s.pinyin || ""})\n🇻🇳 ${s.meaningVi || ""}`)
+                  const fullCombined = result.segments
+                    .map((s) => `${s.text}\n${s.pinyin ? s.pinyin + "\n" : ""}${s.meaningVi || ""}`.trim())
                     .join("\n\n");
-                  handleShareOrCopy(combined);
+                  handleCopyText(fullCombined || result.fullText || "");
                 }}
                 style={[
                   styles.bottomActionBtn,
@@ -2580,8 +2602,27 @@ export default function AudioScriptScreen() {
                 ]}
                 activeOpacity={0.8}
               >
-                <MaterialIcons name="share" size={18} color="#FFFFFF" />
-                <Text style={styles.bottomActionText}>Chia sẻ</Text>
+                <MaterialIcons name={copiedNotice ? "check" : "content-copy"} size={18} color="#FFFFFF" />
+                <Text style={styles.bottomActionText}>
+                  {copiedNotice ? "Đã copy!" : "Copy toàn bài"}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Nút chia sẻ song ngữ */}
+              <TouchableOpacity
+                onPress={() => {
+                  const combined = result.segments
+                    .map((s) => `[${s.startFormatted}] ${s.text}\n(${s.pinyin || ""})\n${s.meaningVi || ""}`)
+                    .join("\n\n");
+                  handleShareOrCopy(combined);
+                }}
+                style={[
+                  styles.bottomActionBtn,
+                  { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, marginLeft: 8 },
+                ]}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="share" size={18} color={colors.text} />
               </TouchableOpacity>
 
               {/* Nút bóc file khác */}
@@ -2670,7 +2711,7 @@ export default function AudioScriptScreen() {
                       </Text>
                       <View style={styles.savedLessonMetaRow}>
                         <Text style={[styles.savedLessonMeta, { color: colors.textMuted }]}>
-                          🕒 {formatDisplayTime(lesson.duration)} · {lesson.totalSegments || lesson.segments?.length} câu {lesson.fileSize ? `· ${formatFileSize(lesson.fileSize)}` : ""} · {lesson.savedAt}
+                          {formatDisplayTime(lesson.duration)} · {lesson.totalSegments || lesson.segments?.length} câu {lesson.fileSize ? `· ${formatFileSize(lesson.fileSize)}` : ""} · {lesson.savedAt}
                         </Text>
                       </View>
                     </View>
@@ -3129,6 +3170,29 @@ export default function AudioScriptScreen() {
             <Text style={styles.toastText}>Đã mở hộp thoại sao chép/chia sẻ!</Text>
           </View>
         </Animated.View>
+      )}
+      {/* Toast thông báo đã copy */}
+      {copiedNotice && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: 24,
+            alignSelf: "center",
+            backgroundColor: "#111827",
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            zIndex: 999,
+          }}
+        >
+          <MaterialIcons name="check-circle" size={18} color="#10B981" />
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "600" }}>
+            Đã sao chép vào bộ nhớ tạm
+          </Text>
+        </View>
       )}
     </View>
   );
