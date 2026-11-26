@@ -17,6 +17,7 @@ import * as Speech from "expo-speech";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/src/context/ThemeContext";
 import api from "../../services/api";
+import WordAnalysisModal from "../../components/WordAnalysisModal";
 
 interface TranslatedSentence {
   text: string;
@@ -50,6 +51,7 @@ export default function TranslateScreen() {
   const [slowVoice, setSlowVoice] = useState(false);
   const [result, setResult] = useState<TranslateResult | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [analysisWord, setAnalysisWord] = useState("");
 
   const showNotice = (msg: string) => {
     setNotice(msg);
@@ -295,14 +297,28 @@ export default function TranslateScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: "#10B981" }]}>
               <View style={styles.cardTopRow}>
                 <Text style={[styles.cardLabel, { color: "#10B981" }]}>Kết quả dịch</Text>
-                <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
                   <TouchableOpacity
                     onPress={() => speakText(result.chineseText, "zh-TW")}
                     style={[styles.smallBtn, { borderColor: colors.border }]}
                   >
                     <MaterialIcons name="volume-up" size={15} color="#10B981" />
-                    <Text style={[styles.smallBtnText, { color: "#10B981" }]}>Đọc tiếng Trung</Text>
+                    <Text style={[styles.smallBtnText, { color: "#10B981" }]}>Đọc</Text>
                   </TouchableOpacity>
+                  {!!result.chineseText && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(tabs)/reading" as any,
+                          params: { prefillText: result.chineseText },
+                        })
+                      }
+                      style={[styles.smallBtn, { borderColor: "#0F766E", backgroundColor: "rgba(15, 118, 110, 0.08)" }]}
+                    >
+                      <MaterialIcons name="menu-book" size={14} color="#0F766E" />
+                      <Text style={[styles.smallBtnText, { color: "#0F766E" }]}>Phân tích bài đọc</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     onPress={() =>
                       handleCopy(
@@ -372,14 +388,16 @@ export default function TranslateScreen() {
             {Array.isArray(result.keywords) && result.keywords.length > 0 && (
               <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={[styles.cardLabel, { color: colors.textMuted, marginBottom: 8 }]}>
-                  Từ vựng nổi bật (chạm + để lưu)
+                  Từ vựng nổi bật (chạm từ để xem bộ thủ)
                 </Text>
                 {result.keywords.map((kw, idx) => (
-                  <View
+                  <TouchableOpacity
                     key={idx}
+                    activeOpacity={0.75}
+                    onPress={() => setAnalysisWord(kw.term)}
                     style={[
                       styles.kwRow,
-                      { borderTopColor: colors.border, borderTopWidth: idx === 0 ? 0 : 1 },
+                      { borderTopColor: colors.border, borderTopWidth: idx === 0 ? 0 : 1, gap: 6 },
                     ]}
                   >
                     <View style={{ flex: 1 }}>
@@ -389,19 +407,39 @@ export default function TranslateScreen() {
                       <Text style={{ fontSize: 13, color: colors.textMuted }}>{kw.meaning}</Text>
                     </View>
                     <TouchableOpacity
-                      onPress={() => handleSaveKeyword(kw)}
+                      onPress={(e) => {
+                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                        setAnalysisWord(kw.term);
+                      }}
+                      style={[styles.smallBtn, { borderColor: colors.border }]}
+                    >
+                      <MaterialIcons name="extension" size={15} color={colors.text} />
+                      <Text style={[styles.smallBtnText, { color: colors.text }]}>Bộ thủ</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                        handleSaveKeyword(kw);
+                      }}
                       style={[styles.smallBtn, { borderColor: "#10B981" }]}
                     >
                       <MaterialIcons name="add" size={16} color="#10B981" />
                       <Text style={[styles.smallBtnText, { color: "#10B981" }]}>Lưu từ</Text>
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             )}
           </View>
         )}
       </ScrollView>
+
+      <WordAnalysisModal
+        visible={!!analysisWord}
+        word={analysisWord}
+        defaultDeckTitle="Từ vựng đọc dịch"
+        onClose={() => setAnalysisWord("")}
+      />
 
       {notice && (
         <View style={styles.toast}>

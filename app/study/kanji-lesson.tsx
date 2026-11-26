@@ -26,6 +26,7 @@ import { usePinyin } from "@/src/context/PinyinContext";
 import { usePriority } from "@/src/context/PriorityContext";
 import { PriorityButton } from "@/src/components/PriorityButton";
 import PinyinCheckbox from "../../components/ui/PinyinCheckbox";
+import WordAnalysisModal from "../../components/WordAnalysisModal";
 
 const { width } = Dimensions.get("window");
 const ExpoWebView = WebView as any;
@@ -97,6 +98,7 @@ export default function KanjiLessonScreen() {
   const [loading, setLoading] = useState(true);
   const [animationKey, setAnimationKey] = useState(0);
   const { prioritySet } = usePriority();
+  const [analysisWord, setAnalysisWord] = useState("");
 
   // MODAL EDIT
   const [editModal, setEditModal] = useState(false);
@@ -467,6 +469,58 @@ export default function KanjiLessonScreen() {
                   </View>
                 </View>
 
+                {/* Kết nối phân tích 214 bộ thủ & luyện viết nét */}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 4 }}>
+                  <TouchableOpacity
+                    onPress={() => setAnalysisWord(currentKanji.character)}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isDark ? "rgba(76, 195, 138, 0.35)" : "rgba(15, 118, 110, 0.25)",
+                      backgroundColor: isDark ? "rgba(76, 195, 138, 0.1)" : "#F0FDF4",
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <MaterialIcons name="extension" size={16} color={isDark ? "#4CC38A" : "#0F766E"} />
+                    <Text style={{ fontSize: 12.5, fontWeight: "700", color: isDark ? "#4CC38A" : "#0F766E" }}>
+                      214 Bộ thủ & Mẹo nhớ AI
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() =>
+                      router.push({
+                        pathname: "/study/kanji-search" as any,
+                        params: { word: currentKanji.character },
+                      })
+                    }
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 5,
+                      paddingHorizontal: 14,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <MaterialIcons name="draw" size={16} color={colors.indigo} />
+                    <Text style={{ fontSize: 12.5, fontWeight: "700", color: colors.indigo }}>
+                      Luyện viết
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
                 {/* Bộ thủ components */}
                 {currentKanji.components && currentKanji.components.length > 0 && (
                   <View style={styles.componentsBlock}>
@@ -705,6 +759,13 @@ export default function KanjiLessonScreen() {
           </View>
         </View>
       </Modal>
+
+      <WordAnalysisModal
+        visible={!!analysisWord}
+        word={analysisWord}
+        defaultDeckTitle={displayTitle}
+        onClose={() => setAnalysisWord("")}
+      />
     </LinearGradient>
   );
 }

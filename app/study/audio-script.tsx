@@ -35,6 +35,7 @@ import {
 } from "../../services/aiService";
 import api from "../../services/api";
 import StrokeOrderPractice from "../../components/StrokeOrderPractice";
+import WordAnalysisModal from "../../components/WordAnalysisModal";
 import { SINO_VIETNAMESE_DICT } from "./kanji-search";
 import masterData from "@/assets/data/vocab_master.json";
 
@@ -248,6 +249,7 @@ export default function AudioScriptScreen() {
   const [activePracticeCharIdx, setActivePracticeCharIdx] = useState(0);
   const [wordInsights, setWordInsights] = useState<WordInsightData | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  const [analysisWord, setAnalysisWord] = useState("");
 
   const activeExploreItem = exploreStack.length > 0 ? exploreStack[exploreStack.length - 1] : null;
 
@@ -2886,6 +2888,28 @@ export default function AudioScriptScreen() {
                     </Text>
                   </TouchableOpacity>
                 )}
+
+                <TouchableOpacity
+                  onPress={() => setAnalysisWord(activeExploreItem.word)}
+                  style={{
+                    marginTop: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    paddingVertical: 10,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: isDark ? "rgba(76, 195, 138, 0.35)" : "rgba(15, 118, 110, 0.25)",
+                    backgroundColor: isDark ? "rgba(76, 195, 138, 0.1)" : "#F0FDF4",
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="extension" size={18} color={isDark ? "#4CC38A" : "#0F766E"} />
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: isDark ? "#4CC38A" : "#0F766E" }}>
+                    Phân tích 214 bộ thủ & Lưu Flashcard
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {/* ✍️ TẬP VIẾT THỨ TỰ TỪNG NÉT (STROKE ORDER CANVAS) */}
@@ -3194,6 +3218,12 @@ export default function AudioScriptScreen() {
           </Text>
         </View>
       )}
+      <WordAnalysisModal
+        visible={!!analysisWord}
+        word={analysisWord}
+        defaultDeckTitle={activeExploreItem?.lessonTitle || "Từ vựng Audio Script"}
+        onClose={() => setAnalysisWord("")}
+      />
     </View>
   );
 }

@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
 import { useTheme } from "@/src/context/ThemeContext";
 import api from "../services/api";
@@ -53,13 +54,37 @@ interface Props {
   visible: boolean;
   word: string;
   onClose: () => void;
+  defaultDeckTitle?: string;
+  hidePracticeLink?: boolean;
 }
 
-export default function WordAnalysisModal({ visible, word, onClose }: Props) {
+export default function WordAnalysisModal({
+  visible,
+  word,
+  onClose,
+  defaultDeckTitle = "Từ vựng phân tích",
+  hidePracticeLink = false,
+}: Props) {
   const { isDark } = useTheme();
+  const router = useRouter();
+  const [historyStack, setHistoryStack] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<WordAnalysisData | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [savingFlashcard, setSavingFlashcard] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+
+  const activeWord = historyStack[historyStack.length - 1] || word;
+
+  useEffect(() => {
+    if (visible && word) {
+      setHistoryStack([word]);
+      setSavedNotice(null);
+    } else if (!visible) {
+      setHistoryStack([]);
+      setSavedNotice(null);
+    }
+  }, [visible, word]);
 
   // Palette trung tính ấm theo chuẩn /unslop (Warm ramp)
   const palette = {
@@ -74,14 +99,15 @@ export default function WordAnalysisModal({ visible, word, onClose }: Props) {
   };
 
   useEffect(() => {
-    if (!visible || !word) return;
+    if (!visible || !activeWord) return;
     let active = true;
     setLoading(true);
     setErrorMsg(null);
     setData(null);
+    setSavedNotice(null);
 
     api
-      .get(`/api/kanji/word-analysis?word=${encodeURIComponent(word)}`)
+      .get(`/api/kanji/word-analysis?word=${encodeURIComponent(activeWord)}`)
       .then((res) => {
         if (!active) return;
         if (res.data?.success && res.data?.data) {
@@ -101,12 +127,64 @@ export default function WordAnalysisModal({ visible, word, onClose }: Props) {
     return () => {
       active = false;
     };
-  }, [visible, word]);
+  }, [visible, activeWord]);
 
   const speak = (text: string) => {
     if (!text) return;
     Speech.stop();
     Speech.speak(text, { language: "zh-TW", rate: 0.85 });
+  };
+
+  const handleSaveToFlashcard = async () => {
+    if (!data?.word || savingFlashcard) return;
+    setSavingFlashcard(true);
+    try {
+      const deckName = defaultDeckTitle.trim() || "Từ vựng phân tích";
+      const res = await api.post("/api/vocab/save", {
+        title: deckName,
+        list: [
+          {
+            term: data.word,
+            def: JSON.stringify({
+              reading: data.pinyin || data.word,
+              pinyin: data.pinyin || "",
+              hanviet: data.hanviet || "",
+              meaning: data.meaning || data.hanviet || "Từ vựng tiếng Trung",
+              type: "noun",
+              level: "TOCFL",
+            }),
+          },
+        ],
+      });
+      if (res.data?.success) {
+        setSavedNotice(`Đã lưu "${data.word}" vào "${deckName}"`);
+      } else {
+        setSavedNotice("Không thể lưu từ lúc này");
+      }
+    } catch {
+      setSavedNotice("Lỗi kết nối khi lưu Flashcard");
+    } finally {
+      setSavingFlashcard(false);
+    }
+  };
+
+  const handleOpenWritingPractice = (targetWord: string) => {
+    if (!targetWord) return;
+    onClose();
+    router.push({
+      pathname: "/study/kanji-search" as any,
+      params: { word: targetWord },
+    });
+  };
+
+  const pushWord = (nextWord: string) => {
+    const clean = nextWord.trim();
+    if (!clean || clean === activeWord) return;
+    setHistoryStack((prev) => [...prev, clean]);
+  };
+
+  const popWord = () => {
+    setHistoryStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
   };
 
   return (
@@ -115,6 +193,15 @@ export default function WordAnalysisModal({ visible, word, onClose }: Props) {
         <View style={[styles.sheet, { backgroundColor: palette.bg, borderColor: palette.border }]}>
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: palette.border }]}>
+            {historyStack.length > 1 && (
+              <TouchableOpacity
+                onPress={popWord}
+                style={[styles.closeBtn, { backgroundColor: palette.raised, borderColor: palette.border, marginRight: 10 }]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name="arrow-back" size={18} color={palette.text} />
+              </TouchableOpacity>
+            )}
             <View style={{ flex: 1 }}>
               <Text style={[styles.headerTitle, { color: palette.text }]}>Phân tích từ vựng</Text>
               <Text style={[styles.headerMeta, { color: palette.muted }]}>
@@ -172,6 +259,42 @@ export default function WordAnalysisModal({ visible, word, onClose }: Props) {
                     <MaterialIcons name="volume-up" size={20} color={palette.accent} />
                   </TouchableOpacity>
                 </View>
+
+                {/* Action strip connecting Flashcard & Handwriting practice */}
+                <View style={[styles.actionStrip, { borderTopColor: palette.border }]}>
+                  <TouchableOpacity
+                    onPress={handleSaveToFlashcard}
+                    disabled={savingFlashcard}
+                    style={[styles.actionChip, { backgroundColor: palette.raised, borderColor: palette.border }]}
+                    activeOpacity={0.75}
+                  >
+                    {savingFlashcard ? (
+                      <ActivityIndicator size="small" color={palette.accent} />
+                    ) : (
+                      <MaterialIcons name={savedNotice ? "bookmark-added" : "bookmark-add"} size={16} color={palette.accent} />
+                    )}
+                    <Text style={[styles.actionChipText, { color: palette.accent }]}>
+                      {savedNotice ? "Đã lưu Flashcard" : "Lưu Flashcard"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {!hidePracticeLink && (
+                    <TouchableOpacity
+                      onPress={() => handleOpenWritingPractice(data.word)}
+                      style={[styles.actionChip, { backgroundColor: palette.raised, borderColor: palette.border }]}
+                      activeOpacity={0.75}
+                    >
+                      <MaterialIcons name="draw" size={16} color={palette.text} />
+                      <Text style={[styles.actionChipText, { color: palette.text }]}>Luyện viết nét</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {!!savedNotice && (
+                  <Text style={{ fontSize: 12, color: palette.accent, marginTop: 8, fontWeight: "500" }}>
+                    {savedNotice}
+                  </Text>
+                )}
               </View>
 
               {/* Radicals Breakdown per Character */}
@@ -311,19 +434,22 @@ export default function WordAnalysisModal({ visible, word, onClose }: Props) {
                   </Text>
                   <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border, gap: 12 }]}>
                     {data.synonyms.map((s, i) => (
-                      <View
+                      <TouchableOpacity
                         key={i}
+                        activeOpacity={0.75}
+                        onPress={() => pushWord(s.word)}
                         style={[i > 0 && { borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12 }]}
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <Text style={{ fontSize: 16, fontWeight: "600", color: palette.text }}>{s.word}</Text>
                           {!!s.pinyin && <Text style={{ fontSize: 13, color: palette.accent }}>{s.pinyin}</Text>}
                           <Text style={{ fontSize: 13, color: palette.secondary, flex: 1 }}>— {s.meaning}</Text>
+                          <MaterialIcons name="chevron-right" size={16} color={palette.muted} />
                         </View>
                         {!!s.difference && (
                           <Text style={{ fontSize: 12.5, color: palette.muted, marginTop: 4 }}>{s.difference}</Text>
                         )}
-                      </View>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 </View>
@@ -438,4 +564,22 @@ const styles = StyleSheet.create({
   usagePattern: { fontSize: 14, fontWeight: "600" },
   usageMeaning: { fontSize: 13, marginTop: 2 },
   exampleBox: { marginTop: 8, padding: 10, borderRadius: 8 },
+  actionStrip: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    flexWrap: "wrap",
+  },
+  actionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  actionChipText: { fontSize: 12.5, fontWeight: "600" },
 });

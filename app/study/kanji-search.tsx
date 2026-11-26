@@ -20,6 +20,7 @@ import Header from "../../components/ui/Header";
 import api from "@/services/api";
 import HandwritingCanvas from "../../components/HandwritingCanvas";
 import StrokeOrderPractice from "../../components/StrokeOrderPractice";
+import WordAnalysisModal from "../../components/WordAnalysisModal";
 import masterData from "@/assets/data/vocab_master.json";
 import {
   cleanPinyinForMatching,
@@ -246,6 +247,7 @@ export default function KanjiSearchScreen() {
   const [selectedKanji, setSelectedKanji] = useState<KanjiData | null>(null);
   const [activePracticeChar, setActivePracticeChar] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [analysisWord, setAnalysisWord] = useState<string>("");
 
   // 🌟 Quản lý danh sách từ vựng theo bài học nếu mở từ bài học
   const [lessonTitle, setLessonTitle] = useState(routeParams.title || "");
@@ -1391,6 +1393,25 @@ export default function KanjiSearchScreen() {
               </View>
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.audioBtn,
+                    {
+                      backgroundColor: isDark ? "#064E3B" : "#ECFDF5",
+                      width: "auto",
+                      paddingHorizontal: 10,
+                      flexDirection: "row",
+                      gap: 4,
+                    },
+                  ]}
+                  onPress={() => setAnalysisWord(selectedKanji.character)}
+                >
+                  <Ionicons name="extension-puzzle-outline" size={16} color={isDark ? "#4CC38A" : "#0F766E"} />
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: isDark ? "#4CC38A" : "#0F766E" }}>
+                    Bộ thủ
+                  </Text>
+                </TouchableOpacity>
+
                 <PriorityButton
                   word={selectedKanji.character}
                   reading={selectedKanji.pinyin || selectedKanji.vietnamese_reading}
@@ -1482,6 +1503,27 @@ export default function KanjiSearchScreen() {
                         vietnameseReading={displayHanviet}
                         size={canvasSize}
                       />
+
+                      <TouchableOpacity
+                        onPress={() => setAnalysisWord(ch)}
+                        style={{
+                          marginTop: 6,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 4,
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderColor: isDark ? "rgba(76, 195, 138, 0.35)" : "rgba(15, 118, 110, 0.25)",
+                          backgroundColor: isDark ? "rgba(76, 195, 138, 0.1)" : "#F0FDF4",
+                        }}
+                      >
+                        <Ionicons name="extension-puzzle-outline" size={13} color={isDark ? "#4CC38A" : "#0F766E"} />
+                        <Text style={{ fontSize: 11.5, fontWeight: "700", color: isDark ? "#4CC38A" : "#0F766E" }}>
+                          Bộ thủ chữ {ch}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   );
                 })}
@@ -1598,6 +1640,14 @@ export default function KanjiSearchScreen() {
           </View>
         )}
       </ScrollView>
+
+      <WordAnalysisModal
+        visible={!!analysisWord}
+        word={analysisWord}
+        defaultDeckTitle={lessonTitle && lessonTitle !== "Tra cứu" ? lessonTitle : "Tra cứu Hán tự"}
+        hidePracticeLink
+        onClose={() => setAnalysisWord("")}
+      />
     </View>
   );
 }

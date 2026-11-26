@@ -255,6 +255,7 @@ export default function TopicListScreen() {
           renderItem={({ item, index }) => {
             const isReview = item.title === "Cần ôn tập";
             const wordCount = item.words?.length || 0;
+            const grammarCount = item.grammarPoints?.length || 0;
             return (
               <Animated.View entering={FadeInDown.delay(index * 40).duration(400)}>
                 <View
@@ -290,7 +291,7 @@ export default function TopicListScreen() {
                         {item.title}{isReview ? " ★" : ""}
                       </Text>
                       <Text style={[styles.wordCount, { color: colors.textMuted }]}>
-                        {wordCount} từ vựng
+                        {wordCount} từ vựng{grammarCount > 0 ? ` · ${grammarCount} ngữ pháp` : ""}
                       </Text>
                     </View>
                   </TouchableOpacity>
