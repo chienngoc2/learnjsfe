@@ -94,3 +94,64 @@ export function matchesPinyin(itemPinyin: string, query: string): { isMatch: boo
 
   return { isMatch: false, exactTone: false };
 }
+
+// Chuẩn hóa tiếng Việt (bỏ dấu thanh, đ -> d) để tìm kiếm không dấu chính xác
+export function normalizeViForSearch(str: string): string {
+  if (!str) return "";
+  return String(str)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "d")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function scoreLocalWordMatch(
+  item: { word: string; pinyin?: string; hanviet?: string; meaning: string },
+  rawQuery: string
+): number {
+  const q = String(rawQuery || "").trim();
+  if (!q) return 0;
+
+  const qLower = q.toLowerCase();
+  const qVi = normalizeViForSearch(q);
+  const qPinyin = cleanPinyinForMatching(q);
+  const hasHanzi = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(q);
+  const hasSpaces = /\s/.test(q);
+
+  const wLower = item.word.toLowerCase();
+  const pClean = cleanPinyinForMatching(item.pinyin || "");
+  const mVi = normalizeViForSearch(item.meaning || "");
+  const hvVi = normalizeViForSearch(item.hanviet || "");
+
+  if (item.word === q || wLower === qLower) return 1000;
+  if (hvVi && qVi && hvVi === qVi) return 860;
+  if (pClean && qPinyin && !hasHanzi && pClean === qPinyin) return 820;
+
+  if (mVi && qVi) {
+    const segments = mVi.split(/[,;/]+/).map((s) => s.trim()).filter(Boolean);
+    if (mVi === qVi || segments.includes(qVi)) return 780;
+  }
+
+  if (wLower.startsWith(qLower)) return 650;
+  if (wLower.includes(qLower)) return 550;
+
+  if (pClean && qPinyin && !hasHanzi && !hasSpaces) {
+    if (pClean.startsWith(qPinyin)) return 460;
+    if (qPinyin.length >= 2 && pClean.includes(qPinyin)) return 360;
+  }
+
+  if (mVi && qVi) {
+    if (mVi.startsWith(qVi)) return 420;
+    const escaped = qVi.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wordBoundary = new RegExp(`(^|\\s|[,;/()])${escaped}(\\s|[,;/()]|$)`);
+    if (wordBoundary.test(mVi)) return 340;
+    if (qVi.length >= 2 && mVi.includes(qVi)) return 240;
+  }
+
+  if (hvVi && qVi && qVi.length >= 2 && hvVi.includes(qVi)) return 220;
+
+  return 0;
+}

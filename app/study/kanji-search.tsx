@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as Speech from "expo-speech";
 import { useTheme } from "@/src/context/ThemeContext";
 import { usePriority } from "@/src/context/PriorityContext";
@@ -24,6 +24,7 @@ import WordAnalysisModal from "../../components/WordAnalysisModal";
 import masterData from "@/assets/data/vocab_master.json";
 import {
   cleanPinyinForMatching,
+  scoreLocalWordMatch,
   PINYIN_TONE_GROUPS,
   PINYIN_INITIALS,
 } from "@/src/utils/pinyinUtils";
@@ -58,6 +59,7 @@ interface KanjiData {
   components?: string[];
   lessonGroup?: string;
   pinyin_matches?: Array<{ word: string; pinyin?: string; meaning: string; level?: string }>;
+  matched_candidates?: Array<{ word: string; pinyin?: string; meaning: string; level?: string }>;
 }
 
 const masterWords: Array<{
@@ -240,7 +242,11 @@ export default function KanjiSearchScreen() {
   const [searchQuery, setSearchQuery] = useState(routeParams.word || "");
   const [hideKeyboardSuggestions, setHideKeyboardSuggestions] = useState(false);
   const [inputMode, setInputMode] = useState<"keyboard" | "handwriting" | "pinyin">(
-    routeParams.mode === "pinyin" ? "pinyin" : "handwriting"
+    routeParams.mode === "pinyin"
+      ? "pinyin"
+      : routeParams.mode === "handwriting"
+      ? "handwriting"
+      : "keyboard"
   );
   const [selectedInitial, setSelectedInitial] = useState<string>("Tất cả");
   const [pinyinQuery, setPinyinQuery] = useState<string>("");
@@ -257,124 +263,143 @@ export default function KanjiSearchScreen() {
   const [currentLessonIdx, setCurrentLessonIdx] = useState(0);
   const { prioritySet } = usePriority();
 
-  // 🌟 Tổng kho từ vựng hợp nhất (Gồm 533 từ Master + TẤT CẢ từ trong các bảng bài học & Kanji)
+  // 🌟 Tổng kho từ vựng hợp nhất (Kho chung SharedVocab + Bài đọc + Bài học + Kanji + Master)
   const [allWords, setAllWords] = useState<
-    Array<{ word: string; pinyin?: string; meaning: string; level?: string }>
+    Array<{ word: string; pinyin?: string; hanviet?: string; meaning: string; level?: string }>
   >(masterWords);
 
-  // Tự động kéo tất cả các bộ bài học từ Server về khi mở màn hình
-  useEffect(() => {
-    let isMounted = true;
-    const loadAllLessonWords = async () => {
-      try {
-        const [vocabRes, kanjiRes] = await Promise.allSettled([
-          api.get("/api/vocab/lists"),
-          api.get("/api/kanji/all", { params: { limit: 500 } }),
-        ]);
+  // Tự động kéo toàn bộ từ vựng hợp nhất (kể cả từ trong bài đọc & bài học mới) mỗi khi mở màn hình
+  const loadAllSearchableWords = useCallback(async () => {
+    try {
+      const [searchableRes, vocabRes, kanjiRes] = await Promise.allSettled([
+        api.get("/api/kanji/searchable-words"),
+        api.get("/api/vocab/lists"),
+        api.get("/api/kanji/all", { params: { limit: 1000 } }),
+      ]);
 
-        const dbWords: Array<{
-          word: string;
-          pinyin?: string;
-          meaning: string;
-          level?: string;
-        }> = [];
-        const seen = new Set<string>();
+      const dbWords: Array<{
+        word: string;
+        pinyin?: string;
+        hanviet?: string;
+        meaning: string;
+        level?: string;
+      }> = [];
+      const seen = new Set<string>();
 
-        if (vocabRes.status === "fulfilled" && vocabRes.value.data?.data) {
-          const lists = vocabRes.value.data.data;
-          lists.forEach((list: any) => {
-            const currentListWords: Array<{ word: string; pinyin?: string; meaning: string }> = [];
-            (list.words || []).forEach((w: any) => {
-              if (w.term) {
-                let meaning = w.meaning || w.def || "";
-                let pinyin = w.pinyin || w.reading || "";
-                if (typeof meaning === "string" && meaning.startsWith("{")) {
-                  try {
-                    const parsed = JSON.parse(meaning);
-                    meaning = parsed.meaning || parsed.def || meaning;
-                    pinyin = pinyin || parsed.pinyin || parsed.reading || "";
-                  } catch (e) {}
-                }
-                const wordItem = {
-                  word: w.term,
-                  pinyin: pinyin,
-                  meaning: String(meaning || ""),
-                  level: list.title || w.level || "Bài học",
-                };
-                currentListWords.push(wordItem);
-                if (!seen.has(w.term)) {
-                  seen.add(w.term);
-                  dbWords.push(wordItem);
-                }
-              }
+      // 1. Nguồn hợp nhất từ Backend (SharedVocab + ReadingPassage + WordAnalysis + VocabList + Kanji + Master)
+      if (searchableRes.status === "fulfilled" && searchableRes.value.data?.data) {
+        const list = searchableRes.value.data.data;
+        list.forEach((w: any) => {
+          if (w?.word && !seen.has(w.word)) {
+            seen.add(w.word);
+            dbWords.push({
+              word: w.word,
+              pinyin: w.pinyin || "",
+              hanviet: w.hanviet || "",
+              meaning: w.meaning || "",
+              level: w.level || w.source || "Kho chung",
             });
+          }
+        });
+      }
 
-            // Nếu người dùng chọn luyện viết bài học này
-            if (
-              routeParams.topicId &&
-              (list._id === routeParams.topicId || list.title === routeParams.title)
-            ) {
-              setLessonTitle(list.title);
-              setLessonWordsList(currentListWords);
-              if (currentListWords.length > 0) {
-                const targetInitialWord = routeParams.word || currentListWords[0].word;
-                const foundIdx = currentListWords.findIndex((w) => w.word === targetInitialWord);
-                setCurrentLessonIdx(foundIdx >= 0 ? foundIdx : 0);
-                performSearch(targetInitialWord);
+      if (vocabRes.status === "fulfilled" && vocabRes.value.data?.data) {
+        const lists = vocabRes.value.data.data;
+        lists.forEach((list: any) => {
+          const currentListWords: Array<{ word: string; pinyin?: string; meaning: string }> = [];
+          (list.words || []).forEach((w: any) => {
+            if (w.term) {
+              let meaning = w.meaning || w.def || "";
+              let pinyin = w.pinyin || w.reading || "";
+              if (typeof meaning === "string" && meaning.startsWith("{")) {
+                try {
+                  const parsed = JSON.parse(meaning);
+                  meaning = parsed.meaning || parsed.def || meaning;
+                  pinyin = pinyin || parsed.pinyin || parsed.reading || "";
+                } catch (e) {}
+              }
+              const wordItem = {
+                word: w.term,
+                pinyin: pinyin,
+                meaning: String(meaning || ""),
+                level: list.title || w.level || "Bài học",
+              };
+              currentListWords.push(wordItem);
+              if (!seen.has(w.term)) {
+                seen.add(w.term);
+                dbWords.push(wordItem);
               }
             }
           });
-        }
 
-        if (kanjiRes.status === "fulfilled" && kanjiRes.value.data?.data) {
-          const kanjiItems = kanjiRes.value.data.data;
-          kanjiItems.forEach((k: any) => {
-            if (k.character && !seen.has(k.character)) {
-              seen.add(k.character);
+          // Nếu người dùng chọn luyện viết bài học này
+          if (
+            routeParams.topicId &&
+            (list._id === routeParams.topicId || list.title === routeParams.title)
+          ) {
+            setLessonTitle(list.title);
+            setLessonWordsList(currentListWords);
+            if (currentListWords.length > 0) {
+              const targetInitialWord = routeParams.word || currentListWords[0].word;
+              const foundIdx = currentListWords.findIndex((w) => w.word === targetInitialWord);
+              setCurrentLessonIdx(foundIdx >= 0 ? foundIdx : 0);
+              performSearch(targetInitialWord);
+            }
+          }
+        });
+      }
+
+      if (kanjiRes.status === "fulfilled" && kanjiRes.value.data?.data) {
+        const kanjiItems = kanjiRes.value.data.data;
+        kanjiItems.forEach((k: any) => {
+          if (k.character && !seen.has(k.character)) {
+            seen.add(k.character);
+            dbWords.push({
+              word: k.character,
+              pinyin: k.pinyin || "",
+              hanviet: k.vietnamese_reading || "",
+              meaning: k.meaning || k.vietnamese_reading || "",
+              level: k.lessonGroup || k.level || "Kanji",
+            });
+          }
+          (k.example_words || []).forEach((ew: any) => {
+            if (ew.word && !seen.has(ew.word)) {
+              seen.add(ew.word);
               dbWords.push({
-                word: k.character,
-                pinyin: k.pinyin || "",
-                meaning: k.meaning || k.vietnamese_reading || "",
+                word: ew.word,
+                pinyin: ew.reading || "",
+                meaning: ew.meaning || "",
                 level: k.lessonGroup || k.level || "Kanji",
               });
             }
-            (k.example_words || []).forEach((ew: any) => {
-              if (ew.word && !seen.has(ew.word)) {
-                seen.add(ew.word);
-                dbWords.push({
-                  word: ew.word,
-                  pinyin: ew.reading || "",
-                  meaning: ew.meaning || "",
-                  level: k.lessonGroup || k.level || "Kanji",
-                });
-              }
-            });
           });
-        }
-
-        if (isMounted && dbWords.length > 0) {
-          setAllWords((prev) => {
-            const map = new Map<
-              string,
-              { word: string; pinyin?: string; meaning: string; level?: string }
-            >();
-            // 1. Thêm từ static master
-            prev.forEach((w) => map.set(w.word, w));
-            // 2. Bổ sung / đè các từ trong bảng bài học DB
-            dbWords.forEach((w) => map.set(w.word, w));
-            return Array.from(map.values());
-          });
-        }
-      } catch (e) {
-        console.warn("Lỗi khi tải từ vựng bài học:", e);
+        });
       }
-    };
 
-    loadAllLessonWords();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+      if (dbWords.length > 0) {
+        setAllWords(() => {
+          const map = new Map<
+            string,
+            { word: string; pinyin?: string; hanviet?: string; meaning: string; level?: string }
+          >();
+          // Ưu tiên kho DB + Bài đọc lên trước kho static
+          dbWords.forEach((w) => map.set(w.word, w));
+          masterWords.forEach((w) => {
+            if (!map.has(w.word)) map.set(w.word, w);
+          });
+          return Array.from(map.values());
+        });
+      }
+    } catch (e) {
+      console.warn("Lỗi khi tải từ vựng tra cứu:", e);
+    }
+  }, [routeParams.topicId, routeParams.title, routeParams.word]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadAllSearchableWords();
+    }, [loadAllSearchableWords])
+  );
 
   // Tự động tìm kiếm nếu truyền trực tiếp từ param word
   useEffect(() => {
@@ -383,7 +408,7 @@ export default function KanjiSearchScreen() {
     }
   }, [routeParams.word]);
 
-  // 🌟 Gợi ý từ vựng trực tiếp khi nhập bàn phím (ngay cả khi chỉ gõ 1 chữ hoặc gõ Pinyin)
+  // 🌟 Gợi ý từ vựng trực tiếp khi nhập bàn phím (sắp xếp theo độ khớp, hỗ trợ tiếng Việt không dấu & Pinyin)
   const liveKeyboardSuggestions = useMemo(() => {
     const q = searchQuery.trim();
     if (!q) return [];
@@ -392,53 +417,47 @@ export default function KanjiSearchScreen() {
     const qClean = cleanPinyinForMatching(q);
     const hanziChars = q.split("").filter((ch) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch));
 
-    const matched: Array<{
+    const scored: Array<{
       word: string;
       pinyin?: string;
       meaning: string;
       matchType: string;
+      score: number;
     }> = [];
     const seen = new Set<string>();
 
     allWords.forEach((item) => {
-      const wordLower = item.word.toLowerCase();
-      const pinyinLower = (item.pinyin || "").toLowerCase();
-      const meaningLower = (item.meaning || "").toLowerCase();
-      const itemPinyinClean = cleanPinyinForMatching(item.pinyin || "");
+      if (!item.word || seen.has(item.word)) return;
+      const baseScore = scoreLocalWordMatch(item, q);
+      const containsChar = hanziChars.length > 0 && hanziChars.some((ch) => item.word.includes(ch));
+      const finalScore = baseScore > 0 ? baseScore : containsChar ? 120 : 0;
 
-      const exactWord = wordLower === qLower;
-      const containsWord = wordLower.includes(qLower);
-      const containsChar =
-        hanziChars.length > 0 && hanziChars.some((ch) => item.word.includes(ch));
-      const exactPinyin = qClean && itemPinyinClean === qClean;
-      const containsPinyin = pinyinLower.includes(qLower) || (qClean && (itemPinyinClean.startsWith(qClean) || itemPinyinClean.includes(qClean)));
-      const containsMeaning = meaningLower.includes(qLower);
-
-      if (
-        (exactWord || containsWord || containsChar || exactPinyin || containsPinyin || containsMeaning) &&
-        !seen.has(item.word)
-      ) {
+      if (finalScore > 0) {
         seen.add(item.word);
-        let matchType = "Gợi ý";
-        if (exactWord) matchType = "Khớp từ";
-        else if (exactPinyin) matchType = "Khớp Pinyin";
-        else if (containsWord) matchType = "Khớp cụm";
+        const wordLower = item.word.toLowerCase();
+        const itemPinyinClean = cleanPinyinForMatching(item.pinyin || "");
+
+        let matchType = "Nghĩa";
+        if (wordLower === qLower) matchType = "Khớp từ";
+        else if (qClean && itemPinyinClean === qClean) matchType = "Khớp Pinyin";
+        else if (wordLower.includes(qLower)) matchType = "Khớp cụm";
         else if (containsChar) {
           const ch = hanziChars.find((c) => item.word.includes(c));
           matchType = `Chứa "${ch}"`;
-        } else if (containsPinyin) matchType = "Pinyin";
-        else if (containsMeaning) matchType = "Nghĩa";
+        } else if (finalScore === 460 || finalScore === 360) matchType = "Pinyin";
 
-        matched.push({
+        scored.push({
           word: item.word,
           pinyin: item.pinyin,
           meaning: item.meaning,
           matchType,
+          score: finalScore,
         });
       }
     });
 
-    return matched.slice(0, 16);
+    scored.sort((a, b) => b.score - a.score || a.word.length - b.word.length);
+    return scored.slice(0, 20);
   }, [searchQuery, allWords]);
 
   // 🌟 Danh sách từ vựng tra cứu theo Pinyin (kết hợp lọc theo Thanh Mẫu & từ khóa)
@@ -505,46 +524,41 @@ export default function KanjiSearchScreen() {
     }
   }, [selectedKanji]);
 
-  // 🔍 HÀM TÌM KIẾM CỤC BỘ TỨC THÌ TỪ KHO MASTER & TẤT CẢ BẢNG BÀI HỌC
+  // 🔍 HÀM TÌM KIẾM CỤC BỘ TỨC THÌ TỪ KHO CHUNG + BÀI HỌC + MASTER (SẮP XẾP THEO ĐỘ KHỚP)
   const buildLocalSearchResult = (queryText: string): KanjiData | null => {
     const q = queryText.trim();
     if (!q) return null;
 
     const qClean = cleanPinyinForMatching(q);
-
     const singleChars = q
       .split("")
       .filter((ch) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch));
 
-    // 1. Tìm chính xác trong toàn bộ kho allWords
-    const exactMaster = allWords.find(
-      (w) => w.word === q || w.word.toLowerCase() === q.toLowerCase()
-    );
+    // Chấm điểm toàn bộ kho hợp nhất
+    const ranked = allWords
+      .map((item) => ({ item, score: scoreLocalWordMatch(item, q) }))
+      .filter((e) => e.score > 0)
+      .sort((a, b) => b.score - a.score || a.item.word.length - b.item.word.length);
 
-    // 2. Tìm theo Pinyin khớp tuyệt đối
-    const pinyinExactMaster = !exactMaster && qClean
-      ? allWords.find((w) => cleanPinyinForMatching(w.pinyin || "") === qClean)
-      : null;
+    const targetMaster = ranked[0]?.item || null;
 
-    // 3. Tìm mờ nếu không thấy chính xác
-    const fuzzyMaster = !exactMaster && !pinyinExactMaster
-      ? allWords.find(
-          (w) =>
-            w.word.includes(q) ||
-            (w.pinyin && w.pinyin.toLowerCase().includes(q.toLowerCase())) ||
-            (qClean && cleanPinyinForMatching(w.pinyin || "").includes(qClean)) ||
-            (w.meaning && w.meaning.toLowerCase().includes(q.toLowerCase()))
-        )
-      : null;
+    // Nếu không khớp bất kỳ từ nào VÀ không chứa chữ Hán -> trả null để chờ Backend kiểm tra / báo không tìm thấy
+    if (!targetMaster && singleChars.length === 0) {
+      return null;
+    }
 
-    const targetMaster = exactMaster || pinyinExactMaster || fuzzyMaster;
+    // Nếu người dùng gõ chính xác chữ Hán chưa có trong từ điển cục bộ -> trả null để Backend dùng AI WordAnalysis tìm đầy đủ
+    if (singleChars.length > 0 && !targetMaster && !SINO_VIETNAMESE_DICT[q]) {
+      return null;
+    }
+
     const targetWordStr = targetMaster?.word || q;
     const targetChars = targetWordStr
       .split("")
       .filter((ch) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(ch));
     const effectiveChars = targetChars.length > 0 ? targetChars : singleChars;
 
-    // 3. Tra cứu âm Hán Việt & Pinyin từng chữ
+    // Tra cứu âm Hán Việt & Pinyin từng chữ
     const hanvietList = effectiveChars.map(
       (ch) => SINO_VIETNAMESE_DICT[ch]?.hanviet || ch
     );
@@ -560,9 +574,11 @@ export default function KanjiSearchScreen() {
     });
 
     let hanviet =
-      targetMaster?.meaning && targetMaster.meaning.length <= 25 && effectiveChars.length > 1
+      (targetMaster as any)?.hanviet ||
+      SINO_VIETNAMESE_DICT[q]?.hanviet ||
+      (targetMaster?.meaning && targetMaster.meaning.length <= 25 && effectiveChars.length > 1
         ? targetMaster.meaning
-        : hanvietList.join(" ");
+        : hanvietList.join(" "));
 
     if (!hanviet || hanviet === q) {
       hanviet = SINO_VIETNAMESE_DICT[q]?.hanviet || hanvietList.join(" ") || "Phồn Thể";
@@ -582,7 +598,7 @@ export default function KanjiSearchScreen() {
       SINO_VIETNAMESE_DICT[q]?.pinyin ||
       (charPinyins.some(Boolean) ? charPinyins.filter(Boolean).join(" ") : "");
 
-    // 4. Quét tìm tất cả các từ ghép / từ liên quan trong toàn bộ kho chứa các chữ này
+    // Quét tất cả từ ghép / từ liên quan chứa các chữ này
     const searchChs = effectiveChars.length > 0 ? effectiveChars : [q];
     const relatedWords: ExampleWord[] = [];
     const seen = new Set<string>();
@@ -599,7 +615,6 @@ export default function KanjiSearchScreen() {
       }
     });
 
-    // 5. Tạo câu ví dụ song ngữ tự nhiên
     const sampleExamples: ExampleSentence[] = [
       {
         cn: `這是${targetWordStr}。`,
@@ -636,6 +651,12 @@ export default function KanjiSearchScreen() {
       example_words: relatedWords,
       examples: sampleExamples,
       pinyin_matches: pinyinMatches,
+      matched_candidates: ranked.slice(0, 12).map((r) => ({
+        word: r.item.word,
+        pinyin: r.item.pinyin,
+        meaning: r.item.meaning,
+        level: r.item.level,
+      })),
     };
   };
 
@@ -647,13 +668,17 @@ export default function KanjiSearchScreen() {
 
     setSearchQuery(query);
 
-    // 1. Phục vụ kết quả cục bộ NGAY LẬP TỨC (0ms lag, luôn có nghĩa & từ ghép)
+    // 1. Phục vụ kết quả cục bộ NGAY LẬP TỨC nếu tìm thấy chính xác/rõ ràng
     const localResult = buildLocalSearchResult(query);
     if (localResult) {
       setSelectedKanji(localResult);
+      setLoading(false);
+    } else {
+      setSelectedKanji(null);
+      setLoading(true);
     }
 
-    // 2. Tra cứu thêm từ Server để bổ sung dữ liệu
+    // 2. Tra cứu thêm từ Server (hợp nhất SharedVocab, ReadingPassage, WordAnalysis, VocabList, Kanji, Master & AI)
     try {
       const response = await api.get(`/api/kanji/search`, {
         params: { q: query },
@@ -661,9 +686,8 @@ export default function KanjiSearchScreen() {
 
       if (response.data && response.data.success && response.data.data) {
         const serverData: KanjiData = response.data.data;
-        // Merge kết quả server với local
         setSelectedKanji((prev) => {
-          if (!prev) return serverData;
+          if (!prev || prev.character !== serverData.character) return serverData;
           return {
             ...serverData,
             pinyin: serverData.pinyin || prev.pinyin || localResult?.pinyin,
@@ -689,9 +713,15 @@ export default function KanjiSearchScreen() {
                 : prev.pinyin_matches,
           };
         });
+      } else if (!localResult) {
+        setSelectedKanji(null);
       }
     } catch (error) {
-      // Đã có localResult đảm bảo 100% không bao giờ bị trống
+      if (!localResult) {
+        setSelectedKanji(null);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -863,35 +893,6 @@ export default function KanjiSearchScreen() {
           <TouchableOpacity
             style={[
               styles.modeTab,
-              inputMode === "handwriting" && {
-                backgroundColor: colors.indigo,
-                borderColor: colors.indigo,
-              },
-              inputMode !== "handwriting" && {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={() => setInputMode("handwriting")}
-          >
-            <MaterialIcons
-              name="gesture"
-              size={17}
-              color={inputMode === "handwriting" ? "#FFFFFF" : colors.text}
-            />
-            <Text
-              style={[
-                styles.modeTabText,
-                { color: inputMode === "handwriting" ? "#FFFFFF" : colors.text },
-              ]}
-            >
-              Viết tay
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.modeTab,
               inputMode === "keyboard" && {
                 backgroundColor: colors.indigo,
                 borderColor: colors.indigo,
@@ -915,6 +916,35 @@ export default function KanjiSearchScreen() {
               ]}
             >
               Bàn phím
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.modeTab,
+              inputMode === "handwriting" && {
+                backgroundColor: colors.indigo,
+                borderColor: colors.indigo,
+              },
+              inputMode !== "handwriting" && {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => setInputMode("handwriting")}
+          >
+            <MaterialIcons
+              name="gesture"
+              size={17}
+              color={inputMode === "handwriting" ? "#FFFFFF" : colors.text}
+            />
+            <Text
+              style={[
+                styles.modeTabText,
+                { color: inputMode === "handwriting" ? "#FFFFFF" : colors.text },
+              ]}
+            >
+              Viết tay
             </Text>
           </TouchableOpacity>
 
@@ -1353,6 +1383,41 @@ export default function KanjiSearchScreen() {
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
+            {/* Các kết quả khớp khác (chạm để chuyển nhanh nếu search Pinyin/nghĩa tiếng Việt trùng nhiều từ) */}
+            {Array.isArray(selectedKanji.matched_candidates) && selectedKanji.matched_candidates.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginBottom: 10 }}
+                contentContainerStyle={{ gap: 6, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted, marginRight: 2 }}>
+                  Kết quả khớp:
+                </Text>
+                {selectedKanji.matched_candidates.map((cand, cIdx) => {
+                  const active = cand.word === selectedKanji.character;
+                  return (
+                    <TouchableOpacity
+                      key={`${cand.word}-${cIdx}`}
+                      onPress={() => performSearch(cand.word)}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: active ? colors.indigo : colors.border,
+                        backgroundColor: active ? colors.indigo : (isDark ? "#1E293B" : "#F8FAFC"),
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: active ? "#FFFFFF" : colors.text }}>
+                        {cand.word} {cand.pinyin ? `(${cand.pinyin})` : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
             {/* 1. Header Thông tin Từ Vựng */}
             <View style={styles.cardHeader}>
               <View style={{ flex: 1 }}>
