@@ -69,6 +69,7 @@ export default function WordAnalysisModal({
   const router = useRouter();
   const [historyStack, setHistoryStack] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<WordAnalysisData | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [savingFlashcard, setSavingFlashcard] = useState(false);
@@ -133,6 +134,26 @@ export default function WordAnalysisModal({
     if (!text) return;
     Speech.stop();
     Speech.speak(text, { language: "zh-TW", rate: 0.85 });
+  };
+
+  const handleReanalyze = async () => {
+    if (!activeWord || refreshing || loading) return;
+    setRefreshing(true);
+    setErrorMsg(null);
+    setSavedNotice(null);
+    try {
+      const res = await api.get(`/api/kanji/word-analysis?word=${encodeURIComponent(activeWord)}&refresh=true`);
+      if (res.data?.success && res.data?.data) {
+        setData(res.data.data);
+        setSavedNotice("Đã phân tích lại từ mới và cập nhật cache MongoDB");
+      } else {
+        setSavedNotice("Không thể phân tích lại lúc này");
+      }
+    } catch (err: any) {
+      setSavedNotice(err?.response?.data?.error || "Lỗi kết nối khi phân tích lại");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleSaveToFlashcard = async () => {
@@ -205,9 +226,34 @@ export default function WordAnalysisModal({
             <View style={{ flex: 1 }}>
               <Text style={[styles.headerTitle, { color: palette.text }]}>Phân tích từ vựng</Text>
               <Text style={[styles.headerMeta, { color: palette.muted }]}>
-                {data?.fromCache ? "Đã lưu trên MongoDB · 0 token" : "Cấu tạo 214 bộ thủ & ngữ cảnh"}
+                {refreshing
+                  ? "Đang phân tích lại kỹ hơn..."
+                  : data?.fromCache
+                  ? "Đã lưu trên MongoDB · 0 token"
+                  : "Cấu tạo 214 bộ thủ & ngữ cảnh"}
               </Text>
             </View>
+            <TouchableOpacity
+              onPress={handleReanalyze}
+              disabled={refreshing || loading}
+              style={[
+                styles.reanalyzeBtn,
+                {
+                  backgroundColor: palette.raised,
+                  borderColor: palette.border,
+                  marginRight: 8,
+                  opacity: refreshing || loading ? 0.55 : 1,
+                },
+              ]}
+              activeOpacity={0.7}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color={palette.accent} />
+              ) : (
+                <MaterialIcons name="refresh" size={16} color={palette.accent} />
+              )}
+              <Text style={[styles.reanalyzeText, { color: palette.accent }]}>Phân tích lại</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={onClose}
               style={[styles.closeBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
@@ -342,6 +388,11 @@ export default function WordAnalysisModal({
                                 <Text style={[styles.radicalGlyph, { color: rad.color || palette.accent }]}>
                                   {rad.radical}
                                 </Text>
+                                {!!rad.radicalId && (
+                                  <Text style={{ fontSize: 10, color: palette.muted, fontWeight: "600" }}>
+                                    Bộ #{rad.radicalId}
+                                  </Text>
+                                )}
                                 {!!rad.hanViet && (
                                   <Text style={[styles.radicalHv, { color: palette.text }]}>{rad.hanViet}</Text>
                                 )}
@@ -491,6 +542,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  reanalyzeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  reanalyzeText: { fontSize: 12, fontWeight: "600" },
   centerBox: {
     paddingVertical: 48,
     alignItems: "center",
