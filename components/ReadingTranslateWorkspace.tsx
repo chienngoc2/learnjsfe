@@ -86,10 +86,9 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
   const routeParams = useLocalSearchParams<{
     prefillText?: string;
     prefillTitle?: string;
-    view?: string;
   }>();
 
-  // Warm paper palette theo chuẩn /unslop
+  // Warm Paper & Ink palette (WCAG AA contrast for both light & dark)
   const palette = {
     bg: isDark ? "#161513" : "#F7F4EE",
     card: isDark ? "#1C1A18" : "#FDFBF7",
@@ -99,23 +98,25 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     secondary: isDark ? "#AAA398" : "#5E554A",
     muted: isDark ? "#8A847A" : "#7B7266",
     accent: isDark ? "#4CC38A" : "#0F766E",
-    repeatRed: isDark ? "#E5484D" : "#DC2626",
-    repeatBg: isDark ? "rgba(229, 72, 77, 0.14)" : "rgba(220, 38, 38, 0.08)",
+    primaryBg: isDark ? "#EFE9DE" : "#0F766E",
+    primaryInk: isDark ? "#161513" : "#FDFBF7",
+    repeatRed: isDark ? "#E5484D" : "#B91C1C",
+    repeatBg: isDark ? "rgba(229, 72, 77, 0.14)" : "rgba(185, 28, 28, 0.08)",
   };
 
-  // Layout chia 5/5 mặc định trên cả Desktop (trái/phải) và Mobile (trên/dưới)
+  // Mặc định chia 3/7: Dịch nhanh (3) · Phân tích bài đọc (7)
   const [layoutMode, setLayoutMode] = useState<"split" | "translate" | "reading">("split");
   const [slowVoice, setSlowVoice] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // ===== TRẠNG THÁI DỊCH NHANH (NỬA TRÁI / TRÊN) =====
+  // ===== KHUNG DỊCH (30%) =====
   const [translateInput, setTranslateInput] = useState("");
   const [direction, setDirection] = useState<"auto" | "zh-vi" | "vi-zh">("auto");
   const [translating, setTranslating] = useState(false);
   const [translateResult, setTranslateResult] = useState<TranslateResult | null>(null);
   const [savedKeywordsMap, setSavedKeywordsMap] = useState<Record<string, boolean>>({});
 
-  // ===== TRẠNG THÁI PHÂN TÍCH BÀI ĐỌC (NỬA PHẢI / DƯỚI) =====
+  // ===== KHUNG PHÂN TÍCH BÀI ĐỌC (70%) =====
   const [titleInput, setTitleInput] = useState("");
   const [contentInput, setContentInput] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -134,7 +135,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
   const [savingTarget, setSavingTarget] = useState(false);
   const [lastSavedGrammarTopic, setLastSavedGrammarTopic] = useState<{ topicId: string; title: string } | null>(null);
 
-  // Xem phân tích 214 bộ thủ & AI (dùng chung cho cả 2 nửa màn hình)
+  // Xem phân tích 214 bộ thủ & mẹo nhớ (dùng chung)
   const [analysisWord, setAnalysisWord] = useState("");
   const [analysisDeckTitle, setAnalysisDeckTitle] = useState("Từ vựng đọc dịch");
 
@@ -215,7 +216,6 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     Speech.speak(text, { language: lang, rate: slowVoice ? 0.72 : 0.92 });
   };
 
-  // Helper chuẩn hóa đóng gói từ kèm đầy đủ nghĩa tiếng Việt khi lưu vào Flashcard
   const buildVocabPayloadItem = (term: string, pinyin: string, meaning: string, pos = "noun") => {
     const cleanTerm = term.trim();
     const cleanPinyin = (pinyin || "").trim();
@@ -234,11 +234,11 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     };
   };
 
-  // ===== HÀNH ĐỘNG DỊCH NHANH =====
+  // ===== HÀNH ĐỘNG DỊCH =====
   const handleTranslate = async () => {
     const trimmed = translateInput.trim();
     if (!trimmed) {
-      showNotice("Vui lòng nhập hoặc dán nội dung cần dịch");
+      showNotice("Nhập hoặc dán nội dung cần dịch");
       return;
     }
     setTranslating(true);
@@ -311,7 +311,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         });
         setSavedKeywordsMap((prev) => ({ ...prev, ...nextMap }));
         fetchSavedPassages();
-        showNotice(`Đã lưu ${payload.length} từ kèm nghĩa Việt vào "Từ vựng đọc dịch"`);
+        showNotice(`Đã lưu ${payload.length} từ kèm nghĩa Việt`);
       }
     } catch {
       showNotice("Không thể lưu danh sách từ");
@@ -326,11 +326,11 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     handleAnalyze(targetText);
   };
 
-  // ===== HÀNH ĐỘNG BÀI ĐỌC =====
+  // ===== HÀNH ĐỘNG PHÂN TÍCH BÀI ĐỌC =====
   const handleAnalyze = async (overrideContent?: string) => {
     const clean = (overrideContent ?? contentInput).trim();
     if (!clean) {
-      showNotice("Vui lòng nhập hoặc dán nội dung bài đọc");
+      showNotice("Nhập hoặc dán nội dung bài đọc");
       return;
     }
     setAnalyzing(true);
@@ -442,7 +442,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
           setSaveDialogMode(null);
           setSelectedTerms({});
           fetchSavedPassages();
-          showNotice(`Đã lưu ${listToSave.length} từ vào Flashcard "${deckName}"`);
+          showNotice(`Đã lưu ${listToSave.length} từ vào "${deckName}"`);
         }
       } else {
         const listToSave = selectedGrammarList.length > 0 ? selectedGrammarList : (activePassage?.grammarPoints || []);
@@ -462,11 +462,11 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
             });
           }
           fetchSavedPassages();
-          showNotice(`Đã lưu ${listToSave.length} ngữ pháp vào bài "${deckName}"`);
+          showNotice(`Đã lưu ${listToSave.length} ngữ pháp vào "${deckName}"`);
         }
       }
     } catch {
-      showNotice(saveDialogMode === "vocab" ? "Không thể lưu vào Flashcard" : "Không thể lưu ngữ pháp");
+      showNotice(saveDialogMode === "vocab" ? "Không thể lưu từ vựng" : "Không thể lưu ngữ pháp");
     } finally {
       setSavingTarget(false);
     }
@@ -501,7 +501,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
             title: res.data.topicTitle || deckName,
           });
         }
-        showNotice(`Đã thêm "${g.pattern}" vào Ngữ pháp "${deckName}"`);
+        showNotice(`Đã lưu "${g.pattern}" vào "${deckName}"`);
       }
     } catch {
       showNotice("Không thể lưu ngữ pháp");
@@ -513,7 +513,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     setAnalysisWord(word);
   };
 
-  // Tô đỏ các từ lặp lại ngay trong đoạn văn bài đọc
+  // Highlight chữ ký hiệu từ lặp: nét gạch chân + nền đỏ dịu ngay trên trang giấy bài đọc
   const renderHighlightedPassage = (passage: ReadingPassageData) => {
     const repeatedVocab = (passage.vocabulary || []).filter((v) => v.isRepeated && v.term);
     if (repeatedVocab.length === 0) {
@@ -540,6 +540,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                 style={{
                   color: palette.repeatRed,
                   backgroundColor: palette.repeatBg,
+                  textDecorationLine: "underline",
                   fontWeight: "600",
                 }}
               >
@@ -553,20 +554,20 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     );
   };
 
-  // ===== KHUNG NỬA 1: DỊCH NHANH =====
+  // ===== NỬA TRÁI / TRÊN (30%): DỊCH NHANH =====
   const renderTranslatePane = () => (
     <ScrollView
       style={styles.paneScroll}
-      contentContainerStyle={styles.paneBody}
+      contentContainerStyle={styles.sidebarBody}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.paneTitleRow}>
-        <MaterialIcons name="translate" size={17} color={palette.accent} />
-        <Text style={[styles.paneTitle, { color: palette.text }]}>Dịch nhanh Trung ⇄ Việt</Text>
+      <View style={styles.paneHeaderRow}>
+        <Text style={[styles.paneHeading, { color: palette.text }]}>Dịch nhanh</Text>
+        <Text style={[styles.paneMeta, { color: palette.muted }]}>Trung ⇄ Việt</Text>
       </View>
 
-      {/* Direction Switcher */}
-      <View style={[styles.dirRow, { backgroundColor: palette.card, borderColor: palette.border }]}>
+      {/* Direction selector */}
+      <View style={[styles.segmentedBox, { backgroundColor: palette.raised, borderColor: palette.border }]}>
         {(
           [
             { key: "auto", label: "Tự động" },
@@ -579,9 +580,12 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
             <TouchableOpacity
               key={item.key}
               onPress={() => setDirection(item.key)}
-              style={[styles.dirTab, active && { backgroundColor: palette.accent }]}
+              style={[
+                styles.segmentedItem,
+                active && { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1 },
+              ]}
             >
-              <Text style={{ fontSize: 12, fontWeight: "600", color: active ? "#FFFFFF" : palette.muted }}>
+              <Text style={[styles.segmentedText, { color: active ? palette.text : palette.muted }]}>
                 {item.label}
               </Text>
             </TouchableOpacity>
@@ -589,11 +593,11 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         })}
       </View>
 
-      {/* Input Box */}
-      <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-        <View style={styles.inputHeader}>
-          <Text style={[styles.label, { color: palette.secondary }]}>Nội dung dịch</Text>
-          <View style={{ flexDirection: "row", gap: 6 }}>
+      {/* Input box */}
+      <View style={[styles.compactCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+        <View style={styles.rowBetween}>
+          <Text style={[styles.fieldLabel, { color: palette.secondary }]}>Nội dung</Text>
+          <View style={styles.rowGap8}>
             <TouchableOpacity
               onPress={async () => {
                 const txt = await readClipboard();
@@ -602,10 +606,10 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                   showNotice("Đã dán vào khung dịch");
                 }
               }}
-              style={[styles.miniBtn, { borderColor: palette.border }]}
+              style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
             >
-              <MaterialIcons name="content-paste" size={13} color={palette.text} />
-              <Text style={[styles.miniBtnText, { color: palette.text }]}>Dán</Text>
+              <MaterialIcons name="content-paste" size={16} color={palette.secondary} />
+              <Text style={[styles.quietBtnText, { color: palette.secondary }]}>Dán</Text>
             </TouchableOpacity>
             {!!translateInput && (
               <TouchableOpacity
@@ -614,10 +618,9 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                   setTranslateResult(null);
                   Speech.stop();
                 }}
-                style={[styles.miniBtn, { borderColor: palette.border }]}
+                style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
               >
-                <MaterialIcons name="close" size={13} color={palette.muted} />
-                <Text style={[styles.miniBtnText, { color: palette.muted }]}>Xóa</Text>
+                <MaterialIcons name="close" size={16} color={palette.muted} />
               </TouchableOpacity>
             )}
           </View>
@@ -627,19 +630,30 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
           multiline
           value={translateInput}
           onChangeText={setTranslateInput}
-          placeholder="Nhập hoặc dán từ, câu hoặc đoạn văn..."
+          placeholder="Nhập từ hoặc câu..."
           placeholderTextColor={palette.muted}
-          style={[styles.contentArea, { minHeight: 90, color: palette.text, backgroundColor: palette.bg, borderColor: palette.border }]}
+          style={[
+            styles.inputArea,
+            { minHeight: 88, color: palette.text, backgroundColor: palette.bg, borderColor: palette.border },
+          ]}
         />
 
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={styles.rowGap8}>
           <TouchableOpacity
             onPress={() => speak(translateInput, /[\u4e00-\u9fff]/.test(translateInput) ? "zh-TW" : "vi-VN")}
             disabled={!translateInput.trim()}
-            style={[styles.miniBtn, { borderColor: palette.border, paddingHorizontal: 12, opacity: translateInput.trim() ? 1 : 0.4 }]}
+            style={[
+              styles.quietBtn,
+              {
+                height: 40,
+                paddingHorizontal: 12,
+                backgroundColor: palette.raised,
+                borderColor: palette.border,
+                opacity: translateInput.trim() ? 1 : 0.4,
+              },
+            ]}
           >
-            <MaterialIcons name="volume-up" size={16} color={palette.text} />
-            <Text style={[styles.miniBtnText, { color: palette.text }]}>Đọc</Text>
+            <MaterialIcons name="volume-up" size={16} color={palette.secondary} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -647,16 +661,24 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
             disabled={translating || !translateInput.trim()}
             style={[
               styles.primaryBtn,
-              { flex: 1, backgroundColor: translating || !translateInput.trim() ? palette.border : palette.accent },
+              {
+                flex: 1,
+                backgroundColor: translating || !translateInput.trim() ? palette.raised : palette.primaryBg,
+                borderColor: palette.border,
+              },
             ]}
           >
             {translating ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={palette.primaryInk} />
             ) : (
-              <>
-                <MaterialIcons name="translate" size={17} color="#FFFFFF" />
-                <Text style={styles.primaryBtnText}>Dịch & Tách từ</Text>
-              </>
+              <Text
+                style={[
+                  styles.primaryBtnText,
+                  { color: !translateInput.trim() ? palette.muted : palette.primaryInk },
+                ]}
+              >
+                Dịch
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -664,43 +686,16 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
 
       {/* Kết quả dịch */}
       {translateResult && (
-        <View style={{ gap: 12 }}>
-          <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.accent }]}>
-            <View style={[styles.inputHeader, { flexWrap: "wrap", gap: 6 }]}>
-              <Text style={[styles.label, { color: palette.accent }]}>Kết quả dịch</Text>
-              <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+        <View style={styles.stack12}>
+          <View style={[styles.compactCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={[styles.rowBetween, { marginBottom: 8 }]}>
+              <Text style={[styles.fieldLabel, { color: palette.secondary }]}>Bản dịch</Text>
+              <View style={styles.rowGap8}>
                 <TouchableOpacity
                   onPress={() => speak(translateResult.chineseText, "zh-TW")}
-                  style={[styles.miniBtn, { borderColor: palette.border }]}
+                  style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
                 >
-                  <MaterialIcons name="volume-up" size={14} color={palette.accent} />
-                  <Text style={[styles.miniBtnText, { color: palette.accent }]}>Đọc</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() =>
-                    handleSaveTranslatedWord(
-                      translateResult.chineseText,
-                      translateResult.pinyin,
-                      translateResult.vietnameseText
-                    )
-                  }
-                  style={[styles.miniBtn, { borderColor: palette.accent, backgroundColor: palette.raised }]}
-                >
-                  <MaterialIcons
-                    name={savedKeywordsMap[translateResult.chineseText] ? "bookmark-added" : "bookmark-add"}
-                    size={14}
-                    color={palette.accent}
-                  />
-                  <Text style={[styles.miniBtnText, { color: palette.accent }]}>
-                    {savedKeywordsMap[translateResult.chineseText] ? "Đã lưu" : "Lưu từ"}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleSendToReading(translateResult.chineseText)}
-                  style={[styles.miniBtn, { borderColor: palette.border, backgroundColor: palette.raised }]}
-                >
-                  <MaterialIcons name="arrow-forward" size={14} color={palette.text} />
-                  <Text style={[styles.miniBtnText, { color: palette.text }]}>Sang Bài đọc</Text>
+                  <MaterialIcons name="volume-up" size={16} color={palette.secondary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() =>
@@ -708,76 +703,100 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                       `${translateResult.chineseText}\n${translateResult.pinyin}\n${translateResult.vietnameseText}`.trim()
                     )
                   }
-                  style={[styles.miniBtn, { borderColor: palette.border }]}
+                  style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
                 >
-                  <MaterialIcons name="content-copy" size={13} color={palette.muted} />
+                  <MaterialIcons name="content-copy" size={16} color={palette.secondary} />
                 </TouchableOpacity>
               </View>
             </View>
 
             <Text style={[styles.zhResult, { color: palette.text }]}>{translateResult.chineseText}</Text>
             {!!translateResult.pinyin && (
-              <Text style={[styles.pinyinResult, { color: palette.accent }]}>{translateResult.pinyin}</Text>
+              <Text style={[styles.pinyinText, { color: palette.accent }]}>{translateResult.pinyin}</Text>
             )}
             <View style={[styles.divider, { backgroundColor: palette.border }]} />
             <Text style={[styles.viResult, { color: palette.text }]}>{translateResult.vietnameseText}</Text>
+
+            <View style={[styles.rowGap8, { marginTop: 12, flexWrap: "wrap" }]}>
+              <TouchableOpacity
+                onPress={() =>
+                  handleSaveTranslatedWord(
+                    translateResult.chineseText,
+                    translateResult.pinyin,
+                    translateResult.vietnameseText
+                  )
+                }
+                style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
+              >
+                <MaterialIcons
+                  name={savedKeywordsMap[translateResult.chineseText] ? "check" : "bookmark-add"}
+                  size={16}
+                  color={palette.accent}
+                />
+                <Text style={[styles.quietBtnText, { color: palette.text }]}>
+                  {savedKeywordsMap[translateResult.chineseText] ? "Đã lưu" : "Lưu"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleSendToReading(translateResult.chineseText)}
+                style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
+              >
+                <MaterialIcons name="arrow-forward" size={16} color={palette.secondary} />
+                <Text style={[styles.quietBtnText, { color: palette.text }]}>Sang bài đọc</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Tách từng câu */}
+          {/* Tách từng câu (nếu nhiều câu) */}
           {Array.isArray(translateResult.sentences) && translateResult.sentences.length > 1 && (
-            <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Text style={[styles.label, { color: palette.secondary, marginBottom: 6 }]}>
-                Tách từng câu ({translateResult.sentences.length})
+            <View style={[styles.compactCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Text style={[styles.fieldLabel, { color: palette.secondary, marginBottom: 8 }]}>
+                Từng câu ({translateResult.sentences.length})
               </Text>
               {translateResult.sentences.map((s, idx) => (
                 <View
                   key={idx}
                   style={[
-                    styles.sentenceItem,
+                    styles.listRow,
                     { borderTopColor: palette.border, borderTopWidth: idx === 0 ? 0 : 1 },
                   ]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: "600", color: palette.text }}>{s.text}</Text>
-                    {!!s.pinyin && <Text style={{ fontSize: 12.5, color: palette.accent, marginTop: 2 }}>{s.pinyin}</Text>}
-                    {!!s.meaningVi && <Text style={{ fontSize: 13, color: palette.secondary, marginTop: 2 }}>{s.meaningVi}</Text>}
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: palette.text }}>{s.text}</Text>
+                    {!!s.pinyin && <Text style={{ fontSize: 12, color: palette.accent, marginTop: 2 }}>{s.pinyin}</Text>}
+                    {!!s.meaningVi && (
+                      <Text style={{ fontSize: 12, color: palette.secondary, marginTop: 2 }}>{s.meaningVi}</Text>
+                    )}
                   </View>
-                  <View style={{ flexDirection: "row", gap: 6, marginLeft: 8 }}>
-                    <TouchableOpacity
-                      onPress={() => speak(s.text, "zh-TW")}
-                      style={[styles.miniIcon, { borderColor: palette.border }]}
-                    >
-                      <MaterialIcons name="volume-up" size={15} color={palette.accent} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleSaveTranslatedWord(s.text, s.pinyin || "", s.meaningVi || "")}
-                      style={[styles.miniIcon, { borderColor: palette.border }]}
-                    >
-                      <MaterialIcons
-                        name={savedKeywordsMap[s.text] ? "bookmark-added" : "bookmark-add"}
-                        size={15}
-                        color={palette.accent}
-                      />
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleSaveTranslatedWord(s.text, s.pinyin || "", s.meaningVi || "")}
+                    style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
+                  >
+                    <MaterialIcons
+                      name={savedKeywordsMap[s.text] ? "check" : "bookmark-add"}
+                      size={16}
+                      color={palette.accent}
+                    />
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
           )}
 
-          {/* Từ vựng nổi bật (luôn lưu kèm nghĩa tiếng Việt) */}
+          {/* Từ khóa nổi bật (tối ưu cho cột 30%) */}
           {Array.isArray(translateResult.keywords) && translateResult.keywords.length > 0 && (
-            <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <View style={[styles.inputHeader, { marginBottom: 4 }]}>
-                <Text style={[styles.label, { color: palette.secondary }]}>
-                  Từ vựng nổi bật ({translateResult.keywords.length})
+            <View style={[styles.compactCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <View style={[styles.rowBetween, { marginBottom: 8 }]}>
+                <Text style={[styles.fieldLabel, { color: palette.secondary }]}>
+                  Từ khóa ({translateResult.keywords.length})
                 </Text>
                 <TouchableOpacity
                   onPress={handleSaveAllTranslatedKeywords}
-                  style={[styles.miniBtn, { borderColor: palette.accent, backgroundColor: palette.raised }]}
+                  style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
                 >
-                  <MaterialIcons name="library-add" size={14} color={palette.accent} />
-                  <Text style={[styles.miniBtnText, { color: palette.accent }]}>Lưu tất cả</Text>
+                  <MaterialIcons name="library-add" size={16} color={palette.accent} />
+                  <Text style={[styles.quietBtnText, { color: palette.text }]}>Lưu hết</Text>
                 </TouchableOpacity>
               </View>
 
@@ -790,53 +809,50 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                     activeOpacity={0.75}
                     onPress={() => openWordAnalysis(kw.term, "Từ vựng đọc dịch")}
                     style={[
-                      styles.kwRow,
-                      { borderTopColor: palette.border, borderTopWidth: idx === 0 ? 0 : 1, gap: 6 },
+                      styles.listRow,
+                      { borderTopColor: palette.border, borderTopWidth: idx === 0 ? 0 : 1 },
                     ]}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: "600", color: palette.text }}>
-                        {kw.term}{" "}
+                      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                        <Text style={{ fontSize: 16, fontWeight: "600", color: palette.text }}>{kw.term}</Text>
                         {!!kw.pinyin && (
-                          <Text style={{ fontSize: 13, color: palette.accent, fontWeight: "500" }}>
-                            {kw.pinyin}
-                          </Text>
+                          <Text style={{ fontSize: 12, color: palette.accent, fontWeight: "500" }}>{kw.pinyin}</Text>
                         )}
-                      </Text>
-                      <Text style={{ fontSize: 13, color: palette.secondary }}>{displayMeaning}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: palette.secondary, marginTop: 2 }}>{displayMeaning}</Text>
                     </View>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
-                        openWordAnalysis(kw.term, "Từ vựng đọc dịch");
-                      }}
-                      style={[styles.miniBtn, { borderColor: palette.border }]}
-                    >
-                      <MaterialIcons name="extension" size={14} color={palette.text} />
-                      <Text style={[styles.miniBtnText, { color: palette.text }]}>Bộ thủ</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
-                        handleSaveTranslatedWord(kw.term, kw.pinyin || "", displayMeaning);
-                      }}
-                      style={[
-                        styles.miniBtn,
-                        {
-                          borderColor: palette.accent,
-                          backgroundColor: isSaved ? palette.accent : "transparent",
-                        },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name={isSaved ? "check" : "add"}
-                        size={14}
-                        color={isSaved ? "#FFFFFF" : palette.accent}
-                      />
-                      <Text style={[styles.miniBtnText, { color: isSaved ? "#FFFFFF" : palette.accent }]}>
-                        {isSaved ? "Đã lưu" : "Lưu từ"}
-                      </Text>
-                    </TouchableOpacity>
+
+                    <View style={styles.rowGap4}>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                          openWordAnalysis(kw.term, "Từ vựng đọc dịch");
+                        }}
+                        style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
+                      >
+                        <MaterialIcons name="extension" size={16} color={palette.secondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                          handleSaveTranslatedWord(kw.term, kw.pinyin || "", displayMeaning);
+                        }}
+                        style={[
+                          styles.iconBox,
+                          {
+                            backgroundColor: isSaved ? palette.accent : palette.raised,
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={isSaved ? "check" : "bookmark-add"}
+                          size={16}
+                          color={isSaved ? "#FFFFFF" : palette.accent}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -847,31 +863,36 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     </ScrollView>
   );
 
-  // ===== KHUNG NỬA 2: PHÂN TÍCH BÀI ĐỌC =====
+  // ===== NỬA PHẢI / DƯỚI (70%): PHÂN TÍCH BÀI ĐỌC =====
   const renderReadingPane = () => (
     <ScrollView
       style={styles.paneScroll}
-      contentContainerStyle={styles.paneBody}
+      contentContainerStyle={styles.mainBody}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.paneTitleRow}>
-        <MaterialIcons name="auto-stories" size={17} color={palette.accent} />
-        <Text style={[styles.paneTitle, { color: palette.text }]}>Phân tích Bài đọc AI</Text>
+      <View style={styles.paneHeaderRow}>
+        <Text style={[styles.paneHeading, { color: palette.text }]}>Phân tích bài đọc</Text>
+        <Text style={[styles.paneMeta, { color: palette.muted }]}>
+          Từ mới · Từ lặp · Ngữ pháp
+        </Text>
       </View>
 
       {/* Form nhập bài đọc */}
-      <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+      <View style={[styles.mainCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
         <TextInput
           value={titleInput}
           onChangeText={setTitleInput}
           placeholder="Tên bài đọc (tùy chọn)"
           placeholderTextColor={palette.muted}
-          style={[styles.titleInput, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border }]}
+          style={[
+            styles.titleInput,
+            { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border },
+          ]}
         />
 
-        <View style={styles.inputHeader}>
-          <Text style={[styles.label, { color: palette.secondary }]}>Nội dung bài đọc</Text>
-          <View style={{ flexDirection: "row", gap: 6 }}>
+        <View style={[styles.rowBetween, { marginBottom: 8 }]}>
+          <Text style={[styles.fieldLabel, { color: palette.secondary }]}>Nội dung bài đọc</Text>
+          <View style={styles.rowGap8}>
             <TouchableOpacity
               onPress={async () => {
                 const txt = await readClipboard();
@@ -880,10 +901,10 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                   showNotice("Đã dán bài đọc");
                 }
               }}
-              style={[styles.miniBtn, { borderColor: palette.border }]}
+              style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
             >
-              <MaterialIcons name="content-paste" size={13} color={palette.text} />
-              <Text style={[styles.miniBtnText, { color: palette.text }]}>Dán</Text>
+              <MaterialIcons name="content-paste" size={16} color={palette.secondary} />
+              <Text style={[styles.quietBtnText, { color: palette.secondary }]}>Dán</Text>
             </TouchableOpacity>
             {!!contentInput && (
               <TouchableOpacity
@@ -892,10 +913,10 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                   setTitleInput("");
                   setActivePassage(null);
                 }}
-                style={[styles.miniBtn, { borderColor: palette.border }]}
+                style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
               >
-                <MaterialIcons name="close" size={13} color={palette.muted} />
-                <Text style={[styles.miniBtnText, { color: palette.muted }]}>Xóa</Text>
+                <MaterialIcons name="close" size={16} color={palette.muted} />
+                <Text style={[styles.quietBtnText, { color: palette.muted }]}>Xóa</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -905,9 +926,12 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
           multiline
           value={contentInput}
           onChangeText={setContentInput}
-          placeholder="Dán đoạn văn tiếng Trung vào đây hoặc bấm 'Sang Bài đọc' bên khung Dịch..."
+          placeholder="Dán đoạn văn tiếng Trung vào đây hoặc bấm Sang bài đọc ở khung bên cạnh"
           placeholderTextColor={palette.muted}
-          style={[styles.contentArea, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border }]}
+          style={[
+            styles.inputArea,
+            { minHeight: 112, color: palette.text, backgroundColor: palette.bg, borderColor: palette.border },
+          ]}
         />
 
         <TouchableOpacity
@@ -915,42 +939,52 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
           disabled={analyzing || !contentInput.trim()}
           style={[
             styles.primaryBtn,
-            { backgroundColor: analyzing || !contentInput.trim() ? palette.border : palette.accent },
+            {
+              backgroundColor: analyzing || !contentInput.trim() ? palette.raised : palette.primaryBg,
+              borderColor: palette.border,
+            },
           ]}
           activeOpacity={0.8}
         >
           {analyzing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={palette.primaryInk} />
           ) : (
             <>
-              <MaterialIcons name="auto-stories" size={17} color="#FFFFFF" />
-              <Text style={styles.primaryBtnText}>Phân tích & Lưu bài đọc</Text>
+              <MaterialIcons name="auto-stories" size={18} color={palette.primaryInk} />
+              <Text
+                style={[
+                  styles.primaryBtnText,
+                  { color: !contentInput.trim() ? palette.muted : palette.primaryInk },
+                ]}
+              >
+                Phân tích bài đọc
+              </Text>
             </>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* Kết quả phân tích bài đọc */}
+      {/* Kết quả phân tích (Moment chính của màn hình: Trang giấy bài đọc) */}
       {activePassage && (
-        <View style={{ gap: 14 }}>
-          <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-            <View style={styles.passageHeader}>
+        <View style={styles.stack16}>
+          <View style={[styles.mainCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
+            <View style={[styles.rowBetween, { marginBottom: 12, gap: 8 }]}>
               <Text style={[styles.passageTitle, { color: palette.text }]}>{activePassage.title}</Text>
-              <View style={{ flexDirection: "row", gap: 6 }}>
+              <View style={styles.rowGap8}>
                 <TouchableOpacity
                   onPress={() => setShowPinyin(!showPinyin)}
-                  style={[styles.miniBtn, { borderColor: palette.border }]}
+                  style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
                 >
-                  <Text style={[styles.miniBtnText, { color: palette.secondary }]}>
+                  <Text style={[styles.quietBtnText, { color: palette.secondary }]}>
                     {showPinyin ? "Ẩn Pinyin" : "Hiện Pinyin"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => speak(activePassage.content)}
-                  style={[styles.miniBtn, { borderColor: palette.border }]}
+                  style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
                 >
-                  <MaterialIcons name="volume-up" size={15} color={palette.accent} />
-                  <Text style={[styles.miniBtnText, { color: palette.accent }]}>Đọc bài</Text>
+                  <MaterialIcons name="volume-up" size={16} color={palette.accent} />
+                  <Text style={[styles.quietBtnText, { color: palette.text }]}>Đọc</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -965,7 +999,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
 
             {!!activePassage.translation && (
               <View style={[styles.translationBox, { backgroundColor: palette.raised }]}>
-                <Text style={[styles.label, { color: palette.muted, marginBottom: 4 }]}>Dịch nghĩa</Text>
+                <Text style={[styles.fieldLabel, { color: palette.muted, marginBottom: 4 }]}>Dịch nghĩa</Text>
                 <Text style={[styles.translationText, { color: palette.text }]}>
                   {activePassage.translation}
                 </Text>
@@ -974,14 +1008,14 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
           </View>
 
           {/* Từ mới trong bài */}
-          <View style={styles.sectionBlock}>
-            <View style={styles.sectionHeader}>
-              <View style={{ flex: 1, marginRight: 8 }}>
+          <View style={styles.stack12}>
+            <View style={styles.rowBetween}>
+              <View style={{ flex: 1, marginRight: 12 }}>
                 <Text style={[styles.sectionTitle, { color: palette.text }]}>
                   Từ mới ({activePassage.vocabulary?.length || 0})
                 </Text>
                 <Text style={[styles.sectionHint, { color: palette.muted }]}>
-                  Từ đỏ đã lặp lại · Chạm từ để xem bộ thủ
+                  Từ gạch đỏ lặp từ bài khác · Chạm để xem 214 bộ thủ
                 </Text>
               </View>
               <TouchableOpacity
@@ -989,110 +1023,110 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                   setTargetDeckTitle(activePassage.title || "Từ vựng bài đọc");
                   setSaveDialogMode("vocab");
                 }}
-                style={[styles.saveFlashcardBtn, { backgroundColor: palette.accent }]}
+                style={[styles.primaryBtn, { height: 36, paddingHorizontal: 12, backgroundColor: palette.primaryBg }]}
               >
-                <MaterialIcons name="style" size={15} color="#FFFFFF" />
-                <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "600" }}>
-                  {selectedVocabList.length > 0
-                    ? `Lưu ${selectedVocabList.length} từ`
-                    : "Lưu tất cả"}
+                <MaterialIcons name="style" size={16} color={palette.primaryInk} />
+                <Text style={[styles.primaryBtnText, { fontSize: 12, color: palette.primaryInk }]}>
+                  {selectedVocabList.length > 0 ? `Lưu ${selectedVocabList.length} từ` : "Lưu từ"}
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {(activePassage.vocabulary || []).map((v, idx) => {
-              const isSelected = !!selectedTerms[v.term];
-              return (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() => openWordAnalysis(v.term, activePassage.title || "Từ vựng bài đọc")}
-                  activeOpacity={0.75}
-                  style={[
-                    styles.vocabCard,
-                    {
-                      backgroundColor: v.isRepeated ? palette.repeatBg : palette.card,
-                      borderColor: v.isRepeated ? palette.repeatRed : palette.border,
-                    },
-                  ]}
-                >
+            <View style={styles.stack8}>
+              {(activePassage.vocabulary || []).map((v, idx) => {
+                const isSelected = !!selectedTerms[v.term];
+                return (
                   <TouchableOpacity
-                    onPress={(e) => {
-                      if ((e as any)?.stopPropagation) (e as any).stopPropagation();
-                      toggleSelectTerm(v.term);
-                    }}
+                    key={idx}
+                    onPress={() => openWordAnalysis(v.term, activePassage.title || "Từ vựng bài đọc")}
+                    activeOpacity={0.75}
                     style={[
-                      styles.checkbox,
+                      styles.vocabCard,
                       {
-                        borderColor: isSelected ? palette.accent : palette.border,
-                        backgroundColor: isSelected ? palette.accent : "transparent",
+                        backgroundColor: v.isRepeated ? palette.repeatBg : palette.card,
+                        borderColor: v.isRepeated ? palette.repeatRed : palette.border,
                       },
                     ]}
                   >
-                    {isSelected && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                        toggleSelectTerm(v.term);
+                      }}
+                      style={[
+                        styles.checkbox,
+                        {
+                          borderColor: isSelected ? palette.accent : palette.border,
+                          backgroundColor: isSelected ? palette.accent : "transparent",
+                        },
+                      ]}
+                    >
+                      {isSelected && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
+                    </TouchableOpacity>
 
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.vocabTopRow}>
-                      <Text
-                        style={[
-                          styles.vocabTerm,
-                          { color: v.isRepeated ? palette.repeatRed : palette.text },
-                        ]}
-                      >
-                        {v.term}
-                      </Text>
-                      {!!v.pinyin && (
-                        <Text style={[styles.vocabPinyin, { color: palette.accent }]}>{v.pinyin}</Text>
-                      )}
-                      {!!v.pos && (
-                        <Text style={[styles.vocabPos, { color: palette.muted }]}>{v.pos}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.vocabTopRow}>
+                        <Text
+                          style={[
+                            styles.vocabTerm,
+                            { color: v.isRepeated ? palette.repeatRed : palette.text },
+                          ]}
+                        >
+                          {v.term}
+                        </Text>
+                        {!!v.pinyin && (
+                          <Text style={[styles.vocabPinyin, { color: palette.accent }]}>{v.pinyin}</Text>
+                        )}
+                        {!!v.pos && (
+                          <Text style={[styles.vocabPos, { color: palette.muted }]}>{v.pos}</Text>
+                        )}
+                      </View>
+
+                      <Text style={[styles.vocabMeaning, { color: palette.secondary }]}>{v.meaning}</Text>
+
+                      {v.isRepeated && (
+                        <Text style={[styles.repeatMetaText, { color: palette.repeatRed }]}>
+                          Lặp {v.repeatCount} lần · {v.appearedIn?.slice(0, 2).join(", ")}
+                        </Text>
                       )}
                     </View>
 
-                    <Text style={[styles.vocabMeaning, { color: palette.secondary }]}>{v.meaning}</Text>
-
-                    {v.isRepeated && (
-                      <Text style={[styles.repeatBadgeText, { color: palette.repeatRed }]}>
-                        Lặp {v.repeatCount} lần · {v.appearedIn?.slice(0, 2).join(", ")}
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
-                        speak(v.term);
-                      }}
-                      style={[styles.miniIcon, { borderColor: palette.border }]}
-                    >
-                      <MaterialIcons name="volume-up" size={16} color={palette.muted} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        if ((e as any)?.stopPropagation) (e as any).stopPropagation();
-                        saveSingleWordQuick(v);
-                      }}
-                      style={[styles.miniIcon, { borderColor: palette.border }]}
-                    >
-                      <MaterialIcons name="bookmark-add" size={16} color={palette.accent} />
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                    <View style={styles.rowGap8}>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                          speak(v.term);
+                        }}
+                        style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
+                      >
+                        <MaterialIcons name="volume-up" size={16} color={palette.secondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          if ((e as any)?.stopPropagation) (e as any).stopPropagation();
+                          saveSingleWordQuick(v);
+                        }}
+                        style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
+                      >
+                        <MaterialIcons name="bookmark-add" size={16} color={palette.accent} />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Ngữ pháp trong bài */}
           {Array.isArray(activePassage.grammarPoints) && activePassage.grammarPoints.length > 0 && (
-            <View style={styles.sectionBlock}>
-              <View style={styles.sectionHeader}>
-                <View style={{ flex: 1, marginRight: 8 }}>
+            <View style={styles.stack12}>
+              <View style={styles.rowBetween}>
+                <View style={{ flex: 1, marginRight: 12 }}>
                   <Text style={[styles.sectionTitle, { color: palette.text }]}>
                     Ngữ pháp trong bài ({activePassage.grammarPoints.length})
                   </Text>
                   <Text style={[styles.sectionHint, { color: palette.muted }]}>
-                    Thêm vào bài học ngữ pháp để ôn tập & ghép câu
+                    Thêm vào bài học ngữ pháp để ôn tập
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -1100,13 +1134,11 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                     setTargetDeckTitle(activePassage.title || "Ngữ pháp bài đọc");
                     setSaveDialogMode("grammar");
                   }}
-                  style={[styles.saveFlashcardBtn, { backgroundColor: palette.accent }]}
+                  style={[styles.primaryBtn, { height: 36, paddingHorizontal: 12, backgroundColor: palette.primaryBg }]}
                 >
-                  <MaterialIcons name="collections-bookmark" size={15} color="#FFFFFF" />
-                  <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "600" }}>
-                    {selectedGrammarList.length > 0
-                      ? `Lưu ${selectedGrammarList.length} ngữ pháp`
-                      : "Lưu ngữ pháp"}
+                  <MaterialIcons name="collections-bookmark" size={16} color={palette.primaryInk} />
+                  <Text style={[styles.primaryBtnText, { fontSize: 12, color: palette.primaryInk }]}>
+                    {selectedGrammarList.length > 0 ? `Lưu ${selectedGrammarList.length} mục` : "Lưu ngữ pháp"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1119,75 +1151,74 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                     )
                   }
                   style={[
-                    styles.card,
-                    {
-                      backgroundColor: palette.raised,
-                      borderColor: palette.accent,
-                      paddingVertical: 10,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    },
+                    styles.compactCard,
+                    styles.rowBetween,
+                    { backgroundColor: palette.raised, borderColor: palette.border },
                   ]}
                   activeOpacity={0.75}
                 >
-                  <Text style={{ color: palette.accent, fontSize: 13, fontWeight: "600", flex: 1 }}>
-                    Mở bài học ngữ pháp "{lastSavedGrammarTopic.title}"
+                  <Text style={{ color: palette.accent, fontSize: 14, fontWeight: "600", flex: 1 }}>
+                    Mở bài ngữ pháp "{lastSavedGrammarTopic.title}"
                   </Text>
-                  <MaterialIcons name="arrow-forward" size={18} color={palette.accent} />
+                  <MaterialIcons name="arrow-forward" size={16} color={palette.accent} />
                 </TouchableOpacity>
               )}
 
-              {activePassage.grammarPoints.map((g, idx) => {
-                const isSelected = !!selectedGrammars[g.pattern];
-                return (
-                  <View
-                    key={idx}
-                    style={[styles.card, { backgroundColor: palette.card, borderColor: isSelected ? palette.accent : palette.border }]}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                      <TouchableOpacity
-                        onPress={() => toggleSelectGrammar(g.pattern)}
-                        style={[
-                          styles.checkbox,
-                          {
-                            marginTop: 2,
-                            borderColor: isSelected ? palette.accent : palette.border,
-                            backgroundColor: isSelected ? palette.accent : "transparent",
-                          },
-                        ]}
-                      >
-                        {isSelected && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
-                      </TouchableOpacity>
+              <View style={styles.stack8}>
+                {activePassage.grammarPoints.map((g, idx) => {
+                  const isSelected = !!selectedGrammars[g.pattern];
+                  return (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.mainCard,
+                        { backgroundColor: palette.card, borderColor: isSelected ? palette.accent : palette.border },
+                      ]}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+                        <TouchableOpacity
+                          onPress={() => toggleSelectGrammar(g.pattern)}
+                          style={[
+                            styles.checkbox,
+                            {
+                              marginTop: 4,
+                              borderColor: isSelected ? palette.accent : palette.border,
+                              backgroundColor: isSelected ? palette.accent : "transparent",
+                            },
+                          ]}
+                        >
+                          {isSelected && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
+                        </TouchableOpacity>
 
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.grammarPattern, { color: palette.accent }]}>{g.pattern}</Text>
-                        <Text style={[styles.grammarMeaning, { color: palette.text }]}>{g.meaning}</Text>
-                        {!!g.explanation && (
-                          <Text style={[styles.grammarExp, { color: palette.secondary }]}>{g.explanation}</Text>
-                        )}
-                        {!!g.exampleInText && (
-                          <View style={[styles.exampleBox, { backgroundColor: palette.raised }]}>
-                            <Text style={{ fontSize: 14, color: palette.text }}>{g.exampleInText}</Text>
-                            {!!g.exampleMeaning && (
-                              <Text style={{ fontSize: 13, color: palette.secondary, marginTop: 2 }}>
-                                {g.exampleMeaning}
-                              </Text>
-                            )}
-                          </View>
-                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.grammarPattern, { color: palette.accent }]}>{g.pattern}</Text>
+                          <Text style={[styles.grammarMeaning, { color: palette.text }]}>{g.meaning}</Text>
+                          {!!g.explanation && (
+                            <Text style={[styles.grammarExp, { color: palette.secondary }]}>{g.explanation}</Text>
+                          )}
+                          {!!g.exampleInText && (
+                            <View style={[styles.exampleBox, { backgroundColor: palette.raised }]}>
+                              <Text style={{ fontSize: 14, color: palette.text }}>{g.exampleInText}</Text>
+                              {!!g.exampleMeaning && (
+                                <Text style={{ fontSize: 12, color: palette.secondary, marginTop: 4 }}>
+                                  {g.exampleMeaning}
+                                </Text>
+                              )}
+                            </View>
+                          )}
+                        </View>
+
+                        <TouchableOpacity
+                          onPress={() => saveSingleGrammarQuick(g)}
+                          style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
+                        >
+                          <MaterialIcons name="bookmark-add" size={16} color={palette.accent} />
+                        </TouchableOpacity>
                       </View>
-
-                      <TouchableOpacity
-                        onPress={() => saveSingleGrammarQuick(g)}
-                        style={[styles.miniIcon, { borderColor: palette.border }]}
-                      >
-                        <MaterialIcons name="bookmark-add" size={16} color={palette.accent} />
-                      </TouchableOpacity>
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })}
+              </View>
             </View>
           )}
         </View>
@@ -1199,97 +1230,101 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
     <View style={[styles.container, { backgroundColor: palette.bg }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* Header chung */}
+      {/* Header gọn & tĩnh theo chuẩn /unslop */}
       <View
         style={[
           styles.header,
           {
             backgroundColor: palette.card,
             borderBottomColor: palette.border,
-            paddingTop: insets.top > 0 ? insets.top + 8 : Platform.OS === "android" ? 40 : 14,
+            paddingTop: insets.top > 0 ? insets.top + 8 : Platform.OS === "android" ? 40 : 12,
           },
         ]}
       >
         {showBackButton && (
           <TouchableOpacity
             onPress={() => router.back()}
-            style={[styles.miniIcon, { borderColor: palette.border, marginRight: 10, width: 34, height: 34 }]}
+            style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border, marginRight: 12 }]}
           >
             <MaterialIcons name="arrow-back" size={18} color={palette.text} />
           </TouchableOpacity>
         )}
 
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: palette.text }]}>Đọc & Dịch · Bài đọc</Text>
+          <Text style={[styles.headerTitle, { color: palette.text }]}>Đọc & Dịch</Text>
           <Text style={[styles.headerSub, { color: palette.muted }]} numberOfLines={1}>
-            Dịch nhanh 5/5 song song phân tích từ mới & ngữ pháp
+            Dịch nhanh 3/7 và phân tích bài đọc
           </Text>
         </View>
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={styles.rowGap8}>
           <TouchableOpacity
             onPress={() => setSlowVoice(!slowVoice)}
             style={[
-              styles.historyBtn,
+              styles.quietBtn,
               {
+                height: 36,
                 backgroundColor: slowVoice ? palette.raised : "transparent",
-                borderColor: slowVoice ? palette.accent : palette.border,
+                borderColor: palette.border,
               },
             ]}
           >
-            <MaterialIcons name="speed" size={15} color={slowVoice ? palette.accent : palette.muted} />
-            <Text style={[styles.historyBtnText, { color: slowVoice ? palette.accent : palette.muted }]}>
+            <MaterialIcons name="speed" size={16} color={slowVoice ? palette.accent : palette.muted} />
+            <Text style={[styles.quietBtnText, { color: slowVoice ? palette.text : palette.muted }]}>
               {slowVoice ? "0.75x" : "1.0x"}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => setShowHistoryModal(true)}
-            style={[styles.historyBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
+            style={[styles.quietBtn, { height: 36, backgroundColor: palette.raised, borderColor: palette.border }]}
             activeOpacity={0.7}
           >
-            <MaterialIcons name="history" size={16} color={palette.text} />
-            <Text style={[styles.historyBtnText, { color: palette.text }]}>
-              ({savedPassages.length})
+            <MaterialIcons name="history" size={16} color={palette.secondary} />
+            <Text style={[styles.quietBtnText, { color: palette.text, fontVariant: ["tabular-nums"] }]}>
+              {savedPassages.length}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Thanh chọn chế độ 5/5 hoặc phóng to từng khung */}
-      <View style={[styles.splitToolbar, { backgroundColor: palette.card, borderBottomColor: palette.border }]}>
-        {(
-          [
-            { key: "split", label: "Chia 5/5", icon: "vertical-split" },
-            { key: "translate", label: "Dịch nhanh", icon: "translate" },
-            { key: "reading", label: "Bài đọc", icon: "menu-book" },
-          ] as const
-        ).map((tab) => {
-          const active = layoutMode === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              onPress={() => setLayoutMode(tab.key)}
-              style={[
-                styles.splitTabBtn,
-                active && { backgroundColor: palette.accent },
-              ]}
-            >
-              <MaterialIcons name={tab.icon} size={15} color={active ? "#FFFFFF" : palette.secondary} />
-              <Text style={{ fontSize: 12, fontWeight: "600", color: active ? "#FFFFFF" : palette.secondary }}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      {/* Thanh chọn bố cục */}
+      <View style={[styles.toolbarBar, { backgroundColor: palette.card, borderBottomColor: palette.border }]}>
+        <View style={[styles.segmentedBox, { backgroundColor: palette.raised, borderColor: palette.border }]}>
+          {(
+            [
+              { key: "split", label: "Chia 3/7", icon: "vertical-split" },
+              { key: "translate", label: "Dịch nhanh", icon: "translate" },
+              { key: "reading", label: "Bài đọc", icon: "menu-book" },
+            ] as const
+          ).map((tab) => {
+            const active = layoutMode === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setLayoutMode(tab.key)}
+                style={[
+                  styles.segmentedItem,
+                  { flexDirection: "row", gap: 6 },
+                  active && { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1 },
+                ]}
+              >
+                <MaterialIcons name={tab.icon} size={16} color={active ? palette.accent : palette.muted} />
+                <Text style={[styles.segmentedText, { color: active ? palette.text : palette.muted }]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
-      {/* NỘI DUNG CHÍNH: CHIA 5/5 */}
+      {/* CHIA 3 / 7: Dịch (flex: 3) · Phân tích bài đọc (flex: 7) */}
       {layoutMode === "split" ? (
         <View style={[styles.splitContainer, { flexDirection: isWide ? "row" : "column" }]}>
           <View
             style={[
-              styles.splitHalf,
+              styles.splitTranslatePane,
               isWide
                 ? { borderRightWidth: 1, borderRightColor: palette.border }
                 : { borderBottomWidth: 1, borderBottomColor: palette.border },
@@ -1297,7 +1332,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
           >
             {renderTranslatePane()}
           </View>
-          <View style={styles.splitHalf}>{renderReadingPane()}</View>
+          <View style={styles.splitReadingPane}>{renderReadingPane()}</View>
         </View>
       ) : layoutMode === "translate" ? (
         <View style={{ flex: 1 }}>{renderTranslatePane()}</View>
@@ -1305,7 +1340,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         <View style={{ flex: 1 }}>{renderReadingPane()}</View>
       )}
 
-      {/* Modal danh sách bài đọc đã lưu */}
+      {/* Modal bài đọc đã lưu */}
       <Modal visible={showHistoryModal} animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={[styles.container, { backgroundColor: palette.bg }]}>
           <View
@@ -1321,14 +1356,14 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
             <View style={{ flex: 1 }}>
               <Text style={[styles.headerTitle, { color: palette.text }]}>Bài đọc đã lưu</Text>
               <Text style={[styles.headerSub, { color: palette.muted }]}>
-                Mở lại từ MongoDB · không tốn token AI
+                Mở lại từ MongoDB · 0 token
               </Text>
             </View>
             <TouchableOpacity
               onPress={() => setShowHistoryModal(false)}
-              style={[styles.miniIcon, { borderColor: palette.border, width: 36, height: 36 }]}
+              style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
             >
-              <MaterialIcons name="close" size={20} color={palette.text} />
+              <MaterialIcons name="close" size={18} color={palette.text} />
             </TouchableOpacity>
           </View>
 
@@ -1337,31 +1372,38 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
               <ActivityIndicator size="large" color={palette.accent} style={{ marginTop: 32 }} />
             ) : savedPassages.length === 0 ? (
               <Text style={{ color: palette.muted, textAlign: "center", marginTop: 40 }}>
-                Chưa có bài đọc nào được lưu.
+                Chưa có bài đọc nào được lưu
               </Text>
             ) : (
               savedPassages.map((p) => (
                 <TouchableOpacity
                   key={p._id}
                   onPress={() => handleOpenSavedPassage(p)}
-                  style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}
+                  style={[styles.mainCard, { backgroundColor: palette.card, borderColor: palette.border }]}
                 >
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <View style={styles.rowBetween}>
                     <Text style={[styles.passageTitle, { color: palette.text, flex: 1 }]}>{p.title}</Text>
                     <TouchableOpacity
                       onPress={(e) => {
                         if ((e as any)?.stopPropagation) (e as any).stopPropagation();
                         handleDeletePassage(p._id, p.title);
                       }}
-                      style={[styles.miniIcon, { borderColor: palette.border }]}
+                      style={[styles.iconBox, { backgroundColor: palette.raised, borderColor: palette.border }]}
                     >
-                      <MaterialIcons name="delete-outline" size={18} color={palette.repeatRed} />
+                      <MaterialIcons name="delete-outline" size={16} color={palette.repeatRed} />
                     </TouchableOpacity>
                   </View>
-                  <Text style={{ color: palette.secondary, fontSize: 13, marginTop: 6 }} numberOfLines={2}>
+                  <Text style={{ color: palette.secondary, fontSize: 14, marginTop: 8 }} numberOfLines={2}>
                     {p.content}
                   </Text>
-                  <Text style={{ color: palette.muted, fontSize: 12, marginTop: 8 }}>
+                  <Text
+                    style={{
+                      color: palette.muted,
+                      fontSize: 12,
+                      marginTop: 8,
+                      fontVariant: ["tabular-nums"],
+                    }}
+                  >
                     {p.vocabulary?.length || 0} từ mới · {p.grammarPoints?.length || 0} ngữ pháp
                   </Text>
                 </TouchableOpacity>
@@ -1371,28 +1413,31 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         </View>
       </Modal>
 
-      {/* Modal chọn tên bài để lưu Từ vựng hoặc Ngữ pháp */}
+      {/* Modal chọn tên bài lưu Từ vựng / Ngữ pháp */}
       <Modal visible={!!saveDialogMode} transparent animationType="fade" onRequestClose={() => setSaveDialogMode(null)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.saveDialog, { backgroundColor: palette.card, borderColor: palette.border }]}>
             <Text style={[styles.headerTitle, { color: palette.text }]}>
-              {saveDialogMode === "grammar" ? "Lưu vào Bài học Ngữ pháp" : "Lưu vào Flashcard"}
+              {saveDialogMode === "grammar" ? "Lưu vào bài học ngữ pháp" : "Lưu vào Flashcard"}
             </Text>
-            <Text style={{ fontSize: 13, color: palette.secondary, marginTop: 4, marginBottom: 12 }}>
+            <Text style={{ fontSize: 14, color: palette.secondary, marginTop: 4, marginBottom: 12 }}>
               {saveDialogMode === "grammar"
-                ? `Sẽ lưu ${selectedGrammarList.length > 0 ? selectedGrammarList.length : (activePassage?.grammarPoints?.length || 0)} cấu trúc ngữ pháp. Trùng tên bài cũ sẽ tự gộp chung.`
-                : `Sẽ lưu ${selectedVocabList.length > 0 ? selectedVocabList.length : (activePassage?.vocabulary?.length || 0)} từ kèm nghĩa tiếng Việt. Trùng tên bài cũ sẽ tự gộp chung.`}
+                ? `Lưu ${selectedGrammarList.length > 0 ? selectedGrammarList.length : (activePassage?.grammarPoints?.length || 0)} cấu trúc ngữ pháp`
+                : `Lưu ${selectedVocabList.length > 0 ? selectedVocabList.length : (activePassage?.vocabulary?.length || 0)} từ kèm nghĩa tiếng Việt`}
             </Text>
             <TextInput
               value={targetDeckTitle}
               onChangeText={setTargetDeckTitle}
-              placeholder={saveDialogMode === "grammar" ? "Nhập tên bài học ngữ pháp" : "Nhập tên bài học Flashcard"}
+              placeholder={saveDialogMode === "grammar" ? "Tên bài học ngữ pháp" : "Tên bài học Flashcard"}
               placeholderTextColor={palette.muted}
-              style={[styles.titleInput, { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border }]}
+              style={[
+                styles.titleInput,
+                { color: palette.text, backgroundColor: palette.bg, borderColor: palette.border },
+              ]}
             />
             {existingDecks.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                <View style={{ flexDirection: "row", gap: 6 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                <View style={styles.rowGap8}>
                   {existingDecks.slice(0, 12).map((d) => {
                     const active = targetDeckTitle.trim().toLowerCase() === d.title.trim().toLowerCase();
                     return (
@@ -1400,14 +1445,14 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                         key={d._id}
                         onPress={() => setTargetDeckTitle(d.title)}
                         style={[
-                          styles.miniBtn,
+                          styles.quietBtn,
                           {
                             borderColor: active ? palette.accent : palette.border,
                             backgroundColor: active ? palette.raised : "transparent",
                           },
                         ]}
                       >
-                        <Text style={[styles.miniBtnText, { color: active ? palette.accent : palette.secondary }]}>
+                        <Text style={[styles.quietBtnText, { color: active ? palette.accent : palette.secondary }]}>
                           {d.title}
                         </Text>
                       </TouchableOpacity>
@@ -1416,23 +1461,26 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                 </View>
               </ScrollView>
             )}
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            <View style={styles.rowGap8}>
               <TouchableOpacity
                 onPress={() => setSaveDialogMode(null)}
-                style={[styles.dialogBtn, { backgroundColor: palette.raised, borderColor: palette.border, borderWidth: 1 }]}
+                style={[
+                  styles.dialogBtn,
+                  { backgroundColor: palette.raised, borderColor: palette.border, borderWidth: 1 },
+                ]}
               >
-                <Text style={{ color: palette.text, fontWeight: "500" }}>Hủy</Text>
+                <Text style={{ color: palette.text, fontWeight: "500", fontSize: 14 }}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveToTarget}
                 disabled={savingTarget}
-                style={[styles.dialogBtn, { backgroundColor: palette.accent }]}
+                style={[styles.dialogBtn, { backgroundColor: palette.primaryBg }]}
               >
                 {savingTarget ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color={palette.primaryInk} />
                 ) : (
-                  <Text style={{ color: "#FFFFFF", fontWeight: "600" }}>
-                    {saveDialogMode === "grammar" ? "Lưu Ngữ pháp" : "Lưu Flashcard"}
+                  <Text style={{ color: palette.primaryInk, fontWeight: "600", fontSize: 14 }}>
+                    {saveDialogMode === "grammar" ? "Lưu ngữ pháp" : "Lưu Flashcard"}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1441,7 +1489,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         </View>
       </Modal>
 
-      {/* Modal phân tích bộ thủ 214 + câu chuyện AI */}
+      {/* Modal 214 bộ thủ dùng chung */}
       <WordAnalysisModal
         visible={!!analysisWord}
         word={analysisWord}
@@ -1450,9 +1498,9 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
       />
 
       {notice && (
-        <View style={styles.toast}>
-          <MaterialIcons name="check-circle" size={16} color="#4CC38A" />
-          <Text style={styles.toastText}>{notice}</Text>
+        <View style={[styles.toast, { backgroundColor: isDark ? "#EFE9DE" : "#1F1B16" }]}>
+          <MaterialIcons name="check-circle" size={16} color={isDark ? "#0F766E" : "#4CC38A"} />
+          <Text style={[styles.toastText, { color: isDark ? "#161513" : "#FDFBF7" }]}>{notice}</Text>
         </View>
       )}
     </View>
@@ -1465,164 +1513,148 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 17, fontWeight: "600" },
-  headerSub: { fontSize: 11.5, marginTop: 2 },
-  historyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  historyBtnText: { fontSize: 12, fontWeight: "600" },
-  splitToolbar: {
-    flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 6,
+  headerTitle: { fontSize: 18, fontWeight: "600" },
+  headerSub: { fontSize: 12, marginTop: 2 },
+  toolbarBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
   },
-  splitTabBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    paddingVertical: 7,
-    borderRadius: 9,
-  },
-  splitContainer: { flex: 1 },
-  splitHalf: { flex: 1, minHeight: 0 },
-  paneScroll: { flex: 1 },
-  paneBody: { padding: 14, paddingBottom: 60, gap: 12 },
-  paneTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  paneTitle: { fontSize: 14, fontWeight: "600" },
-  dirRow: {
+  segmentedBox: {
     flexDirection: "row",
     padding: 4,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     gap: 4,
   },
-  dirTab: { flex: 1, paddingVertical: 6, borderRadius: 7, alignItems: "center" },
-  card: { borderRadius: 14, borderWidth: 1, padding: 14 },
+  segmentedItem: {
+    flex: 1,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentedText: { fontSize: 12, fontWeight: "500" },
+  splitContainer: { flex: 1 },
+  // 3/7 proportion split
+  splitTranslatePane: { flex: 3, minHeight: 0 },
+  splitReadingPane: { flex: 7, minHeight: 0 },
+  paneScroll: { flex: 1 },
+  sidebarBody: { padding: 16, paddingBottom: 64, gap: 12 },
+  mainBody: { padding: 20, paddingBottom: 64, gap: 16 },
+  paneHeaderRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+  },
+  paneHeading: { fontSize: 16, fontWeight: "600" },
+  paneMeta: { fontSize: 12, fontWeight: "400" },
+  compactCard: { borderRadius: 12, borderWidth: 1, padding: 16 },
+  mainCard: { borderRadius: 16, borderWidth: 1, padding: 20 },
   titleInput: {
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    height: 40,
     fontSize: 14,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  inputHeader: {
+  inputArea: {
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: "top",
+    marginBottom: 12,
+  },
+  fieldLabel: { fontSize: 12, fontWeight: "500" },
+  rowBetween: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
   },
-  label: { fontSize: 12, fontWeight: "600" },
-  miniBtn: {
+  rowGap4: { flexDirection: "row", alignItems: "center", gap: 4 },
+  rowGap8: { flexDirection: "row", alignItems: "center", gap: 8 },
+  stack8: { gap: 8 },
+  stack12: { gap: 12 },
+  stack16: { gap: 16 },
+  quietBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    justifyContent: "center",
+    gap: 6,
+    height: 32,
+    paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
   },
-  miniBtnText: { fontSize: 12, fontWeight: "500" },
-  contentArea: {
-    minHeight: 105,
-    borderRadius: 10,
+  quietBtnText: { fontSize: 12, fontWeight: "500" },
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     borderWidth: 1,
-    padding: 10,
-    fontSize: 14.5,
-    textAlignVertical: "top",
-    marginBottom: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
-    paddingVertical: 11,
-    borderRadius: 10,
+    gap: 8,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
-  primaryBtnText: { color: "#FFFFFF", fontSize: 13.5, fontWeight: "600" },
-  zhResult: { fontSize: 19, fontWeight: "600", lineHeight: 28 },
-  pinyinResult: { fontSize: 13.5, marginTop: 4 },
-  divider: { height: 1, marginVertical: 10 },
-  viResult: { fontSize: 14.5, lineHeight: 21 },
-  sentenceItem: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
-  kwRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9 },
-  passageHeader: {
+  primaryBtnText: { fontSize: 14, fontWeight: "600" },
+  zhResult: { fontSize: 18, fontWeight: "600", lineHeight: 28 },
+  pinyinText: { fontSize: 14, marginTop: 4, fontWeight: "500" },
+  divider: { height: 1, marginVertical: 12 },
+  viResult: { fontSize: 14, lineHeight: 20 },
+  listRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    paddingVertical: 12,
     gap: 8,
   },
-  passageTitle: { fontSize: 15.5, fontWeight: "600", flex: 1 },
-  passageText: { fontSize: 16, lineHeight: 26 },
-  passagePinyin: { fontSize: 13, lineHeight: 19, marginTop: 8 },
-  translationBox: { marginTop: 10, padding: 10, borderRadius: 10 },
-  translationText: { fontSize: 13.5, lineHeight: 20 },
-  sectionBlock: { gap: 8 },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 2,
-  },
-  sectionTitle: { fontSize: 14.5, fontWeight: "600" },
-  sectionHint: { fontSize: 11.5, marginTop: 2 },
-  saveFlashcardBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 9,
-  },
+  passageTitle: { fontSize: 16, fontWeight: "600", flex: 1 },
+  passageText: { fontSize: 18, lineHeight: 28 },
+  passagePinyin: { fontSize: 14, lineHeight: 20, marginTop: 12 },
+  translationBox: { marginTop: 12, padding: 12, borderRadius: 12 },
+  translationText: { fontSize: 14, lineHeight: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: "600" },
+  sectionHint: { fontSize: 12, marginTop: 2 },
   vocabCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 11,
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 10,
+    gap: 12,
   },
   checkbox: {
-    width: 21,
-    height: 21,
-    borderRadius: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 4,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
   vocabTopRow: { flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap" },
-  vocabTerm: { fontSize: 17, fontWeight: "600" },
-  vocabPinyin: { fontSize: 12.5, fontWeight: "500" },
-  vocabPos: { fontSize: 11.5 },
-  vocabMeaning: { fontSize: 13, marginTop: 2 },
-  repeatBadgeText: { fontSize: 11.5, fontWeight: "600", marginTop: 4 },
-  miniIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  grammarPattern: { fontSize: 14.5, fontWeight: "600" },
-  grammarMeaning: { fontSize: 13.5, marginTop: 4, fontWeight: "500" },
-  grammarExp: { fontSize: 12.5, marginTop: 4, lineHeight: 18 },
-  exampleBox: { marginTop: 8, padding: 9, borderRadius: 8 },
+  vocabTerm: { fontSize: 18, fontWeight: "600" },
+  vocabPinyin: { fontSize: 12, fontWeight: "500" },
+  vocabPos: { fontSize: 12 },
+  vocabMeaning: { fontSize: 14, marginTop: 4 },
+  repeatMetaText: { fontSize: 12, fontWeight: "500", marginTop: 4, fontVariant: ["tabular-nums"] },
+  grammarPattern: { fontSize: 16, fontWeight: "600" },
+  grammarMeaning: { fontSize: 14, marginTop: 4, fontWeight: "500" },
+  grammarExp: { fontSize: 14, marginTop: 4, lineHeight: 20 },
+  exampleBox: { marginTop: 8, padding: 12, borderRadius: 8 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -1630,19 +1662,24 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   saveDialog: { borderRadius: 16, borderWidth: 1, padding: 20 },
-  dialogBtn: { flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: "center" },
+  dialogBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   toast: {
     position: "absolute",
     bottom: 24,
     alignSelf: "center",
-    backgroundColor: "#111827",
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
+    height: 40,
+    borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     zIndex: 999,
   },
-  toastText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
+  toastText: { fontSize: 14, fontWeight: "500" },
 });
