@@ -107,11 +107,11 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Tab 5 — Bài đọc (Phân tích bài đọc & đối chiếu từ lặp) */}
+      {/* Tab 5 — Đọc & Dịch chia 5/5 (Dịch nhanh + Phân tích bài đọc) */}
       <Tabs.Screen
         name="reading"
         options={{
-          title: 'Bài đọc',
+          title: 'Đọc & Dịch',
           tabBarIcon: ({ color }) => <MaterialIcons name="menu-book" size={20} color={color} />,
         }}
       />

@@ -180,6 +180,8 @@ export default function WordAnalysisModal({
         list: [
           {
             term: data.word,
+            reading: data.pinyin || data.word,
+            meaning: data.meaning || data.hanviet || "Từ vựng tiếng Trung",
             def: JSON.stringify({
               reading: data.pinyin || data.word,
               pinyin: data.pinyin || "",
