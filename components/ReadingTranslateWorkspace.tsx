@@ -742,7 +742,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
                 onPress={() => handleSendToReading(translateResult.chineseText)}
                 style={[styles.quietBtn, { backgroundColor: palette.raised, borderColor: palette.border }]}
               >
-                <MaterialIcons name="arrow-forward" size={16} color={palette.secondary} />
+                <MaterialIcons name="arrow-back" size={16} color={palette.secondary} />
                 <Text style={[styles.quietBtnText, { color: palette.text }]}>Sang bài đọc</Text>
               </TouchableOpacity>
             </View>
@@ -926,7 +926,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
           multiline
           value={contentInput}
           onChangeText={setContentInput}
-          placeholder="Dán đoạn văn tiếng Trung vào đây hoặc bấm Sang bài đọc ở khung bên cạnh"
+          placeholder="Dán đoạn văn tiếng Trung vào đây hoặc bấm Sang bài đọc ở khung bên phải"
           placeholderTextColor={palette.muted}
           style={[
             styles.inputArea,
@@ -1253,7 +1253,7 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: palette.text }]}>Đọc & Dịch</Text>
           <Text style={[styles.headerSub, { color: palette.muted }]} numberOfLines={1}>
-            Dịch nhanh 3/7 và phân tích bài đọc
+            Phân tích bài đọc 7/3 và dịch nhanh
           </Text>
         </View>
 
@@ -1293,9 +1293,9 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         <View style={[styles.segmentedBox, { backgroundColor: palette.raised, borderColor: palette.border }]}>
           {(
             [
-              { key: "split", label: "Chia 3/7", icon: "vertical-split" },
-              { key: "translate", label: "Dịch nhanh", icon: "translate" },
+              { key: "split", label: "Chia 7/3", icon: "vertical-split" },
               { key: "reading", label: "Bài đọc", icon: "menu-book" },
+              { key: "translate", label: "Dịch nhanh", icon: "translate" },
             ] as const
           ).map((tab) => {
             const active = layoutMode === tab.key;
@@ -1319,20 +1319,20 @@ export default function ReadingTranslateWorkspace({ showBackButton = false }: Pr
         </View>
       </View>
 
-      {/* CHIA 3 / 7: Dịch (flex: 3) · Phân tích bài đọc (flex: 7) */}
+      {/* CHIA 7 / 3: Phân tích bài đọc bên trái (flex: 7) · Dịch nhanh bên phải (flex: 3) */}
       {layoutMode === "split" ? (
         <View style={[styles.splitContainer, { flexDirection: isWide ? "row" : "column" }]}>
           <View
             style={[
-              styles.splitTranslatePane,
+              styles.splitReadingPane,
               isWide
                 ? { borderRightWidth: 1, borderRightColor: palette.border }
                 : { borderBottomWidth: 1, borderBottomColor: palette.border },
             ]}
           >
-            {renderTranslatePane()}
+            {renderReadingPane()}
           </View>
-          <View style={styles.splitReadingPane}>{renderReadingPane()}</View>
+          <View style={styles.splitTranslatePane}>{renderTranslatePane()}</View>
         </View>
       ) : layoutMode === "translate" ? (
         <View style={{ flex: 1 }}>{renderTranslatePane()}</View>
